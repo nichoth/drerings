@@ -1,0 +1,50 @@
+{
+  "type": "module",
+  "private": "true",
+  "version": "0.0.0",
+  "main": "public/index.js",
+  "scripts": {
+    "lint": "eslint \"./**/*.{ts,js}\"",
+    "build-tests": "esbuild test/index.ts --bundle --format=cjs --keep-names > test/test-bundle.js",
+    "test": "npm run lint && npm run build && npm run build-tests && npm run test-tape-run",
+    "test-tape-run": "cat test/index.html | npx tape-run --input=html --static=test | npx tap-spec",
+    "build": "mkdir -p ./public && rm -rf ./public/* && vite build",
+    "start": "concurrently --kill-others \"npx ntl functions:serve --port=9999 --debug\" \"npx vite\"",
+    "preversion": "npm run lint",
+    "version": "auto-changelog --template keepachangelog --breaking-pattern 'BREAKING CHANGE' && git add CHANGELOG.md",
+    "postversion": "git push --follow-tags",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@substrate-system/routes": "^5.0.2",
+    "@nichoth/components": "^0.16.16",
+    "@preact/signals": "^2.0.1",
+    "htm": "^3.1.1",
+    "ky": "^1.7.5",
+    "preact": "^10.26.4",
+    "route-event": "^7.1.1"
+  },
+  "devDependencies": {
+    "@substrate-system/debug": "^0.9.0",
+    "@substrate-system/tapzero": "^0.10.15",
+    "@netlify/functions": "^4.1.8",
+    "@preact/preset-vite": "^2.9.4",
+    "@typescript-eslint/eslint-plugin": "^8.8.1",
+    "@typescript-eslint/parser": "^8.8.1",
+    "auto-changelog": "^2.4.0",
+    "concurrently": "^9.0.1",
+    "cssnano": "^7.0.6",
+    "esbuild": "^0.25.0",
+    "eslint": "^8.57.0",
+    "eslint-config-standard": "^17.1.0",
+    "netlify-cli": "^23.4.3",
+    "postcss-nesting": "^13.0.1",
+    "stylelint": "^16.13.0",
+    "stylelint-config-standard": "^39.0.0",
+    "tap-spec": "^5.0.0",
+    "tape-run": "^11.0.0",
+    "typescript": "^5.8.2",
+    "vite": "^7.0.0"
+  },
+  "author": "nichoth <nichoth@nichoth.com> (https://nichoth.com)"
+}
