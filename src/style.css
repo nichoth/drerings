@@ -1,3 +1,86 @@
+@import url("../node_modules/@substrate-system/css-normalize/dist/index.css");
+@import url("../node_modules/@substrate-system/a11y/dist/index.css");
+
+:root {
+    --focus-color: #00c8ff;
+    --middle-gray: #d3d3d363;
+}
+
+body {
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid;
+    padding: 0 1rem;
+
+    & h1 {
+        font-size: 1.2rem;
+    }
+}
+
+main {
+    max-width: 40rem;
+    padding: 0 1rem;
+}
+
+.route {
+    margin-top: 2rem;
+}
+
+h2 {
+    margin-bottom: 1rem;
+}
+
+hr {
+    margin: 1rem 0;
+}
+
+nav {
+    margin: 1.5rem 0;
+
+    & li {
+        & a {
+            transition: all 0.2s;
+            text-decoration-style: solid;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 1px;
+        }
+
+        &.active {
+            & a {
+                text-decoration-thickness: 2px;
+                text-underline-offset: 3px;
+                text-decoration-style: solid;
+            }
+        }
+    }
+
+    & ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        justify-content: space-around;
+        gap: 2rem;
+    }
+}
+
+.controls {
+    text-align: right;
+}
+
+#root {
+    margin: 0 auto;
+}
+
+input.input {
+    border: 1px solid;
+    border-radius: 0;
+}
+
 .count-controls {
     list-style: none;
     padding: 0;
@@ -9,19 +92,16 @@
 
 button {
     cursor: pointer;
-
-    &:hover {
-        background: seashell;
-    }
+    border-radius: 0;
 }
 
-body {
-    & div {
-        margin-bottom: 1rem;
-    }
+button.btn, a.btn {
+    border: 1px solid;
+    border-radius: 0;
+    padding: 0.5rem 1rem;
 }
 
 pre {
     padding: 2rem;
-    background-color: #d3d3d363;
+    background-color: var(--middle-gray);
 }

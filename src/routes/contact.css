@@ -1,0 +1,14 @@
+.route.contact {
+    & form {
+        max-width: 20rem;
+        margin: 0 auto;
+        border: 1px solid;
+        padding: 1rem;
+
+        & > div {
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+}

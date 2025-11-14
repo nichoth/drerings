@@ -1,4 +1,4 @@
-import type { Context, Config } from '@netlify/functions'
+import type { Context } from '@netlify/functions'
 
 export default async (req:Request, context:Context) => {
     const { param, splat } = context.params
@@ -15,6 +15,6 @@ export default async (req:Request, context:Context) => {
     })
 }
 
-export const config:Config = {
-    path: ['/api/example/:param?', '/api/example/splat/*']
-}
+// export const config:Config = {
+//     path: ['/api/example/:param?', '/api/example/splat/*']
+// }

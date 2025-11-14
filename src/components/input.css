@@ -1,0 +1,15 @@
+div.input {
+    & label {
+        display: block;
+    }
+
+    & input {
+        transition: all 0.2s;
+        outline: 1px solid transparent;
+
+        &:focus {
+            border-color: var(--focus-color);
+            outline-color: var(--focus-color);
+        }
+    }
+}

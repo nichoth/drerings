@@ -1,31 +1,22 @@
-import { html } from 'htm/preact'
 import Router from '@substrate-system/routes'
 import { HomeRoute } from './home.js'
+import { ContactRoute } from './contact.js'
 
-export default function _Router ():ReturnType<Router> {
+export default function _Router ():InstanceType<typeof Router> {
     const router = new Router()
 
     router.addRoute('/', () => {
         return HomeRoute
     })
 
-    router.addRoute('/aaa', () => {
-        return () => {
-            return html`<h2>aaa</h2>`
-        }
-    })
-
-    router.addRoute('/bbb', () => {
-        return () => {
-            return html`<h2>bbb</h2>`
-        }
-    })
-
-    router.addRoute('/ccc', () => {
-        return () => {
-            return html`<h2>ccc</h2>`
-        }
+    router.addRoute('/contact', () => {
+        return ContactRoute
     })
 
     return router
 }
+
+export const routes = [
+    { href: '/', text: 'home' },
+    { href: '/contact', text: 'contact' }
+]

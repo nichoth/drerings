@@ -1,83 +1,63 @@
 import { html } from 'htm/preact'
-import { FunctionComponent, render } from 'preact'
-import {
-    Primary as ButtonOutlinePrimary,
-    ButtonOutline
-} from '@nichoth/components/htm/button-outline'
-import { createDebug } from '@substrate-system/debug'
-import ky from 'ky'
+import { type FunctionComponent, render } from 'preact'
+import Debug from '@substrate-system/debug'
 import { State } from './state.js'
-import Router from './routes/index.js'
-import '@nichoth/components/button-outline.css'
+import Router, { routes } from './routes/index.js'
 import './style.css'
 
 const router = Router()
 const state = State()
-const debug = createDebug()
+const debug = Debug('example')
 
-if (import.meta.env.DEV || import.meta.env.MODE === 'staging') {
+// set debug logging in local env
+if (isDev()) {
+    localStorage.setItem('DEBUG', 'example:*,example')
     // @ts-expect-error DEV env
     window.state = state
+} else {
+    localStorage.removeItem('DEBUG')
+    localStorage.removeItem('debug')
 }
 
-// example of calling our API
-const json = await ky.get('/api/example').json()
-
 export const Example:FunctionComponent = function Example () {
-    debug('rendering example...')
+    debug('rendering example...', state)
     const match = router.match(state.route.value)
-    const ChildNode = match.action(match, state.route.value)
 
-    if (!match) {
+    if (!match || !match.action) {
         return html`<div class="404">
             <h1>404</h1>
         </div>`
     }
 
-    function plus (ev) {
-        ev.preventDefault()
-        State.Increase(state)
-    }
+    const ChildNode = match.action(match, state.route.value)
 
-    function minus (ev) {
-        ev.preventDefault()
-        State.Decrease(state)
-    }
+    return html`
+    <header>
+        <h1>ABC</h1>
 
-    return html`<div>
-        <h1>example</h1>
-
-        <h2>the API response</h2>
-        <pre>
-            ${JSON.stringify(json, null, 2)}
-        </pre>
-
-        <h2>routes</h2>
-        <ul>
-            <li><a href="/aaa">aaa</a></li>
-            <li><a href="/bbb">bbb</a></li>
-            <li><a href="/ccc">ccc</a></li>
-        </ul>
-
-        <h2>counter</h2>
-        <div>
-            <div>count: ${state.count.value}</div>
-            <ul class="count-controls">
-                <li>
-                    <${ButtonOutlinePrimary} onClick=${plus}>
-                        plus
-                    </${ButtonOutline}>
-                </li>
-                <li>
-                    <${ButtonOutline} onClick=${minus}>
-                        minus
-                    </${ButtonOutline}>
-                </li>
-            </ul>
-        </div>
-
-        <${ChildNode} />
-    </div>`
+        <${Nav} route=${state.route.value} />
+    </header>
+    <main>
+        <${ChildNode} state=${state} />
+    </main>`
 }
 
 render(html`<${Example} />`, document.getElementById('root')!)
+
+function isDev ():boolean {
+    return !!(import.meta.env.DEV || import.meta.env.MODE === 'staging')
+}
+
+function Nav ({ route }:{ route:string }):ReturnType<typeof html> {
+    return html`<nav aria-label="Main navigation">
+        <ul>
+            ${routes.map(r => {
+                return html`<li class="nav${route === r.href ? ' active' : ''}">
+                    <a href="${r.href}">${r.text}</a>
+                </li>`
+            })}
+        </ul>
+    </nav>`
+
+    // <li><a href="/contact">contact</a></li> -->
+}
