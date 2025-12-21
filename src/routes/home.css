@@ -4,8 +4,7 @@
     cursor: crosshair;
     width: 80vw;
     height: 80vh;
-    position: fixed;
-    top: 20vh;
-    left: 10vw;
-    z-index: 2;
+    /* position: fixed; */
+    /* top: 20vh; */
+    /* left: 10vw; */
 }

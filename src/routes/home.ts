@@ -26,8 +26,10 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
         atrament.smoothing = 0.7
     }, [sketchpad.current])
 
-    return html`<div class="route">
-        Draw things, show people your drawings.
+    return html`<div class="route home">
+        <p>
+            Draw things, show people your drawings.
+        </p>
 
         <canvas ref=${sketchpad} id="sketchpad"></canvas>
     </div>`

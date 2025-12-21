@@ -8,6 +8,12 @@
 
 body {
     font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    margin-bottom: 4rem;
+}
+
+p {
+    max-width: 80vw;
+    margin: 1rem auto;
 }
 
 header {
@@ -23,7 +29,7 @@ header {
 }
 
 main {
-    max-width: 40rem;
+    /* max-width: 40rem; */
     padding: 0 1rem;
 }
 
