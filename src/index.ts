@@ -11,7 +11,7 @@ const debug = Debug('example')
 
 // set debug logging in local env
 if (isDev()) {
-    localStorage.setItem('DEBUG', 'example:*,example')
+    localStorage.setItem('DEBUG', 'drerings:*,drerings')
     // @ts-expect-error DEV env
     window.state = state
 } else {
@@ -33,7 +33,7 @@ export const Example:FunctionComponent = function Example () {
 
     return html`
     <header>
-        <h1>ABC</h1>
+        <h1>Drerings</h1>
 
         <${Nav} route=${state.route.value} />
     </header>

@@ -1,4 +1,4 @@
-import { Signal, signal } from '@preact/signals'
+import { type Signal, signal } from '@preact/signals'
 import Route from 'route-event'
 
 /**

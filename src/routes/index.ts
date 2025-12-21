@@ -17,6 +17,7 @@ export default function _Router ():InstanceType<typeof Router> {
 }
 
 export const routes = [
-    { href: '/', text: 'home' },
-    { href: '/contact', text: 'contact' }
+    { href: '/', text: 'Home' },
+    { href: '/contact', text: 'Contact' },
+    { href: '/about', text: 'About' }
 ]
