@@ -4,6 +4,7 @@
 :root {
     --focus-color: #00c8ff;
     --middle-gray: #d3d3d363;
+    --main-text: black;
 }
 
 body {
@@ -11,9 +12,26 @@ body {
     margin-bottom: 4rem;
 }
 
-p {
+.route {
+    min-height: 100vh;
+    margin-top: 2rem;
+}
+
+footer {
+    border-top: 1px solid;
+    padding-top: 2rem;
+    margin: 0 auto;
+    margin-top: 4rem;
     max-width: 80vw;
-    margin: 1rem auto;
+    text-align: center;
+}
+
+.not-found {
+    margin: 1rem;
+}
+
+p {
+    margin-bottom: 1rem;
 }
 
 header {
@@ -23,18 +41,30 @@ header {
     border-bottom: 1px solid;
     padding: 0 1.5rem;
 
+    & a {
+        transition: all 0.2s;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 1px;
+
+        &:hover {
+            text-decoration-thickness: 2px;
+            text-underline-offset: 3px;
+        }
+    }
+
     & h1 {
         font-size: 1.2rem;
+
+        & a {
+            text-decoration: none;
+            color: var(--main-text);
+        }
     }
 }
 
 main {
-    /* max-width: 40rem; */
-    padding: 0 1rem;
-}
-
-.route {
-    margin-top: 2rem;
+    max-width: 80vw;
+    margin: 0 auto;
 }
 
 h2 {
@@ -49,13 +79,6 @@ nav {
     margin: 1.5rem 0;
 
     & li {
-        & a {
-            transition: all 0.2s;
-            text-decoration-style: solid;
-            text-decoration-thickness: 1px;
-            text-underline-offset: 1px;
-        }
-
         &.active {
             & a {
                 text-decoration-thickness: 2px;

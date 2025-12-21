@@ -1,6 +1,7 @@
 import Router from '@substrate-system/routes'
 import { HomeRoute } from './home.js'
 import { ContactRoute } from './contact.js'
+import { ColophonRoute } from './colophon.js'
 
 export default function _Router ():InstanceType<typeof Router> {
     const router = new Router()
@@ -13,11 +14,14 @@ export default function _Router ():InstanceType<typeof Router> {
         return ContactRoute
     })
 
+    router.addRoute('/colophon', () => {
+        return ColophonRoute
+    })
+
     return router
 }
 
 export const routes = [
     { href: '/', text: 'Home' },
-    { href: '/contact', text: 'Contact' },
-    { href: '/about', text: 'About' }
+    { href: '/colophon', text: 'About' }
 ]

@@ -28,7 +28,7 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
 
     return html`<div class="route home">
         <p>
-            Draw things, show people your drawings.
+            Draw things, and show people your drawings.
         </p>
 
         <canvas ref=${sketchpad} id="sketchpad"></canvas>

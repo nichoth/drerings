@@ -3,6 +3,7 @@ import { type FunctionComponent, render } from 'preact'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
 import Router, { routes } from './routes/index.js'
+import { COPYRIGHT } from './constants.js'
 import './style.css'
 
 const router = Router()
@@ -24,7 +25,7 @@ export const Example:FunctionComponent = function Example () {
     const match = router.match(state.route.value)
 
     if (!match || !match.action) {
-        return html`<div class="404">
+        return html`<div class="not-found">
             <h1>404</h1>
         </div>`
     }
@@ -33,13 +34,21 @@ export const Example:FunctionComponent = function Example () {
 
     return html`
     <header>
-        <h1>Drerings</h1>
+        <h1><a href="/">Drerings</a></h1>
 
         <${Nav} route=${state.route.value} />
+
+        <div><a href="/login">Login</a></div>
     </header>
     <main>
         <${ChildNode} state=${state} />
-    </main>`
+    </main>
+    <footer>
+        ${COPYRIGHT} 2025, <a href="https://bsky.app/profile/nichoth.com">
+            @nichoth
+        </a>
+    </footer>
+    `
 }
 
 render(html`<${Example} />`, document.getElementById('root')!)
