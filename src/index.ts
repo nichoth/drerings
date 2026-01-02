@@ -1,14 +1,17 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent, render } from 'preact'
+import { useCallback, useMemo } from 'preact/hooks'
+import { useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
+import { Button } from './components/button.js'
 import Router, { routes } from './routes/index.js'
 import { COPYRIGHT } from './constants.js'
 import './style.css'
 
 const router = Router()
 const state = State()
-const debug = Debug('example')
+const debug = Debug('drerings')
 
 // set debug logging in local env
 if (isDev()) {
@@ -17,12 +20,19 @@ if (isDev()) {
     window.state = state
 } else {
     localStorage.removeItem('DEBUG')
-    localStorage.removeItem('debug')
 }
 
-export const Example:FunctionComponent = function Example () {
+export const Drerings:FunctionComponent = function Drerings () {
     debug('rendering example...', state)
-    const match = router.match(state.route.value)
+    const match = useMemo(() => {
+        return router.match(state.route.value)
+    }, [state.route.value])
+
+    const logout = useCallback(() => {
+        State.Logout(state)
+    }, [])
+
+    const isResolving = useSignal<boolean>(false)
 
     if (!match || !match.action) {
         return html`<div class="not-found">
@@ -30,16 +40,46 @@ export const Example:FunctionComponent = function Example () {
         </div>`
     }
 
+    const isAuthed = useComputed<boolean>(() => {
+        return !!state.auth.value?.authenticated
+    })
+
     const ChildNode = match.action(match, state.route.value)
 
     return html`
     <header>
         <h1><a href="/">Drerings</a></h1>
-
         <${Nav} route=${state.route.value} />
 
-        <div><a href="/login">Login</a></div>
+        <ul>
+            ${isAuthed.value ?
+                html`
+                    <li><a href="/feed">Feed</a></li>
+                    <li><a href="/new">New Post</a></li>
+                    <li><a href="whoami">Who Am I?</a></li>
+                    <li>
+                        <${Button}
+                            isSpinning=${isResolving}
+                            onClick=${logout}
+                        >
+                            Logout
+                        <//>
+                    </li>
+                    <li>
+                        <div class="avatar">
+                            <a href="/whoami">
+                                <img
+                                    class="avatar"
+                                    src="${state.profile.value?.avatar}"
+                                />
+                            </a>
+                        </div>
+                    </li>
+                ` : html`<li><a href="/login">Login</a></li>`
+            }
+        </ul>
     </header>
+
     <main>
         <${ChildNode} state=${state} />
     </main>
@@ -51,7 +91,7 @@ export const Example:FunctionComponent = function Example () {
     `
 }
 
-render(html`<${Example} />`, document.getElementById('root')!)
+render(html`<${Drerings} />`, document.getElementById('root')!)
 
 function isDev ():boolean {
     return !!(import.meta.env.DEV || import.meta.env.MODE === 'staging')

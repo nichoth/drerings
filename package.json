@@ -16,6 +16,8 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@atproto/api": "^0.18.8",
+    "@atproto/identity": "^0.4.10",
     "@preact/signals": "^2.0.1",
     "@substrate-system/a11y": "^0.0.17",
     "@substrate-system/atrament": "^5.1.4",

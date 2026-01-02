@@ -41,6 +41,11 @@ header {
     border-bottom: 1px solid;
     padding: 0 1.5rem;
 
+    & ul {
+        list-style: none;
+        padding: 0;
+    }
+
     & a {
         transition: all 0.2s;
         text-decoration-thickness: 1px;
