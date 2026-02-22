@@ -1,5 +1,5 @@
 import { html } from 'htm/preact'
-import { useRef, useEffect } from 'preact/hooks'
+import { useRef, useEffect, useCallback } from 'preact/hooks'
 import { type FunctionComponent } from 'preact'
 import Atrament from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
@@ -35,6 +35,11 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
         })
     }, [sketchpad.current])
 
+    const submitDrering = useCallback((ev:SubmitEvent) => {
+        ev.preventDefault()
+        debug('submit my drawing...', ev.target)
+    }, [])
+
     return html`<div class="route home">
         <p>
             Draw things, and show people your drawings.
@@ -42,7 +47,7 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
 
         <canvas ref=${sketchpad} id="sketchpad"></canvas>
 
-        <form>
+        <form onSubmit=${submitDrering}>
             <div class="controls">
                 <${Button}
                     type="submit"
