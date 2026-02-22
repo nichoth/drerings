@@ -4,22 +4,17 @@ import {
     type Signal,
     signal
 } from '@preact/signals'
-import { type Agent } from '@atproto/api'
+import type { Agent, AtpSessionData } from '@atproto/api'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
-import {
-    startAuthentication,
-    startRegistration,
-} from '@simplewebauthn/browser'
-import type {
-    PublicKeyCredentialCreationOptionsJSON,
-    PublicKeyCredentialRequestOptionsJSON,
-} from '@simplewebauthn/browser'
 import { RequestState, type RequestFor } from '@substrate-system/state'
 import ky from 'ky'
 const debug = Debug('drerings:state')
+const DEFAULT_BSKY_SERVICE = 'https://bsky.social'
+const OAUTH_CALLBACK_PATH = '/login'
 
 export { RequestState, type RequestFor }
+
 export interface AuthStatus {
     registered:boolean;
     authenticated:boolean;
@@ -58,8 +53,8 @@ export function State ():{
             registered: false,
             authenticated: false
         }),
-        agent: signal(null),
-        profile: signal(null),
+        agent: signal<Agent|null>(null),
+        profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname + location.search),
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
@@ -85,18 +80,34 @@ export function State ():{
 
 export type AppState = ReturnType<typeof State>
 
-type RegisterOptionsResponse = {
-    options:PublicKeyCredentialCreationOptionsJSON;
-    challengeKey:string;
-}
-
-type LoginOptionsResponse = {
-    options:PublicKeyCredentialRequestOptionsJSON;
-    challengeKey:string;
-}
-
 type AuthStatusResponse = Partial<AuthStatus> & {
     profile?:UserState|null;
+}
+
+type OAuthStartResponse = {
+    authorizeUrl?:string;
+    url?:string;
+}
+
+type OAuthFinishResponse = {
+    session?:AtpSessionData|null;
+    service?:string;
+    profile?:UserState|null;
+}
+
+function oauthRedirectUri ():string {
+    return new URL(OAUTH_CALLBACK_PATH, window.location.origin).toString()
+}
+
+async function setAgentFromSession (
+    state:AppState,
+    session:AtpSessionData,
+    service:string = DEFAULT_BSKY_SERVICE
+):Promise<void> {
+    const { AtpAgent } = await import('@atproto/api')
+    const agent = new AtpAgent({ service })
+    await agent.resumeSession(session)
+    state.agent.value = agent
 }
 
 State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
@@ -110,6 +121,11 @@ State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
             authenticated: !!authStatus?.authenticated
         }
         state.profile.value = authStatus?.profile || null
+
+        if (state.auth.value.authenticated && !state.agent.value) {
+            await State.hydrateAgent(state)
+        }
+
         return state.auth.value
     } catch (err) {
         debug('fetch auth status error', err)
@@ -120,52 +136,125 @@ State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
 }
 
 /**
- * Authenticate with a passkey.
+ * Start OAuth with Bluesky.
  */
-State.login = async function (state:AppState):Promise<void> {
-    const optionsRes = await ky.post('/api/auth/authenticate/options')
-        .json<LoginOptionsResponse>()
+State.login = async function (state:AppState, handle:string):Promise<void> {
+    const normalizedHandle = handle.trim()
+    if (!normalizedHandle) {
+        throw new Error('Bluesky handle is required')
+    }
 
-    const credential = await startAuthentication({
-        optionsJSON: optionsRes.options,
-    })
-
-    await ky.post('/api/auth/authenticate/verify', {
+    const res = await ky.post('/api/auth/oauth/start', {
         json: {
-            challengeKey: optionsRes.challengeKey,
-            response: credential,
+            handle: normalizedHandle,
+            redirectTo: oauthRedirectUri()
         }
-    })
+    }).json<OAuthStartResponse>()
+
+    const authorizeUrl = res.authorizeUrl || res.url
+    if (!authorizeUrl) {
+        throw new Error('OAuth start response did not include an authorize URL')
+    }
+
+    window.location.assign(authorizeUrl)
+}
+
+/**
+ * Finish OAuth after redirecting back to the app.
+ */
+State.finishOAuth = async function (
+    state:AppState,
+    query:URLSearchParams|string
+):Promise<void> {
+    const queryString = typeof query === 'string' ?
+        query.replace(/^\?/, '') :
+        query.toString()
+
+    const res = await ky.post('/api/auth/oauth/finish', {
+        json: {
+            query: queryString,
+            redirectTo: oauthRedirectUri()
+        }
+    }).json<OAuthFinishResponse>()
+
+    if (res?.session) {
+        try {
+            await setAgentFromSession(
+                state,
+                res.session,
+                res.service || DEFAULT_BSKY_SERVICE
+            )
+        } catch (err) {
+            debug('set agent from oauth session error', err)
+        }
+    }
+
+    if (res?.profile) {
+        state.profile.value = res.profile
+    }
 
     await State.fetchAuthStatus(state)
 }
 
 /**
- * Register a passkey.
+ * Build an agent from a pre-existing session.
  */
-State.register = async function (state:AppState, secret:string):Promise<void> {
-    const normalizedSecret = secret.trim()
-    if (!normalizedSecret) {
-        throw new Error('Registration secret is required')
+State.createAgent = async function (
+    state:AppState,
+    session:AtpSessionData,
+    service?:string
+):Promise<void> {
+    await setAgentFromSession(state, session, service || DEFAULT_BSKY_SERVICE)
+}
+
+/**
+ * Optionally hydrate the state agent from server-provided session data.
+ */
+State.hydrateAgent = async function (state:AppState):Promise<Agent|null> {
+    try {
+        const res = await ky.get('/api/auth/session')
+            .json<{ session?:AtpSessionData|null; service?:string }>()
+        if (!res?.session) return null
+        await setAgentFromSession(
+            state,
+            res.session,
+            res.service || DEFAULT_BSKY_SERVICE
+        )
+        return state.agent.value
+    } catch (err) {
+        debug('hydrate agent error', err)
+        return null
     }
+}
 
-    const optionsRes = await ky.post('/api/auth/register/options', {
-        json: { secret: normalizedSecret }
-    }).json<RegisterOptionsResponse>()
+/**
+ * True when URL looks like an OAuth callback redirect.
+ */
+State.hasOAuthCallback = function (query:URLSearchParams|string):boolean {
+    const params = typeof query === 'string' ?
+        new URLSearchParams(query.replace(/^\?/, '')) :
+        query
+    return params.has('code') || params.has('error')
+}
 
-    const credential = await startRegistration({
-        optionsJSON: optionsRes.options,
-    })
+/**
+ * Get OAuth callback error message from query params.
+ */
+State.readOAuthError = function (query:URLSearchParams|string):string|null {
+    const params = typeof query === 'string' ?
+        new URLSearchParams(query.replace(/^\?/, '')) :
+        query
+    const error = params.get('error')
+    if (!error) return null
+    return params.get('error_description') || error
+}
 
-    await ky.post('/api/auth/register/verify', {
-        json: {
-            secret: normalizedSecret,
-            challengeKey: optionsRes.challengeKey,
-            response: credential,
-        }
-    })
-
-    await State.fetchAuthStatus(state)
+/**
+ * Clear current OAuth callback params from browser URL.
+ */
+State.clearOAuthQuery = function ():void {
+    if (!window.location.search) return
+    window.history.replaceState(null, '', window.location.pathname)
 }
 
 /**

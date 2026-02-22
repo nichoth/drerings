@@ -2,14 +2,29 @@
     max-width: 36rem;
     margin: 0 auto;
 
-    & header {
-        border-bottom: none;
-        display: block;
-        padding: 0;
+    & .login-intro {
+        margin-bottom: 1rem;
     }
 
-    & section {
-        margin-top: 1.5rem;
+    & .login-form {
+        margin-top: 1rem;
+    }
+
+    & .input {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    & input[type="text"] {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #bbb;
+        border-radius: 0.3rem;
+    }
+
+    & .login-status {
+        margin-top: 1rem;
+        font-style: italic;
     }
 
     & .controls {
