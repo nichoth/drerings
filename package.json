@@ -12,6 +12,7 @@
     "test": "npm run lint && npm run build && npm run build-tests && npm run test-tape-run",
     "test-tape-run": "cat test/index.html | npx tape-run --input=html --static=test | npx tap-spec",
     "build": "mkdir -p ./public && rm -rf ./public/* && vite build && cp _public/* public",
+    "build:staging": "mkdir -p ./public && rm -rf ./public/* && vite build --mode=\"staging\" && cp _public/* public",
     "start": "concurrently --kill-others \"npx ntl functions:serve --port=9999 --debug\" \"npx vite\"",
     "preversion": "npm run lint",
     "version": "auto-changelog --template keepachangelog --breaking-pattern 'BREAKING CHANGE' && git add CHANGELOG.md",

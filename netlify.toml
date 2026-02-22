@@ -28,3 +28,7 @@
   environment = { NODE_VERSION = "22" }
   functions = "netlify/functions"
   publish = "public"
+
+# Settings for staging branch
+[context.staging]
+  command = "npm run build:staging"
