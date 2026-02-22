@@ -2,7 +2,13 @@
     to { transform: rotate(360deg); }
 }
 
+a.btn {
+    display: inline-block;
+    text-align: center;
+}
+
 a.btn, button.btn {
+    min-width: 8rem;
     transition: all 0.2s;
     text-decoration: none;
     background: none;

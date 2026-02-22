@@ -2,6 +2,7 @@ import Router from '@substrate-system/routes'
 import { HomeRoute } from './home.js'
 import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
+import { LoginRoute } from './login.js'
 
 export default function _Router ():InstanceType<typeof Router> {
     const router = new Router()
@@ -16,6 +17,10 @@ export default function _Router ():InstanceType<typeof Router> {
 
     router.addRoute('/colophon', () => {
         return ColophonRoute
+    })
+
+    router.addRoute('/login', () => {
+        return LoginRoute
     })
 
     return router

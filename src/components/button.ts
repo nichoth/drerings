@@ -12,6 +12,23 @@ interface ButtonProps {
     disabled?:boolean;
 }
 
+export const LinkBtn:FunctionComponent<{
+    class?:string;
+    href:string;
+    disabled?:boolean;
+    children?:ComponentChildren;
+}> = function (props) {
+    const { href, children, disabled } = props
+
+    const classes = ['btn']
+        .concat(props.class?.split(' ') || [])
+        .filter(Boolean)
+
+    return html`<a class="${classes}" href="${disabled ? '' : href}">
+        ${children}
+    </a>`
+}
+
 export const Button:FunctionComponent<ButtonProps> = function (props) {
     const { isSpinning: _isSpinning, ..._props } = props
     const isSpinning = _isSpinning || useSignal<boolean>(false)

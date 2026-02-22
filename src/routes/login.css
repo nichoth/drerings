@@ -1,0 +1,26 @@
+.route.login {
+    max-width: 36rem;
+    margin: 0 auto;
+
+    & header {
+        border-bottom: none;
+        display: block;
+        padding: 0;
+    }
+
+    & section {
+        margin-top: 1.5rem;
+    }
+
+    & .controls {
+        margin-top: 1rem;
+    }
+
+    & .error-banner {
+        color: #9f1d1d;
+    }
+
+    & .success-message {
+        color: #0c5c33;
+    }
+}

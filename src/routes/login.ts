@@ -1,137 +1,90 @@
 import { html } from 'htm/preact'
 import { useCallback } from 'preact/hooks'
 import type { FunctionComponent } from 'preact'
-import { useSignal } from '@preact/signals'
-import {
-    startRegistration,
-    startAuthentication,
-} from '@simplewebauthn/browser'
-import type {
-    PublicKeyCredentialCreationOptionsJSON,
-    PublicKeyCredentialRequestOptionsJSON,
-} from '@simplewebauthn/browser'
-import ky from 'ky'
+import { useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
+import { RequestState, type RequestFor } from '@substrate-system/state'
 import { Button } from '../components/button.js'
+// import { Input } from '../components/input.js'
+import { PasswordInput } from '@substrate-system/password-input'
+import '@substrate-system/password-input/css'
 import { State } from '../state.js'
 import type { AppState } from '../state.js'
 import './login.css'
 
-const debug = Debug('taproom:login')
+const debug = Debug('drerings:login')
+
+async function getErrorMessage (err:unknown, fallback:string):Promise<string> {
+    if (!(err instanceof Error)) {
+        return fallback
+    }
+
+    try {
+        const body = await (err as { response?:Response })
+            .response?.json() as { error?:string }
+        return body?.error || err.message || fallback
+    } catch {
+        return err.message || fallback
+    }
+}
 
 export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
     state
 }) {
     const secret = useSignal('')
-    const submitting = useSignal(false)
+    const submitting = useSignal<RequestFor<null, Error>>(RequestState(null))
     const error = useSignal<string|null>(null)
     const success = useSignal<string|null>(null)
+    const isSubmitting = useComputed<boolean>(() => submitting.value.pending)
 
     const handleRegister = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        if (!secret.value.trim()) return
+        if (!secret.value.trim() || submitting.value.pending) return
 
-        submitting.value = true
+        RequestState.start(submitting)
         error.value = null
         success.value = null
 
         try {
-            const optionsRes = await ky.post('/api/auth/register/options', {
-                json: { secret: secret.value.trim() }
-            }).json<{
-                options:PublicKeyCredentialCreationOptionsJSON;
-                challengeKey:string;
-            }>()
-
-            const credential = await startRegistration({
-                optionsJSON: optionsRes.options,
-            })
-
-            await ky.post('/api/auth/register/verify', {
-                json: {
-                    secret: secret.value.trim(),
-                    challengeKey: optionsRes.challengeKey,
-                    response: credential,
-                }
-            })
-
+            await State.register(state, secret.value)
             secret.value = ''
             success.value = 'Passkey registered successfully!'
-            await State.FetchAuthStatus(state)
 
             // Redirect to home after successful registration
             setTimeout(() => {
                 state._setRoute('/')
             }, 1000)
+
+            RequestState.set(submitting, null)
         } catch (err) {
             debug('registration error', err)
-            if (err instanceof Error) {
-                try {
-                    const body = await (err as { response?:Response })
-                        .response?.json() as { error?:string }
-                    error.value = body?.error || err.message
-                } catch {
-                    error.value = err.message
-                }
-            } else {
-                error.value = 'Registration failed'
-            }
-        } finally {
-            submitting.value = false
+            RequestState.error(submitting, err as Error)
+            error.value = await getErrorMessage(err, 'Registration failed')
         }
     }, [])
 
     const handleLogin = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        submitting.value = true
+        if (submitting.value.pending) return
+
+        RequestState.start(submitting)
         error.value = null
         success.value = null
 
         try {
-            const optionsRes = await ky.post('/api/auth/authenticate/options')
-                .json<{
-                    options:PublicKeyCredentialRequestOptionsJSON;
-                    challengeKey:string;
-                }>()
-
-            debug('got auth options', optionsRes)
-
-            const credential = await startAuthentication({
-                optionsJSON: optionsRes.options,
-            })
-
-            debug('got auth credential', credential)
-
-            await ky.post('/api/auth/authenticate/verify', {
-                json: {
-                    challengeKey: optionsRes.challengeKey,
-                    response: credential,
-                }
-            })
-
-            debug('authentication complete')
+            await State.login(state)
             success.value = 'Logged in successfully!'
-            await State.FetchAuthStatus(state)
 
             // Redirect to home after successful login
             setTimeout(() => {
                 state._setRoute('/')
             }, 500)
+
+            RequestState.set(submitting, null)
         } catch (err) {
             debug('auth error', err)
-            if (err instanceof Error) {
-                try {
-                    const body = await (err as { response?:Response })
-                        .response?.json() as { error?:string }
-                    error.value = body?.error || err.message
-                } catch {
-                    error.value = err.message
-                }
-            } else {
-                error.value = 'Authentication failed'
-            }
-        } finally {
-            submitting.value = false
+            RequestState.error(submitting, err as Error)
+            error.value = await getErrorMessage(err, 'Authentication failed')
         }
     }, [])
 
@@ -166,7 +119,7 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                     <div class="controls">
                         <${Button}
                             type="submit"
-                            isSpinning=${submitting}
+                            isSpinning=${isSubmitting}
                         >
                             Login with Passkey
                         <//>
@@ -183,7 +136,7 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                 <form onSubmit=${handleRegister}>
                     <div class="input">
                         <label for="secret">Registration Secret</label>
-                        <input
+                        <${Input}
                             type="password"
                             id="secret"
                             name="secret"
@@ -192,13 +145,13 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                             onInput=${(e:Event) => {
                                 secret.value = (e.target as HTMLInputElement).value
                             }}
-                            disabled=${submitting.value}
+                            disabled=${isSubmitting.value}
                         />
                     </div>
                     <div class="controls">
                         <${Button}
                             type="submit"
-                            isSpinning=${submitting}
+                            isSpinning=${isSubmitting}
                             disabled=${!secret.value.trim()}
                         >
                             Add Passkey
@@ -215,23 +168,24 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
 
                 <form onSubmit=${handleRegister}>
                     <div class="input">
-                        <label for="secret">Registration Secret</label>
-                        <input
-                            type="password"
+                        <label for="secret">Password</label>
+                        <${PasswordInput.TAG}
                             id="secret"
                             name="secret"
+                            autocomplete="new-password"
                             placeholder="abc123..."
                             value=${secret.value}
                             onInput=${(e:Event) => {
+                                debug('input ev')
                                 secret.value = (e.target as HTMLInputElement).value
                             }}
-                            disabled=${submitting.value}
+                            disabled=${isSubmitting.value}
                         />
                     </div>
                     <div class="controls">
                         <${Button}
                             type="submit"
-                            isSpinning=${submitting}
+                            isSpinning=${isSubmitting}
                             disabled=${!secret.value.trim()}
                         >
                             Register Passkey
