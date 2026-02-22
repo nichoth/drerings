@@ -2,9 +2,11 @@ import { type Signal, signal } from '@preact/signals'
 import { type Agent } from '@atproto/api'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
+import { RequestState, type RequestFor } from '@substrate-system/state'
 import ky from 'ky'
 const debug = Debug('drerings:state')
 
+export { RequestState, type RequestFor }
 export interface AuthStatus {
     registered:boolean;
     authenticated:boolean;
@@ -14,20 +16,6 @@ export const AUTH_ROUTES:string[] = ([
     '/repos',
     import.meta.env.VITE_ALLOW_ANON_READS ? null : ['/', '/lookup']
 ]).filter(Boolean).flat()
-
-export type RequestFor<T, E=Error> = {
-    pending:boolean;
-    data:null|T;
-    error:null|E
-}
-
-/**
- * Create initial request state.
- * @returns {RequestFor<T, E>}
- */
-export function RequestState<T = any, E=Error> ():RequestFor<T, E> {
-    return { pending: false, data: null, error: null }
-}
 
 export interface UserState {
     did:string;
@@ -91,4 +79,3 @@ State.Logout = async function (state:AppState):Promise<void> {
         debug('logout error', err)
     }
 }
-
