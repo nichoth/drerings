@@ -8,3 +8,9 @@
     /* top: 20vh; */
     /* left: 10vw; */
 }
+
+.route.home {
+    & form {
+        margin-top: 1rem;
+    }
+}
