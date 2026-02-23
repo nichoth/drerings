@@ -65,7 +65,7 @@ export function State ():{
      * set the app state to match the browser URL
      */
     onRoute((path:string, data) => {
-        state.route.value = path
+        state.route.value = path.split('?').shift()
         // handle scroll state like a web browser
         // (restore scroll position on back/forward)
         if (data.popstate) {
@@ -95,8 +95,40 @@ type OAuthFinishResponse = {
     profile?:UserState|null;
 }
 
+function paramsFromQueryLike (query:string):URLSearchParams {
+    return new URLSearchParams(query.replace(/^[?#]/, ''))
+}
+
+function oauthParamsFromUrlLike (urlLike:URL|string):URLSearchParams {
+    const url = typeof urlLike === 'string' ?
+        new URL(urlLike, window.location.origin) :
+        urlLike
+
+    const params = paramsFromQueryLike(url.search)
+    const rawHash = url.hash.replace(/^#/, '')
+    if (!rawHash) return params
+
+    const hashQuery = rawHash.includes('?') ?
+        rawHash.split('?').slice(1).join('?') :
+        rawHash
+
+    const hashParams = paramsFromQueryLike(hashQuery)
+    for (const [key, value] of hashParams.entries()) {
+        if (!params.has(key)) params.set(key, value)
+    }
+
+    return params
+}
+
 function oauthRedirectUri ():string {
-    return new URL(OAUTH_CALLBACK_PATH, window.location.origin).toString()
+    const redirect = new URL(OAUTH_CALLBACK_PATH, window.location.origin)
+
+    // Bluesky local OAuth callbacks should use 127.0.0.1, not localhost.
+    if (redirect.hostname === 'localhost') {
+        redirect.hostname = '127.0.0.1'
+    }
+
+    return redirect.toString()
 }
 
 async function setAgentFromSession (
@@ -234,7 +266,20 @@ State.hasOAuthCallback = function (query:URLSearchParams|string):boolean {
     const params = typeof query === 'string' ?
         new URLSearchParams(query.replace(/^\?/, '')) :
         query
-    return params.has('code') || params.has('error')
+    return (
+        params.has('code') ||
+        params.has('error') ||
+        (params.has('state') && params.has('iss'))
+    )
+}
+
+/**
+ * Read OAuth callback params from current location search + hash.
+ */
+State.readOAuthParamsFromLocation = function (
+    locationHref:string = window.location.href
+):URLSearchParams {
+    return oauthParamsFromUrlLike(locationHref)
 }
 
 /**
@@ -253,8 +298,11 @@ State.readOAuthError = function (query:URLSearchParams|string):string|null {
  * Clear current OAuth callback params from browser URL.
  */
 State.clearOAuthQuery = function ():void {
-    if (!window.location.search) return
-    window.history.replaceState(null, '', window.location.pathname)
+    if (!window.location.search && !window.location.hash) return
+    const clean = new URL(window.location.href)
+    clean.search = ''
+    clean.hash = ''
+    window.history.replaceState(null, '', clean.pathname)
 }
 
 /**

@@ -3,66 +3,60 @@ import { useCallback, useEffect, useRef } from 'preact/hooks'
 import type { FunctionComponent } from 'preact'
 import { useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
-import { RequestState, type RequestFor } from '@substrate-system/state'
+import { SubstrateInput } from '@substrate-system/input'
+import '@substrate-system/input/css'
 import { Button } from '../components/button.js'
-import { State } from '../state.js'
-import type { AppState } from '../state.js'
+import {
+    RequestState,
+    State,
+    type AppState,
+    type RequestFor
+} from '../state.js'
 import './login.css'
 
 const debug = Debug('drerings:login')
-
-function queryFromRoute (route:string):URLSearchParams {
-    const queryIndex = route.indexOf('?')
-    if (queryIndex === -1) return new URLSearchParams()
-    return new URLSearchParams(route.slice(queryIndex + 1))
-}
-
-async function getErrorMessage (err:unknown, fallback:string):Promise<string> {
-    if (!(err instanceof Error)) {
-        return fallback
-    }
-
-    try {
-        const body = await (err as { response?:Response })
-            .response?.json() as { error?:string }
-        return body?.error || err.message || fallback
-    } catch {
-        return err.message || fallback
-    }
-}
 
 export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
     state
 }) {
     const handle = useSignal('')
-    const submitting = useSignal<RequestFor<null, Error>>(RequestState(null))
-    const error = useSignal<string|null>(null)
-    const success = useSignal<string|null>(null)
-    const isSubmitting = useComputed<boolean>(() => submitting.value.pending)
+    const request = useSignal<RequestFor<string|null, Error>>(
+        RequestState<string|null>(null)
+    )
+    const isSubmitting = useComputed<boolean>(() => request.value.pending)
+    const errorMessage = useComputed<string|null>(() => {
+        return request.value.error?.message || null
+    })
+    const successMessage = useComputed<string|null>(() => request.value.data)
     const callbackHandled = useRef(false)
 
     useEffect(() => {
-        const query = queryFromRoute(state.route.value)
+        // Keep host consistent with Bluesky local OAuth callback requirements.
+        if (window.location.hostname === 'localhost') {
+            const redirectUrl = new URL(window.location.href)
+            redirectUrl.hostname = '127.0.0.1'
+            window.location.replace(redirectUrl.toString())
+            return
+        }
+
+        const query = State.readOAuthParamsFromLocation()
         if (!State.hasOAuthCallback(query) || callbackHandled.current) return
 
         callbackHandled.current = true
 
         const oauthError = State.readOAuthError(query)
         if (oauthError) {
-            error.value = oauthError
+            RequestState.error(request, new Error(oauthError))
             State.clearOAuthQuery()
             return
         }
 
-        RequestState.start(submitting)
-        error.value = null
-        success.value = null
+        RequestState.start(request)
 
         const finishOAuth = async ():Promise<void> => {
             try {
                 await State.finishOAuth(state, query)
-                RequestState.set(submitting, null)
-                success.value = 'Signed in with Bluesky.'
+                RequestState.set(request, 'Signed in with Bluesky')
                 State.clearOAuthQuery()
 
                 setTimeout(() => {
@@ -70,8 +64,8 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                 }, 350)
             } catch (err) {
                 debug('oauth callback error', err)
-                RequestState.error(submitting, err as Error)
-                error.value = await getErrorMessage(err, 'OAuth login failed')
+                const message = await getErrorMessage(err, 'OAuth login failed')
+                RequestState.error(request, new Error(message))
             }
         }
 
@@ -80,30 +74,31 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
 
     const startOAuth = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        if (submitting.value.pending) return
+        if (request.value.pending) return
 
         const normalizedHandle = handle.value.trim()
         if (!normalizedHandle) {
-            error.value = 'Enter your Bluesky handle'
+            RequestState.error(request, new Error('Enter your Bluesky handle'))
             return
         }
 
-        RequestState.start(submitting)
-        error.value = null
-        success.value = null
+        RequestState.start(request)
 
         try {
             await State.login(state, normalizedHandle)
-            RequestState.set(submitting, null)
+            RequestState.set(request, null)
         } catch (err) {
             debug('oauth start error', err)
-            RequestState.error(submitting, err as Error)
-            error.value = await getErrorMessage(err, 'Unable to start OAuth login')
+            const message = await getErrorMessage(
+                err,
+                'Unable to start OAuth login'
+            )
+            RequestState.error(request, new Error(message))
         }
     }, [])
 
     const auth = state.auth.value
-    const callbackQuery = queryFromRoute(state.route.value)
+    const callbackQuery = State.readOAuthParamsFromLocation()
     const isOAuthCallback = State.hasOAuthCallback(callbackQuery)
 
     if (auth?.authenticated) {
@@ -121,28 +116,27 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
             Sign in with your Bluesky account using OAuth.
         </p>
 
-        ${error.value && html`<p class="error-banner">${error.value}</p>`}
-        ${success.value && html`<p class="success-message">${success.value}</p>`}
+        ${errorMessage.value &&
+            html`<p class="error-banner">${errorMessage.value}</p>`}
+        ${successMessage.value &&
+            html`<p class="success-message">${successMessage.value}</p>`}
 
         ${isOAuthCallback && isSubmitting.value ? html`
             <p class="login-status">Completing Bluesky login...</p>
         ` : html`
             <form class="login-form" onSubmit=${startOAuth}>
-                <div class="input">
-                    <label for="bsky-handle">Bluesky Handle</label>
-                    <input
-                        id="bsky-handle"
-                        name="bsky-handle"
-                        type="text"
-                        placeholder="alice.bsky.social"
-                        value=${handle.value}
-                        onInput=${(e:Event) => {
-                            handle.value = (e.target as HTMLInputElement).value
-                        }}
-                        disabled=${isSubmitting.value}
-                        autocomplete="username"
-                    />
-                </div>
+                <${SubstrateInput.TAG}
+                    label="Bluesky Handle"
+                    id="bsky-handle"
+                    placeholder="alice.bsky.app"
+                    value=${handle.value}
+                    onInput=${(ev:Event) => {
+                        handle.value = (ev.target as HTMLInputElement).value
+                    }}
+                    disabled=${isSubmitting.value}
+                    autocomplete="username"
+                ><//>
+
                 <div class="controls">
                     <${Button}
                         type="submit"
@@ -155,4 +149,18 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
             </form>
         `}
     </div>`
+}
+
+async function getErrorMessage (err:unknown, fallback:string):Promise<string> {
+    if (!(err instanceof Error)) {
+        return fallback
+    }
+
+    try {
+        const body = await (err as { response?:Response })
+            .response?.json() as { error?:string }
+        return body?.error || err.message || fallback
+    } catch {
+        return err.message || fallback
+    }
 }

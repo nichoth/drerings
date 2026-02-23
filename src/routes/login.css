@@ -1,6 +1,7 @@
 .route.login {
-    max-width: 36rem;
+    max-width: 40rem;
     margin: 0 auto;
+    margin-top: 2rem;
 
     & .login-intro {
         margin-bottom: 1rem;
