@@ -13,9 +13,6 @@ export default defineConfig({
         preact({
             devtoolsInProd: false,
             prefreshEnabled: true,
-            babel: {
-                sourceMaps: 'both'
-            }
         })
     ],
     // https://github.com/vitejs/vite/issues/8644#issuecomment-1159308803

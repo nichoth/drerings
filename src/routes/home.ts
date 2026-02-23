@@ -3,13 +3,16 @@ import { useRef, useEffect, useCallback } from 'preact/hooks'
 import { type FunctionComponent } from 'preact'
 import Atrament from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
-import { useSignal } from '@preact/signals'
+import { useComputed, useSignal } from '@preact/signals'
 import './home.css'
-import { Button } from '../components/button'
+import { type AppState } from '../state'
+import { Button, LinkBtn } from '../components/button'
 import Debug from '@substrate-system/debug'
 const debug = Debug('drerings:view')
 
-export const HomeRoute:FunctionComponent = function HomeRoute () {
+export const HomeRoute:FunctionComponent<{
+    state:AppState
+}> = function HomeRoute ({ state }) {
     const sketchpad = useRef<HTMLCanvasElement>(null)
     const isCanvasDirty = useSignal<boolean>(false)
 
@@ -35,6 +38,15 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
         })
     }, [sketchpad.current])
 
+    const disable = useComputed<boolean>(() => {
+        return state.isAuthed.value && !isCanvasDirty.value
+    })
+
+    const login = useCallback((ev:SubmitEvent) => {
+        ev.preventDefault()
+        debug('logging in...')
+    }, [])
+
     const submitDrering = useCallback((ev:SubmitEvent) => {
         ev.preventDefault()
         debug('submit my drawing...', ev.target)
@@ -42,19 +54,25 @@ export const HomeRoute:FunctionComponent = function HomeRoute () {
 
     return html`<div class="route home">
         <p>
-            Draw things, and show people your drawings.
+            Draw things, then show people your drawings.
         </p>
 
         <canvas ref=${sketchpad} id="sketchpad"></canvas>
 
-        <form onSubmit=${submitDrering}>
+        <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
             <div class="controls">
-                <${Button}
-                    type="submit"
-                    disabled=${!isCanvasDirty.value}
-                >
-                    Post It
-                <//>
+                ${state.isAuthed.value ?
+                    html`<${Button}
+                        type="submit"
+                        disabled=${disable}
+                    >
+                        'Post It'
+                    <//>` :
+                    html`<${LinkBtn} href="/login">
+                        Login
+                    <//>
+                    `
+                }
             </div>
         </form>
     </div>`

@@ -16,15 +16,19 @@ export const ColophonRoute:FunctionComponent<{
         <h2>About Drerings</h2>
 
         <p>
-            The drawing UI is thanks to an open source library,${NBSP}
-            <a href="https://github.com/jakubfiala/atrament">atrament</a>.
+            This is a <a href="https://developer.mozilla.org/en-US/docs/Glossary/SPA">
+                single-page application
+            </a>, made with an${NBSP}
+            <a href="https://github.com/jakubfiala/atrament">
+                open source library, Atrament.
+            </a> It uses <a href="https://nichoth.com/projects/dev-diary-bluesky/">
+                Bluesky as a backend</a>.
+
         </p>
 
         <p>
-            This uses <a href="https://bsky.app/">Bluesky</a> as a${NBSP}
-            <a href="https://nichoth.com/projects/dev-diary-bluesky/">
-                backend
-            </a>.
+            Any drawing you submit will be posted to Bluesky under the
+            username that you signed in with.
         </p>
     </div>`
 }

@@ -10,6 +10,10 @@
 body {
     font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
     margin-bottom: 4rem;
+    
+    & p {
+        line-height: 1.8;
+    }
 }
 
 .route {
@@ -39,7 +43,40 @@ header {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid;
-    padding: 0 1.5rem;
+    padding: 0.4rem 1.5rem;
+
+
+    /* The avatar & login/logout button */
+    & > ul {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    & .avatar {
+        width: 4rem;
+        height: 4rem;
+
+        & a {
+            & img {
+                outline: 1px solid transparent;
+                border-radius: 50%;
+                border: 1px solid;
+                transform: translateY(1px);
+            }
+
+            &:active {
+                transform: translateY(2px);
+            }
+
+            &:hover {
+                & img {
+                    transform: translateY(0);
+                    outline: 1px solid;
+                }
+            }
+        }
+    }
 
     & ul {
         list-style: none;

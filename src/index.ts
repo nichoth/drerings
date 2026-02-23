@@ -1,7 +1,7 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent, render } from 'preact'
 import { useCallback, useMemo } from 'preact/hooks'
-import { useComputed, useSignal } from '@preact/signals'
+import { type Signal, useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
 import { Button } from './components/button.js'
@@ -49,14 +49,11 @@ export const Drerings:FunctionComponent = function Drerings () {
     return html`
     <header>
         <h1><a href="/">Drerings</a></h1>
-        <${Nav} route=${state.route.value} />
+        <${Nav} route=${state.route.value} isAuthed=${isAuthed} />
 
         <ul>
             ${isAuthed.value ?
                 html`
-                    <li><a href="/feed">Feed</a></li>
-                    <li><a href="/new">New Post</a></li>
-                    <li><a href="whoami">Who Am I?</a></li>
                     <li>
                         <${Button}
                             isSpinning=${isResolving}
@@ -97,16 +94,29 @@ function isDev ():boolean {
     return !!(import.meta.env.DEV || import.meta.env.MODE === 'staging')
 }
 
-function Nav ({ route }:{ route:string }):ReturnType<typeof html> {
+function Nav ({
+    route,
+    isAuthed
+}:{ route:string, isAuthed:Signal<boolean> }):ReturnType<typeof html> {
     return html`<nav aria-label="Main navigation">
         <ul>
             ${routes.map(r => {
                 return html`<li class="nav${route === r.href ? ' active' : ''}">
                     <a href="${r.href}">${r.text}</a>
                 </li>`
-            })}
+            }).concat(isAuthed.value ?
+                [html`
+                    <li><a href="/feed">Feed</a></li>
+                    <li><a href="whoami">Who Am I?</a></li>
+                `] :
+                []
+            )}
         </ul>
     </nav>`
 
     // <li><a href="/contact">contact</a></li> -->
 }
+
+// <li><a href="/feed">Feed</a></li>
+// <li><a href="/new">New Post</a></li>
+// <li><a href="whoami">Who Am I?</a></li>
