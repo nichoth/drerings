@@ -66,7 +66,7 @@ export const HomeRoute:FunctionComponent<{
                         type="submit"
                         disabled=${disable}
                     >
-                        'Post It'
+                        Post It
                     <//>` :
                     html`<${LinkBtn} href="/login">
                         Login

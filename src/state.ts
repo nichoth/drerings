@@ -136,10 +136,21 @@ async function setAgentFromSession (
     session:AtpSessionData,
     service:string = DEFAULT_BSKY_SERVICE
 ):Promise<void> {
+    // OAuth access tokens are opaque (not JWTs) and are not compatible with
+    // AtpAgent.resumeSession(), which expects JWT-shaped session tokens.
+    if (!isJwtLike(session?.accessJwt) || !isJwtLike(session?.refreshJwt)) {
+        return
+    }
+
     const { AtpAgent } = await import('@atproto/api')
     const agent = new AtpAgent({ service })
     await agent.resumeSession(session)
     state.agent.value = agent
+}
+
+function isJwtLike (token:string|undefined):boolean {
+    if (!token) return false
+    return token.split('.').length === 3
 }
 
 State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
