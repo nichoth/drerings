@@ -7,7 +7,7 @@
     "typeRoots": ["./node_modules"],
     "moduleResolution": "Bundler",
     "esModuleInterop": false,
-    "lib": ["ES2022", "DOM", "WebWorker"],
+    "lib": ["ES2022", "DOM", "WebWorker", "DOM.Iterable"],
     "allowJs": false,
     "skipLibCheck": true,
     "outDir": "public",

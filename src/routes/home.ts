@@ -54,7 +54,7 @@ export const HomeRoute:FunctionComponent<{
 
     return html`<div class="route home">
         <p>
-            Draw things, and show people your drawings.
+            Draw things, then show people your drawings.
         </p>
 
         <canvas ref=${sketchpad} id="sketchpad"></canvas>
