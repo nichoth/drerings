@@ -13,6 +13,7 @@ import {
     type RequestFor
 } from '../state.js'
 import './login.css'
+import { hasOAuthCallback, readOAuthParamsFromLocation } from '../util.js'
 
 const debug = Debug('drerings:login')
 
@@ -39,8 +40,8 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
             return
         }
 
-        const query = State.readOAuthParamsFromLocation()
-        if (!State.hasOAuthCallback(query) || callbackHandled.current) return
+        const query = readOAuthParamsFromLocation()
+        if (!hasOAuthCallback(query) || callbackHandled.current) return
 
         callbackHandled.current = true
 
@@ -98,8 +99,8 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
     }, [])
 
     const auth = state.auth.value
-    const callbackQuery = State.readOAuthParamsFromLocation()
-    const isOAuthCallback = State.hasOAuthCallback(callbackQuery)
+    const callbackQuery = readOAuthParamsFromLocation()
+    const isOAuthCallback = hasOAuthCallback(callbackQuery)
 
     if (auth?.authenticated) {
         return html`<div class="route login">

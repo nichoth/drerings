@@ -63,6 +63,10 @@ type AuthCookie = {
         refreshToken:string|null;
         scope:string|null;
         expiresIn:number|null;
+        dpopPublicJwk?:DpopPublicJwk;
+        dpopPrivateJwk?:DpopPrivateJwk;
+        pdsDpopNonce?:string|null;
+        authServerDpopNonce?:string|null;
     };
     updatedAt:number;
 }
@@ -123,6 +127,10 @@ export default async function handler (req:Request, _context:Context) {
 
         if (req.method === 'POST' && subpath === '/logout') {
             return authLogout(req)
+        }
+
+        if (subpath.startsWith('/xrpc/')) {
+            return authXrpc(req, subpath)
         }
 
         return jsonResponse({ error: 'Not found' }, 404)
@@ -734,7 +742,11 @@ async function oauthFinish (req:Request):Promise<Response> {
             accessToken: tokenJson.access_token,
             refreshToken: tokenJson.refresh_token || null,
             scope: tokenJson.scope || null,
-            expiresIn: tokenJson.expires_in || null
+            expiresIn: tokenJson.expires_in || null,
+            dpopPublicJwk: dpopKeyPair.publicJwk,
+            dpopPrivateJwk: dpopKeyPair.privateJwk,
+            pdsDpopNonce: tokenReq.nonce,
+            authServerDpopNonce: tokenReq.nonce
         },
         updatedAt: Date.now()
     }
@@ -891,6 +903,82 @@ function authLogout (req:Request):Response {
     return jsonResponse({ ok: true }, 200, headers)
 }
 
+async function authXrpc (req:Request, subpath:string):Promise<Response> {
+    const auth = readCookieJson<AuthCookie>(req, AUTH_COOKIE)
+    if (!auth?.oauth?.accessToken || !auth?.service) {
+        return jsonResponse({ error: 'Not authenticated' }, 401)
+    }
+
+    const publicJwk = asDpopPublicJwk(auth.oauth.dpopPublicJwk)
+    const privateJwk = asDpopPrivateJwk(auth.oauth.dpopPrivateJwk)
+    if (!publicJwk || !privateJwk) {
+        return jsonResponse({
+            error: 'Missing OAuth DPoP session. Please sign in again.'
+        }, 401)
+    }
+
+    const requestUrl = new URL(req.url)
+    const target = new URL(subpath + requestUrl.search, auth.service)
+    const headers = new Headers()
+    const passthroughHeaders = [
+        'accept',
+        'content-type',
+        'atproto-accept-labelers',
+        'atproto-proxy'
+    ]
+
+    for (const name of passthroughHeaders) {
+        const value = req.headers.get(name)
+        if (value) headers.set(name, value)
+    }
+
+    let body:BodyInit|undefined
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        const raw = await req.arrayBuffer()
+        if (raw.byteLength > 0) {
+            body = raw
+        }
+    }
+
+    const dpopRes = await fetchWithDpop(target.toString(), {
+        method: req.method,
+        headers,
+        body,
+        accessToken: auth.oauth.accessToken,
+        publicJwk,
+        privateJwk,
+        nonce: auth.oauth.pdsDpopNonce || null
+    })
+
+    const response = dpopRes.res
+    const responseHeaders = new Headers()
+    for (const [name, value] of response.headers.entries()) {
+        const lower = name.toLowerCase()
+        if (lower === 'content-length' || lower === 'set-cookie') continue
+        responseHeaders.set(name, value)
+    }
+
+    if (dpopRes.nonce && dpopRes.nonce !== auth.oauth.pdsDpopNonce) {
+        const updatedAuth:AuthCookie = {
+            ...auth,
+            oauth: {
+                ...auth.oauth,
+                pdsDpopNonce: dpopRes.nonce
+            },
+            updatedAt: Date.now()
+        }
+        responseHeaders.append(
+            'Set-Cookie',
+            cookieString(req, AUTH_COOKIE, JSON.stringify(updatedAuth), AUTH_TTL_SECONDS)
+        )
+    }
+
+    return new Response(await response.arrayBuffer(), {
+        status: response.status,
+        headers: responseHeaders
+    })
+}
+
 function oauthClientMetadata (req:Request):Response {
     const requestUrl = new URL(req.url)
     const scope = requestUrl.searchParams.get('scope') || DEFAULT_SCOPE
@@ -900,11 +988,13 @@ function oauthClientMetadata (req:Request):Response {
     )
     const clientName = process.env.BSKY_OAUTH_CLIENT_NAME || 'Drerings'
     const origin = requestOrigin(req)
+    const clientId = requestUrl.toString()
 
     return jsonResponse({
+        client_id: clientId,
         client_name: clientName,
         client_uri: origin,
-        application_type: 'native',
+        application_type: 'web',
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
         redirect_uris: [redirectUri],

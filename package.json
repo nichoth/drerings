@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "eslint \"./**/*.{ts,js}\"",
     "build-tests": "esbuild test/index.ts --bundle --format=cjs --keep-names > test/test-bundle.js",
-    "test": "npm run lint && npm run build && npm run build-tests && npm run test-tape-run",
+    "test": "esbuild ./test/index.ts --bundle | tapout",
     "test-tape-run": "cat test/index.html | npx tape-run --input=html --static=test | npx tap-spec",
     "build": "mkdir -p ./public && rm -rf ./public/* && vite build && cp _public/* public",
     "build:staging": "mkdir -p ./public && rm -rf ./public/* && vite build --mode=\"staging\" && cp _public/* public",
@@ -22,6 +22,9 @@
   "dependencies": {
     "@atproto/api": "^0.18.8",
     "@atproto/identity": "^0.4.10",
+    "@atproto/oauth-client": "^0.6.0",
+    "@atproto/oauth-client-browser": "^0.3.41",
+    "@atproto/oauth-client-node": "^0.3.17",
     "@preact/signals": "^2.0.1",
     "@simplewebauthn/browser": "^13.2.2",
     "@substrate-system/a11y": "^0.0.17",
@@ -41,6 +44,7 @@
     "@netlify/functions": "^4.1.8",
     "@preact/preset-vite": "^2.9.4",
     "@substrate-system/debug": "^0.9.0",
+    "@substrate-system/tapout": "^0.0.35",
     "@substrate-system/tapzero": "^0.10.15",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",
