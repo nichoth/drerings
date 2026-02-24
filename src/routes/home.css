@@ -1,16 +1,39 @@
+.route.home {
+    & form {
+        text-align: right;
+        margin-top: 1rem;
+
+        & .controls {
+            margin-top: 1rem;
+        }
+    }
+
+    & textarea {
+        margin: 0 auto;
+        transition: all 0.2s;
+        min-width: 30rem;
+        width: min(70vw, 70vh);
+        min-height: 8rem;
+        padding: 1rem;
+        outline: 1px solid transparent;
+        border-radius: 0;
+        display: block;
+
+        &:focus {
+            outline: 1px solid;
+        }
+    }
+}
+
 #sketchpad {
     border: 1px solid;
     margin: 0 auto;
+    display: block;
     cursor: crosshair;
-    width: 80vw;
-    height: 80vh;
+    width: min(70vw, 70vh);
+    height: min(70vw, 70vh);
+    aspect-ratio: 1 / 1;
     /* position: fixed; */
     /* top: 20vh; */
     /* left: 10vw; */
-}
-
-.route.home {
-    & form {
-        margin-top: 1rem;
-    }
 }

@@ -48,6 +48,7 @@ export function State ():{
     isAuthed:ReadonlySignal<boolean>;
     agent:Signal<Agent|null>;
     profile:Signal<UserState|null>;
+    postReq:Signal<RequestFor<{ uri:string, cid:string }, Error>>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
     const onRoute = Route()
@@ -59,6 +60,9 @@ export function State ():{
             registered: false,
             authenticated: false
         }),
+        postReq: signal<RequestFor<{ uri:string, cid:string }, Error>>(
+            RequestState<{ uri:string, cid:string }>()
+        ),
         agent: signal<Agent|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname + location.search),
@@ -85,6 +89,67 @@ export function State ():{
 }
 
 export type AppState = ReturnType<typeof State>
+
+State.post = async function (
+    state:AppState,
+    textContent?:string,
+    imageBlob?:Blob
+) {
+    const req = state.postReq
+    req.value = RequestState<{ uri:string, cid:string }>()
+    RequestState.start(req)
+    try {
+        let agent = state.agent.value
+        if (!agent) {
+            agent = await State.hydrateAgent(state)
+        }
+        if (!agent) {
+            throw new Error('You need to log in before posting.')
+        }
+
+        const text = (textContent || '').trim() ||
+            `New drering from @${state.profile.value?.handle || 'unknown'}`
+        const postRecord:{
+            text:string;
+            createdAt:string;
+            embed?:{
+                $type:'app.bsky.embed.images';
+                images:Array<{
+                    alt:string;
+                    image:unknown;
+                }>;
+            };
+        } = {
+            text,
+            createdAt: new Date().toISOString()
+        }
+
+        if (imageBlob && imageBlob.size > 0) {
+            const encoding = imageBlob.type || 'image/png'
+            const bytes = new Uint8Array(await imageBlob.arrayBuffer())
+            const upload = await agent.uploadBlob(bytes, { encoding })
+            postRecord.embed = {
+                $type: 'app.bsky.embed.images',
+                images: [{
+                    alt: text || 'Drering',
+                    image: upload.data.blob
+                }]
+            }
+        }
+
+        const post = await agent.post(postRecord)
+
+        RequestState.set(req, {
+            uri: post.uri,
+            cid: post.cid
+        })
+        return post
+    } catch (err) {
+        const error = err instanceof Error ? err : new Error('Failed to post to Bluesky')
+        RequestState.error(req, error)
+        throw error
+    }
+}
 
 State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
     state.authLoading.value = true
@@ -228,6 +293,7 @@ State.Logout = async function (state:AppState):Promise<void> {
         state.auth.value = { registered: false, authenticated: false }
         state.profile.value = null
         state.agent.value = null
+        state.postReq.value = RequestState<{ uri:string, cid:string }>()
     } catch (err) {
         debug('logout error', err)
     }

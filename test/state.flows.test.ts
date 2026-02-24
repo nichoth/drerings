@@ -158,6 +158,98 @@ describe('state oauth flows', () => {
         expect(state.auth.value).toEqual({ registered: true, authenticated: true })
     })
 
+    it('post publishes with current agent and records request success state', async () => {
+        const state = stateMod.State()
+        const postSpy = vi.fn(async () => ({
+            uri: 'at://did:plc:alice/app.bsky.feed.post/123',
+            cid: 'bafy-post-cid'
+        }))
+        state.agent.value = { post: postSpy } as any
+        state.profile.value = {
+            did: 'did:plc:alice',
+            handle: 'alice.bsky.app',
+            avatar: ''
+        }
+
+        const res = await stateMod.State.post(state)
+
+        expect(postSpy).toHaveBeenCalledTimes(1)
+        expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
+            text: 'New drering from @alice.bsky.app'
+        }))
+        expect(typeof postSpy.mock.calls[0][0].createdAt).toBe('string')
+        expect(res).toEqual({
+            uri: 'at://did:plc:alice/app.bsky.feed.post/123',
+            cid: 'bafy-post-cid'
+        })
+        expect(state.postReq.value).toEqual({
+            pending: false,
+            data: {
+                uri: 'at://did:plc:alice/app.bsky.feed.post/123',
+                cid: 'bafy-post-cid'
+            },
+            error: null
+        })
+    })
+
+    it('post uploads image blob and includes images embed', async () => {
+        const state = stateMod.State()
+        const uploadBlobSpy = vi.fn(async () => ({
+            data: {
+                blob: {
+                    $type: 'blob',
+                    ref: { $link: 'bafk-image-ref' },
+                    mimeType: 'image/png',
+                    size: 1234
+                }
+            }
+        }))
+        const postSpy = vi.fn(async () => ({
+            uri: 'at://did:plc:alice/app.bsky.feed.post/456',
+            cid: 'bafy-post-cid-2'
+        }))
+        state.agent.value = {
+            post: postSpy,
+            uploadBlob: uploadBlobSpy
+        } as any
+        state.profile.value = {
+            did: 'did:plc:alice',
+            handle: 'alice.bsky.app',
+            avatar: ''
+        }
+        const imageBlob = new Blob(['png-binary'], { type: 'image/png' })
+
+        await stateMod.State.post(state, 'caption text', imageBlob)
+
+        expect(uploadBlobSpy).toHaveBeenCalledTimes(1)
+        expect(uploadBlobSpy.mock.calls[0][1]).toEqual({ encoding: 'image/png' })
+        expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
+            text: 'caption text',
+            embed: {
+                $type: 'app.bsky.embed.images',
+                images: [{
+                    alt: 'caption text',
+                    image: expect.any(Object)
+                }]
+            }
+        }))
+    })
+
+    it('post fails and stores request error when no session can be restored', async () => {
+        const state = stateMod.State()
+        const hydrateSpy = vi.spyOn(stateMod.State, 'hydrateAgent')
+            .mockResolvedValue(null)
+
+        await expect(stateMod.State.post(state)).rejects.toThrow(
+            'You need to log in before posting.'
+        )
+        expect(hydrateSpy).toHaveBeenCalledWith(state)
+        expect(state.postReq.value.pending).toBe(false)
+        expect(state.postReq.value.error?.message).toBe(
+            'You need to log in before posting.'
+        )
+    })
+
     it('logout revokes current did session and clears in-memory auth state', async () => {
         const state = stateMod.State()
         state.profile.value = {
@@ -167,6 +259,14 @@ describe('state oauth flows', () => {
         }
         state.auth.value = { registered: true, authenticated: true }
         state.agent.value = { did: 'did:plc:logout-user' } as any
+        state.postReq.value = {
+            pending: false,
+            data: {
+                uri: 'at://did:plc:logout-user/app.bsky.feed.post/old',
+                cid: 'old-cid'
+            },
+            error: null
+        }
 
         await stateMod.State.Logout(state)
 
@@ -174,6 +274,7 @@ describe('state oauth flows', () => {
         expect(state.auth.value).toEqual({ registered: false, authenticated: false })
         expect(state.profile.value).toBeNull()
         expect(state.agent.value).toBeNull()
+        expect(state.postReq.value.data).toBeNull()
     })
 
     it('logout falls back to restored session signOut when did is missing', async () => {
