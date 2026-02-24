@@ -23,6 +23,11 @@
             outline: 1px solid;
         }
     }
+
+    & p {
+        width: min(70vw, 70vh);
+        margin: 1rem auto;
+    }
 }
 
 #sketchpad {
