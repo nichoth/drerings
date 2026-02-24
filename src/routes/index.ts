@@ -4,12 +4,17 @@ import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
 import { LoginRoute } from './login.js'
 import { WhoamiRoute } from './whoami.js'
+import { FeedRoute } from './feed.js'
 
 export default function _Router ():InstanceType<typeof Router> {
     const router = new Router()
 
     router.addRoute('/', () => {
         return HomeRoute
+    })
+
+    router.addRoute('/feed', () => {
+        return FeedRoute
     })
 
     router.addRoute('/contact', () => {
