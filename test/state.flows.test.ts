@@ -175,7 +175,8 @@ describe('state oauth flows', () => {
 
         expect(postSpy).toHaveBeenCalledTimes(1)
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
-            text: 'New drering from @alice.bsky.app'
+            text: 'New drering from @alice.bsky.app',
+            tags: ['drering']
         }))
         expect(typeof postSpy.mock.calls[0][0].createdAt).toBe('string')
         expect(res).toEqual({
@@ -225,6 +226,7 @@ describe('state oauth flows', () => {
         expect(uploadBlobSpy.mock.calls[0][1]).toEqual({ encoding: 'image/png' })
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
             text: 'caption text',
+            tags: ['drering'],
             embed: {
                 $type: 'app.bsky.embed.images',
                 images: [{

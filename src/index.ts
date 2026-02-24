@@ -114,7 +114,7 @@ function Nav ({
             }).concat(isAuthed.value ?
                 [html`
                     <li><a href="/feed">Feed</a></li>
-                    <li><a href="whoami">Who Am I?</a></li>
+                    <li><a href="/whoami">Who Am I?</a></li>
                 `] :
                 []
             )}
@@ -126,4 +126,4 @@ function Nav ({
 
 // <li><a href="/feed">Feed</a></li>
 // <li><a href="/new">New Post</a></li>
-// <li><a href="whoami">Who Am I?</a></li>
+// <li><a href="/whoami">Who Am I?</a></li>
