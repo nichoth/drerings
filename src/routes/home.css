@@ -1,46 +1,89 @@
 .route.home {
-    & form {
-        text-align: right;
-        width: min(70vw, 70vh);
+    & > p {
+        width: 100%;
+        max-width: 1100px;
+        margin: 1rem auto;
+    }
+
+    & .composer-layout {
+        width: 100%;
+        max-width: 1100px;
         margin: 0 auto;
-        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        align-items: start;
+    }
+
+    & .canvas-column {
+        width: 100%;
+        max-width: 72vh;
+        margin: 0 auto;
+    }
+
+    & form {
+        width: 100%;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+
+        & label {
+            display: block;
+            text-align: left;
+        }
 
         & .controls {
-            margin-top: 1rem;
+            margin-top: 0.25rem;
+            text-align: right;
+        }
+
+        & .alt-text-field {
+            margin-top: 0.25rem;
         }
     }
 
     & textarea {
-        margin: 0 auto;
-        transition: all 0.2s;
-        min-width: 30rem;
-        width: min(70vw, 70vh);
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
         min-height: 8rem;
         padding: 1rem;
+        transition: all 0.2s;
         outline: 1px solid transparent;
         border-radius: 0;
         display: block;
+        resize: vertical;
 
         &:focus {
             outline: 1px solid;
         }
     }
 
-    & p {
-        width: min(70vw, 70vh);
-        margin: 1rem auto;
+    & .alt-text {
+        min-height: 6.5rem;
     }
 }
 
 #sketchpad {
     border: 1px solid;
-    margin: 0 auto;
     display: block;
     cursor: crosshair;
-    width: min(70vw, 70vh);
-    height: min(70vw, 70vh);
+    width: 100%;
+    max-width: 72vh;
+    height: auto;
     aspect-ratio: 1 / 1;
-    /* position: fixed; */
-    /* top: 20vh; */
-    /* left: 10vw; */
+}
+
+@media (min-width: 1050px) {
+    .route.home {
+        & .composer-layout {
+            grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
+            gap: 2rem;
+        }
+
+        & .canvas-column {
+            margin: 0;
+        }
+    }
 }

@@ -82,14 +82,17 @@ export const HomeRoute:FunctionComponent<{
         if (state.postReq.value.pending) return
         const form = ev.target as HTMLFormElement
         const textarea = form.elements['text'] as HTMLTextAreaElement
+        const altInput = form.elements['alt-text'] as HTMLTextAreaElement
         const text = textarea.value.trim()
+        const altText = altInput.value.trim()
         const canvas = sketchpad.current
 
         try {
             if (!canvas) throw new Error('Drawing canvas not found')
             const imageBlob = await canvasToSquareBlob(canvas, 'image/png')
-            await State.post(state, text, imageBlob)
+            await State.post(state, text, imageBlob, altText)
             textarea.value = ''
+            altInput.value = ''
             if (atrament) atrament.clear()
         } catch (err) {
             debug('submit drering error', err)
@@ -101,41 +104,56 @@ export const HomeRoute:FunctionComponent<{
             Draw things, then show people the drawings.
         </p>
 
-        <canvas ref=${sketchpad} id="sketchpad"></canvas>
-
-        <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
-            <textarea
-                id="text"
-                name="text"
-                class="post-text"
-                placeholder="My text message${ELLIPSIS}"
-            ></textarea>
-
-            <div class="controls">
-                ${state.isAuthed.value ?
-                    html`<${Button}
-                        type="submit"
-                        isSpinning=${isPosting}
-                        disabled=${disable}
-                    >
-                        Post It
-                    <//>` :
-                    html`<${LinkBtn} href="/login">
-                        Login
-                    <//>
-                    `
-                }
+        <div class="composer-layout">
+            <div class="canvas-column">
+                <canvas ref=${sketchpad} id="sketchpad"></canvas>
             </div>
-            ${postError.value && html`<p class="error-banner">${postError.value}</p>`}
-            ${postSuccess.value && html`
-                <p class="success-banner">Posted to Bluesky.</p>
-                ${postUrl.value && html`<p class="success-link">
-                    <a href="${postUrl.value}" target="_blank" rel="noreferrer">
-                        View on Bluesky
-                    </a>
-                </p>`}
-            `}
-        </form>
+
+            <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
+                <label for="text">Text</label>
+                <textarea
+                    id="text"
+                    name="text"
+                    class="post-text"
+                    placeholder="My text message${ELLIPSIS}"
+                ></textarea>
+
+                ${state.isAuthed.value && html`<div class="alt-text-field">
+                    <label for="alt-text">Alt text</label>
+                    <textarea
+                        id="alt-text"
+                        name="alt-text"
+                        class="alt-text"
+                        placeholder="Describe your drawing for people who can't see it${ELLIPSIS}"
+                    ></textarea>
+                </div>`}
+
+                <div class="controls">
+                    ${state.isAuthed.value ?
+                        html`<${Button}
+                            type="submit"
+                            isSpinning=${isPosting}
+                            disabled=${disable}
+                        >
+                            Post It
+                        <//>` :
+                        html`<${LinkBtn} href="/login">
+                            Login
+                        <//>
+                        `
+                    }
+                </div>
+                ${postError.value && html`<p class="error-banner">${postError.value}</p>`}
+                ${postSuccess.value && html`
+                    <p class="success-banner">Posted to Bluesky.</p>
+                    ${postUrl.value && html`<p class="success-link">
+                        <a href="${postUrl.value}" target="_blank" rel="noreferrer">
+                            View on Bluesky
+                        </a>
+                    </p>`}
+                `}
+            </form>
+        </div>
     </div>`
 }
 

@@ -18,6 +18,7 @@ const debug = Debug('drerings:state')
 export const OAUTH_CALLBACK_PATH = '/login'
 export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
+export const INVISIBLE_POST_TAG = 'drering'
 
 export { RequestState, type RequestFor }
 
@@ -93,7 +94,8 @@ export type AppState = ReturnType<typeof State>
 State.post = async function (
     state:AppState,
     textContent?:string,
-    imageBlob?:Blob
+    imageBlob?:Blob,
+    altText?:string
 ) {
     const req = state.postReq
     req.value = RequestState<{ uri:string, cid:string }>()
@@ -112,6 +114,7 @@ State.post = async function (
         const postRecord:{
             text:string;
             createdAt:string;
+            tags:string[];
             embed?:{
                 $type:'app.bsky.embed.images';
                 images:Array<{
@@ -121,7 +124,8 @@ State.post = async function (
             };
         } = {
             text,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            tags: [INVISIBLE_POST_TAG]
         }
 
         if (imageBlob && imageBlob.size > 0) {
@@ -131,7 +135,7 @@ State.post = async function (
             postRecord.embed = {
                 $type: 'app.bsky.embed.images',
                 images: [{
-                    alt: text || 'Drering',
+                    alt: altText || text || 'Drering',
                     image: upload.data.blob
                 }]
             }
