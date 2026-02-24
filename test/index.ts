@@ -22,7 +22,8 @@ test('paramsFromQueryLike strips prefix characters', async t => {
 
 test('oauthParamsFromUrlLike merges search and hash params', async t => {
     const params = oauthParamsFromUrlLike(
-        'https://example.com/login?state=from-search#code=abc&iss=https%3A%2F%2Fbsky.social'
+        'https://example.com/login?state=from-search#' +
+            'code=abc&iss=https%3A%2F%2Fbsky.social'
     )
 
     t.equal(params.get('state'), 'from-search')
