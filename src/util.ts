@@ -8,6 +8,7 @@ const debug = Debug('drerings:util')
 export const OAUTH_CALLBACK_PATH = '/login'
 export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
+export const BSKY_WEB_ORIGIN = 'https://bsky.app'
 
 let oauthClientPromise:Promise<BrowserOAuthClientType>|null = null
 
@@ -34,6 +35,40 @@ export function oauthParamsFromUrlLike (urlLike:URL|string):URLSearchParams {
     }
 
     return params
+}
+
+interface ParsedAtUri {
+    authority:string;
+    collection:string|null;
+    rkey:string|null;
+}
+
+export function atUriToBskyUrl (atUri:string):string {
+    const { authority, collection, rkey } = parseAtUri(atUri)
+    const actor = encodeAtUriPathPart(authority)
+
+    if (!collection || collection === 'app.bsky.actor.profile') {
+        return `${BSKY_WEB_ORIGIN}/profile/${actor}`
+    }
+
+    if (!rkey) {
+        return `${BSKY_WEB_ORIGIN}/profile/${actor}`
+    }
+
+    const recordKey = encodeAtUriPathPart(rkey)
+
+    switch (collection) {
+        case 'app.bsky.feed.post':
+            return `${BSKY_WEB_ORIGIN}/profile/${actor}/post/${recordKey}`
+        case 'app.bsky.feed.generator':
+            return `${BSKY_WEB_ORIGIN}/profile/${actor}/feed/${recordKey}`
+        case 'app.bsky.graph.list':
+            return `${BSKY_WEB_ORIGIN}/profile/${actor}/lists/${recordKey}`
+        case 'app.bsky.graph.starterpack':
+            return `${BSKY_WEB_ORIGIN}/starter-pack/${actor}/${recordKey}`
+        default:
+            return `${BSKY_WEB_ORIGIN}/profile/${actor}`
+    }
 }
 
 export function oauthRedirectUri ():string {
@@ -134,4 +169,38 @@ export const readOAuthParamsFromLocation = function (
     locationHref:string = window.location.href
 ):URLSearchParams {
     return oauthParamsFromUrlLike(locationHref)
+}
+
+function parseAtUri (atUri:string):ParsedAtUri {
+    const input = atUri.trim()
+    if (!input.startsWith('at://')) {
+        throw new Error('Invalid AT URI: expected at:// scheme')
+    }
+
+    const withoutScheme = input.slice('at://'.length)
+    const withoutHash = withoutScheme.split('#')[0]
+    const withoutQuery = withoutHash.split('?')[0]
+    const parts = withoutQuery.split('/')
+    const rawAuthority = parts.shift() || ''
+
+    if (!rawAuthority) {
+        throw new Error('Invalid AT URI: missing authority')
+    }
+
+    const authority = decodeURIComponent(rawAuthority)
+    const segments = parts.filter(Boolean).map(decodeURIComponent)
+
+    if (segments.length > 2) {
+        throw new Error('Invalid AT URI: too many path segments')
+    }
+
+    return {
+        authority,
+        collection: segments[0] || null,
+        rkey: segments[1] || null
+    }
+}
+
+function encodeAtUriPathPart (value:string):string {
+    return encodeURIComponent(value).replace(/%3A/gi, ':')
 }

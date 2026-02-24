@@ -5,6 +5,7 @@ import Atrament from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
 import { useComputed, useSignal } from '@preact/signals'
 import { ELLIPSIS } from '../constants'
+import { atUriToBskyUrl } from '../util'
 import './home.css'
 import { State, type AppState } from '../state'
 import { Button, LinkBtn } from '../components/button'
@@ -57,6 +58,17 @@ export const HomeRoute:FunctionComponent<{
     const postSuccess = useComputed<boolean>(() => {
         return !!state.postReq.value.data && !state.postReq.value.pending
     })
+    const postUrl = useComputed<string|null>(() => {
+        const atUri = state.postReq.value.data?.uri
+        if (!atUri) return null
+
+        try {
+            return atUriToBskyUrl(atUri)
+        } catch (err) {
+            debug('failed to parse post uri', err)
+            return null
+        }
+    })
     const isPosting = useComputed<boolean>(() => state.postReq.value.pending)
 
     const login = useCallback((ev:SubmitEvent) => {
@@ -77,9 +89,8 @@ export const HomeRoute:FunctionComponent<{
             if (!canvas) throw new Error('Drawing canvas not found')
             const imageBlob = await canvasToSquareBlob(canvas, 'image/png')
             await State.post(state, text, imageBlob)
-            isCanvasDirty.value = false
             textarea.value = ''
-            debug('posted drering', state.postReq.value.data)
+            if (atrament) atrament.clear()
         } catch (err) {
             debug('submit drering error', err)
         }
@@ -118,6 +129,11 @@ export const HomeRoute:FunctionComponent<{
             ${postError.value && html`<p class="error-banner">${postError.value}</p>`}
             ${postSuccess.value && html`
                 <p class="success-banner">Posted to Bluesky.</p>
+                ${postUrl.value && html`<p class="success-link">
+                    <a href="${postUrl.value}" target="_blank" rel="noreferrer">
+                        View on Bluesky
+                    </a>
+                </p>`}
             `}
         </form>
     </div>`

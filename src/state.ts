@@ -139,10 +139,13 @@ State.post = async function (
 
         const post = await agent.post(postRecord)
 
+        debug('done posting', post)
+
         RequestState.set(req, {
             uri: post.uri,
             cid: post.cid
         })
+
         return post
     } catch (err) {
         const error = err instanceof Error ? err : new Error('Failed to post to Bluesky')

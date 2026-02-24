@@ -6,7 +6,8 @@ import {
     oauthClientId,
     isLoopbackHost,
     hasOAuthCallback,
-    readOAuthParamsFromLocation
+    readOAuthParamsFromLocation,
+    atUriToBskyUrl
 } from '../src/util'
 import { did, config } from '../src/config'
 
@@ -76,6 +77,52 @@ describe('oauth utils', () => {
         expect(params.get('state')).toBe('abc')
         expect(params.get('code')).toBe('123')
         expect(params.get('error')).toBe('denied')
+    })
+})
+
+describe('at uri conversion', () => {
+    it('converts profile at uris to bsky profile urls', () => {
+        expect(atUriToBskyUrl('at://alice.bsky.social')).toBe(
+            'https://bsky.app/profile/alice.bsky.social'
+        )
+        expect(atUriToBskyUrl('at://did:plc:alice')).toBe(
+            'https://bsky.app/profile/did:plc:alice'
+        )
+    })
+
+    it('converts post at uris to bsky post urls', () => {
+        expect(atUriToBskyUrl(
+            'at://did:plc:alice/app.bsky.feed.post/3lf4xabcdef'
+        )).toBe(
+            'https://bsky.app/profile/did:plc:alice/post/3lf4xabcdef'
+        )
+    })
+
+    it('converts feed/list/starterpack at uris to corresponding web routes', () => {
+        expect(atUriToBskyUrl(
+            'at://alice.bsky.social/app.bsky.feed.generator/my-feed'
+        )).toBe('https://bsky.app/profile/alice.bsky.social/feed/my-feed')
+        expect(atUriToBskyUrl(
+            'at://alice.bsky.social/app.bsky.graph.list/my-list'
+        )).toBe('https://bsky.app/profile/alice.bsky.social/lists/my-list')
+        expect(atUriToBskyUrl(
+            'at://did:plc:alice/app.bsky.graph.starterpack/abc123'
+        )).toBe('https://bsky.app/starter-pack/did:plc:alice/abc123')
+    })
+
+    it('falls back to profile route for unknown record collections', () => {
+        expect(atUriToBskyUrl(
+            'at://did:plc:alice/com.example.unknown/record-key'
+        )).toBe('https://bsky.app/profile/did:plc:alice')
+    })
+
+    it('throws for malformed at uris', () => {
+        expect(() => atUriToBskyUrl('https://example.com')).toThrow(
+            'Invalid AT URI: expected at:// scheme'
+        )
+        expect(() => atUriToBskyUrl('at:///app.bsky.feed.post/rkey')).toThrow(
+            'Invalid AT URI: missing authority'
+        )
     })
 })
 

@@ -6,7 +6,8 @@ import {
     oauthClientId,
     isLoopbackHost,
     hasOAuthCallback,
-    readOAuthParamsFromLocation
+    readOAuthParamsFromLocation,
+    atUriToBskyUrl
 } from '../src/util'
 import { did, config } from '../src/config'
 
@@ -96,6 +97,17 @@ test('did config helper returns expected document shape', async t => {
     t.equal(doc.service?.[0].serviceEndpoint, 'https://example.com')
     t.equal(doc.verificationMethod?.[0].controller, 'did:web:example.com')
     t.equal(config.recordName, 'drering')
+})
+
+test('atUriToBskyUrl converts profile and post URIs', async t => {
+    t.equal(
+        atUriToBskyUrl('at://alice.bsky.social'),
+        'https://bsky.app/profile/alice.bsky.social'
+    )
+    t.equal(
+        atUriToBskyUrl('at://did:plc:alice/app.bsky.feed.post/3lf4xabcdef'),
+        'https://bsky.app/profile/did:plc:alice/post/3lf4xabcdef'
+    )
 })
 
 test('all done', () => {
