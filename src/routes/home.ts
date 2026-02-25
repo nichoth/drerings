@@ -110,13 +110,15 @@ export const HomeRoute:FunctionComponent<{
             </div>
 
             <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
-                <label for="text">Text</label>
-                <textarea
-                    id="text"
-                    name="text"
-                    class="post-text"
-                    placeholder="My text message${ELLIPSIS}"
-                ></textarea>
+                <div>
+                    <label for="text">Text</label>
+                    <textarea
+                        id="text"
+                        name="text"
+                        class="post-text"
+                        placeholder="My text message${ELLIPSIS}"
+                    ></textarea>
+                </div>
 
                 ${state.isAuthed.value && html`<div class="alt-text-field">
                     <label for="alt-text">Alt text</label>
