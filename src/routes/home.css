@@ -1,29 +1,34 @@
 .route.home {
+    --composer-max-width: 1100px;
+    --composer-inline-size: min(100%, 76vh);
+    --composer-column-min: min(100%, 22rem);
+    --composer-gap: clamp(1.25rem, 2vw, 2rem);
+
     & > p {
         width: 100%;
-        max-width: 1100px;
+        max-width: var(--composer-max-width);
         margin: 1rem auto;
     }
 
     & .composer-layout {
         width: 100%;
-        max-width: 1100px;
+        max-width: var(--composer-max-width);
         margin: 0 auto;
         display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.25rem;
+        grid-template-columns: repeat(auto-fit, minmax(var(--composer-column-min), 1fr));
+        gap: var(--composer-gap);
         align-items: start;
     }
 
     & .canvas-column {
-        width: 100%;
-        max-width: 72vh;
+        width: min(100%, var(--composer-inline-size));
         margin: 0 auto;
     }
 
     & form {
-        width: 100%;
+        width: min(100%, var(--composer-inline-size));
         min-width: 0;
+        margin: 0 auto;
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -60,6 +65,11 @@
         }
     }
 
+    & input[type="text"] {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
     & .alt-text {
         min-height: 6.5rem;
     }
@@ -70,20 +80,7 @@
     display: block;
     cursor: crosshair;
     width: 100%;
-    max-width: 72vh;
+    max-width: none;
     height: auto;
     aspect-ratio: 1 / 1;
-}
-
-@media (min-width: 1050px) {
-    .route.home {
-        & .composer-layout {
-            grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
-            gap: 2rem;
-        }
-
-        & .canvas-column {
-            margin: 0;
-        }
-    }
 }

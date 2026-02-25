@@ -11,7 +11,8 @@ const {
     mockClient,
     mockGetOAuthClient,
     mockSetAgentFromOAuthSession,
-    mockOauthRedirectUri
+    mockOauthRedirectUri,
+    mockPublicSearchPosts
 } = vi.hoisted(() => {
     const mockClient = {
         initRestore: vi.fn(),
@@ -28,12 +29,43 @@ const {
     const mockOauthRedirectUri = vi.fn(
         () => 'http://127.0.0.1:8888/login'
     )
+    const mockPublicSearchPosts = vi.fn()
 
     return {
         mockClient,
         mockGetOAuthClient,
         mockSetAgentFromOAuthSession,
-        mockOauthRedirectUri
+        mockOauthRedirectUri,
+        mockPublicSearchPosts
+    }
+})
+
+vi.mock('@atproto/api', () => {
+    class MockBskyAgent {
+        app:{
+            bsky:{
+                feed:{
+                    searchPosts:Mock;
+                };
+            };
+        }
+
+        constructor () {
+            this.app = {
+                bsky: {
+                    feed: {
+                        searchPosts: mockPublicSearchPosts
+                    }
+                }
+            }
+        }
+    }
+
+    class MockAgent {}
+
+    return {
+        BskyAgent: MockBskyAgent,
+        Agent: MockAgent
     }
 })
 
@@ -42,10 +74,6 @@ vi.mock('../src/util', () => ({
     setAgentFromOAuthSession: mockSetAgentFromOAuthSession,
     oauthRedirectUri: mockOauthRedirectUri
 }))
-
-const SEARCH_ENDPOINT =
-    'https://public.api.bsky.app/xrpc/' +
-    'app.bsky.feed.searchPosts'
 
 function makeFeedPost (overrides:Partial<any> = {}) {
     return {
@@ -65,17 +93,27 @@ function makeFeedPost (overrides:Partial<any> = {}) {
     }
 }
 
+function makeAgent (searchPosts:Mock):any {
+    return {
+        app: {
+            bsky: {
+                feed: {
+                    searchPosts
+                }
+            }
+        }
+    }
+}
+
 let stateMod:any
 
 describe('State.fetchFeed', () => {
-    let fetchSpy:Mock
+    let searchPostsSpy:Mock
 
     beforeEach(async () => {
         stateMod = await import('../src/state')
         vi.clearAllMocks()
-
-        fetchSpy = vi.fn()
-        vi.stubGlobal('fetch', fetchSpy)
+        searchPostsSpy = vi.fn()
     })
 
     it('exposes feedReq on State() return value', () => {
@@ -99,24 +137,23 @@ describe('State.fetchFeed', () => {
             cid: 'bafy-cid-2',
             uri: 'at://did:plc:bob/app.bsky.feed.post/def'
         })]
-        fetchSpy.mockResolvedValue({
-            ok: true,
-            json: async () => ({
+        searchPostsSpy.mockResolvedValue({
+            data: {
                 posts,
                 cursor: 'cursor-abc'
-            })
+            }
         })
 
         const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
         await stateMod.State.fetchFeed(state)
 
-        expect(fetchSpy).toHaveBeenCalledTimes(1)
-        const calledUrl = new URL(fetchSpy.mock.calls[0][0])
-        expect(calledUrl.origin + calledUrl.pathname)
-            .toBe(SEARCH_ENDPOINT)
-        expect(calledUrl.searchParams.get('q'))
-            .toBe('#drering')
-
+        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
+        expect(searchPostsSpy).toHaveBeenCalledWith({
+            q: '#drering',
+            sort: 'latest',
+            limit: 30
+        })
         expect(state.feedReq.value.pending).toBe(false)
         expect(state.feedReq.value.data).toEqual(posts)
         expect(state.feedReq.value.error).toBeNull()
@@ -124,19 +161,19 @@ describe('State.fetchFeed', () => {
     })
 
     it('sets pending to true while fetching', async () => {
-        let resolveFetch:Function
-        fetchSpy.mockReturnValue(new Promise(resolve => {
-            resolveFetch = resolve
+        let resolveSearch:Function
+        searchPostsSpy.mockReturnValue(new Promise(resolve => {
+            resolveSearch = resolve
         }))
 
         const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
         const promise = stateMod.State.fetchFeed(state)
 
         expect(state.feedReq.value.pending).toBe(true)
 
-        resolveFetch!({
-            ok: true,
-            json: async () => ({ posts: [], cursor: null })
+        resolveSearch!({
+            data: { posts: [], cursor: null }
         })
         await promise
 
@@ -144,38 +181,38 @@ describe('State.fetchFeed', () => {
     })
 
     it('deduplicates concurrent requests', async () => {
-        fetchSpy.mockResolvedValue({
-            ok: true,
-            json: async () => ({
+        searchPostsSpy.mockResolvedValue({
+            data: {
                 posts: [makeFeedPost()],
                 cursor: null
-            })
+            }
         })
 
         const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
         const p1 = stateMod.State.fetchFeed(state)
         const p2 = stateMod.State.fetchFeed(state)
 
         await Promise.all([p1, p2])
 
-        expect(fetchSpy).toHaveBeenCalledTimes(1)
+        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
     })
 
     it('allows a new request after previous completes',
         async () => {
-            fetchSpy.mockResolvedValue({
-                ok: true,
-                json: async () => ({
+            searchPostsSpy.mockResolvedValue({
+                data: {
                     posts: [makeFeedPost()],
                     cursor: null
-                })
+                }
             })
 
             const state = stateMod.State()
+            state.agent.value = makeAgent(searchPostsSpy)
             await stateMod.State.fetchFeed(state)
             await stateMod.State.fetchFeed(state)
 
-            expect(fetchSpy).toHaveBeenCalledTimes(2)
+            expect(searchPostsSpy).toHaveBeenCalledTimes(2)
         }
     )
 
@@ -183,30 +220,32 @@ describe('State.fetchFeed', () => {
         const firstPosts = [makeFeedPost({ cid: 'first' })]
         const morePosts = [makeFeedPost({ cid: 'second' })]
 
-        fetchSpy
+        searchPostsSpy
             .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
+                data: {
                     posts: firstPosts,
                     cursor: 'page-2'
-                })
+                }
             })
             .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
+                data: {
                     posts: morePosts,
                     cursor: null
-                })
+                }
             })
 
         const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
         await stateMod.State.fetchFeed(state)
         await stateMod.State.fetchFeed(state, true)
 
-        expect(fetchSpy).toHaveBeenCalledTimes(2)
-        const secondUrl = new URL(fetchSpy.mock.calls[1][0])
-        expect(secondUrl.searchParams.get('cursor'))
-            .toBe('page-2')
+        expect(searchPostsSpy).toHaveBeenCalledTimes(2)
+        expect(searchPostsSpy.mock.calls[1][0]).toEqual({
+            q: '#drering',
+            sort: 'latest',
+            limit: 30,
+            cursor: 'page-2'
+        })
         expect(state.feedReq.value.data).toEqual([
             ...firstPosts,
             ...morePosts
@@ -214,15 +253,16 @@ describe('State.fetchFeed', () => {
         expect(state.feedCursor.value).toBeNull()
     })
 
-    it('stores error in feedReq on fetch failure', async () => {
-        fetchSpy.mockResolvedValue({
-            ok: false,
-            status: 500
-        })
+    it('stores error in feedReq on rpc failure', async () => {
+        searchPostsSpy.mockRejectedValue(
+            new Error('searchPosts failed (500)')
+        )
 
         const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
         await stateMod.State.fetchFeed(state)
 
+        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
         expect(state.feedReq.value.pending).toBe(false)
         expect(state.feedReq.value.error).toBeInstanceOf(Error)
         expect(state.feedReq.value.error?.message)
@@ -230,14 +270,39 @@ describe('State.fetchFeed', () => {
         expect(state.feedReq.value.data).toBeNull()
     })
 
-    it('stores error on network failure', async () => {
-        fetchSpy.mockRejectedValue(
-            new Error('Network error')
-        )
+    it('uses public feed agent when auth agent is unavailable', async () => {
+        const posts = [makeFeedPost()]
+        mockPublicSearchPosts.mockResolvedValue({
+            data: {
+                posts,
+                cursor: null
+            }
+        })
 
         const state = stateMod.State()
         await stateMod.State.fetchFeed(state)
 
+        expect(mockPublicSearchPosts).toHaveBeenCalledTimes(1)
+        expect(mockPublicSearchPosts).toHaveBeenCalledWith({
+            q: '#drering',
+            sort: 'latest',
+            limit: 30
+        })
+        expect(state.feedReq.value.pending).toBe(false)
+        expect(state.feedReq.value.error).toBeNull()
+        expect(state.feedReq.value.data).toEqual(posts)
+    })
+
+    it('stores error on network failure', async () => {
+        searchPostsSpy.mockRejectedValue(
+            new Error('Network error')
+        )
+
+        const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
+        await stateMod.State.fetchFeed(state)
+
+        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
         expect(state.feedReq.value.pending).toBe(false)
         expect(state.feedReq.value.error?.message)
             .toBe('Network error')

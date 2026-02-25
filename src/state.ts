@@ -9,7 +9,6 @@ import type { OAuthRedirectUri } from '@atproto/oauth-client'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
 import { RequestState, type RequestFor } from '@substrate-system/state'
-import ky, { type HTTPError } from 'ky'
 import {
     getOAuthClient,
     setAgentFromOAuthSession,
@@ -17,15 +16,33 @@ import {
 } from './util'
 const debug = Debug('drerings:state')
 export const OAUTH_CALLBACK_PATH = '/login'
-export const OAUTH_SCOPE = 'atproto transition:generic'
+export const OAUTH_SCOPE = (
+    'atproto ' +
+    'repo:app.bsky.feed.post?action=create ' +
+    'repo:app.bsky.actor.profile?action=create&action=update ' +
+    'blob:*/* ' +
+    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview'
+)
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const INVISIBLE_POST_TAG = 'drering'
+export const BSKY_PUBLIC_SERVICE = 'https://bsky.social'
 
 export { RequestState, type RequestFor }
 
-const SEARCH_ENDPOINT =
-    'https://public.api.bsky.app/xrpc/' +
-    'app.bsky.feed.searchPosts'
+let publicFeedAgentPromise:Promise<Agent>|null = null
+
+async function getPublicFeedAgent ():Promise<Agent> {
+    if (!publicFeedAgentPromise) {
+        publicFeedAgentPromise = (async () => {
+            const { BskyAgent } = await import('@atproto/api')
+            return new BskyAgent({
+                service: BSKY_PUBLIC_SERVICE
+            }) as unknown as Agent
+        })()
+    }
+
+    return publicFeedAgentPromise
+}
 
 export interface FeedImage {
     thumb:string;
@@ -102,10 +119,10 @@ export function State ():{
             registered: false,
             authenticated: false
         }),
-        postReq: signal<RequestFor<{ uri:string, cid:string }, HTTPError>>(
+        postReq: signal<RequestFor<{ uri:string, cid:string }, Error>>(
             RequestState()
         ),
-        feedReq: signal<RequestFor<FeedPost[], HTTPError>>(
+        feedReq: signal<RequestFor<FeedPost[], Error>>(
             RequestState()
         ),
         feedCursor: signal<string|null>(null),
@@ -285,7 +302,7 @@ State.createAgent = async function (
 }
 
 /**
- * Optionally hydrate the state agent from server-provided session data.
+ * Hydrate the state agent from server-provided session data.
  */
 State.hydrateAgent = async function (state:AppState):Promise<Agent|null> {
     try {
@@ -348,19 +365,25 @@ State.fetchFeed = async function (
     start(req)
 
     try {
-        const searchParams:Record<string, string> = {
+        const agent = state.agent.value || await getPublicFeedAgent()
+
+        const searchParams:{
+            q:string;
+            sort:'latest'|'top';
+            limit:number;
+            cursor?:string;
+        } = {
             q: '#' + INVISIBLE_POST_TAG,
             sort: 'latest',
-            limit: '30'
+            limit: 30
         }
 
         if (loadMore && state.feedCursor.value) {
             searchParams.cursor = state.feedCursor.value
         }
 
-        const data = await ky.get(SEARCH_ENDPOINT, {
-            searchParams
-        }).json<{ posts:FeedPost[]; cursor?:string }>()
+        const res = await agent.app.bsky.feed.searchPosts(searchParams)
+        const data = res.data
 
         debug('feed search results', data)
 

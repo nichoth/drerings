@@ -17,7 +17,10 @@ export default function _Router (
     })
 
     router.addRoute('/feed', () => {
-        State.fetchFeed(state)
+        const { pending, data, error } = state.feedReq.value
+        if (!pending && !data && !error) {
+            State.fetchFeed(state)
+        }
         return FeedRoute
     })
 

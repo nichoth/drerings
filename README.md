@@ -39,7 +39,7 @@ http://127.0.0.1:8888/login
 
 ### Optional env vars
 
-- `BSKY_OAUTH_SCOPE`: override OAuth scope (default: `atproto transition:generic`)
+- `BSKY_OAUTH_SCOPE`: override OAuth scope (default: `atproto repo:app.bsky.feed.post?action=create repo:app.bsky.actor.profile?action=create&action=update blob:*/* rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview`)
 - `BSKY_OAUTH_CLIENT_NAME`: client metadata `client_name`
 - `BSKY_OAUTH_CLIENT_ORIGIN`: override client metadata origin (useful with ngrok/tunnel)
 

@@ -93,7 +93,11 @@ describe('state oauth flows', () => {
         expect(mockClient.signInRedirect).toHaveBeenCalledWith(
             'alice.bsky.app',
             {
-                scope: 'atproto transition:generic',
+                scope:
+                    'atproto repo:app.bsky.feed.post?action=create ' +
+                    'repo:app.bsky.actor.profile?action=create&action=update ' +
+                    'blob:*/* ' +
+                    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview',
                 redirect_uri: 'http://127.0.0.1:8888/login'
             }
         )

@@ -23,12 +23,16 @@ export const ColophonRoute:FunctionComponent<{
                 open source library, Atrament.
             </a> It uses <a href="https://nichoth.com/projects/dev-diary-bluesky/">
                 Bluesky as a backend</a>.
-
         </p>
 
         <p>
             Any drawing you submit will be posted to Bluesky under the
-            username that you signed in with.
+            username that you signed in with. I am using Bluesky as the backend
+            because that way I get a social graph and moderation for free.
+        </p>
+        <p>
+            So the login screen redirects to Bluesky, but effectively you should
+            think of this as an account/profile for <em>this app</em>.
         </p>
     </div>`
 }
