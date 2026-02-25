@@ -110,13 +110,15 @@ export const HomeRoute:FunctionComponent<{
             </div>
 
             <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
-                <label for="text">Text</label>
-                <textarea
-                    id="text"
-                    name="text"
-                    class="post-text"
-                    placeholder="My text message${ELLIPSIS}"
-                ></textarea>
+                <div>
+                    <label for="text">Text</label>
+                    <textarea
+                        id="text"
+                        name="text"
+                        class="post-text"
+                        placeholder="My text message${ELLIPSIS}"
+                    ></textarea>
+                </div>
 
                 ${state.isAuthed.value && html`<div class="alt-text-field">
                     <label for="alt-text">Alt text</label>
@@ -133,11 +135,14 @@ export const HomeRoute:FunctionComponent<{
                         html`<${Button}
                             type="submit"
                             isSpinning=${isPosting}
-                            disabled=${disable}
+                            disabled=${disable.value}
                         >
                             Post It
                         <//>` :
-                        html`<${LinkBtn} href="/login">
+                        html`<${LinkBtn}
+                            href="/login"
+                            disabled=${state.authLoading.value}
+                        >
                             Login
                         <//>
                         `

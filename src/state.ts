@@ -9,6 +9,7 @@ import type { OAuthRedirectUri } from '@atproto/oauth-client'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
 import { RequestState, type RequestFor } from '@substrate-system/state'
+import ky, { type HTTPError } from 'ky'
 import {
     getOAuthClient,
     setAgentFromOAuthSession,
@@ -21,6 +22,42 @@ export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const INVISIBLE_POST_TAG = 'drering'
 
 export { RequestState, type RequestFor }
+
+const SEARCH_ENDPOINT =
+    'https://public.api.bsky.app/xrpc/' +
+    'app.bsky.feed.searchPosts'
+
+export interface FeedImage {
+    thumb:string;
+    fullsize:string;
+    alt:string;
+}
+
+export interface FeedPost {
+    uri:string;
+    cid:string;
+    author:{
+        did:string;
+        handle:string;
+        displayName?:string;
+        avatar?:string;
+    };
+    record:{
+        text:string;
+        createdAt:string;
+    };
+    embed?:{
+        $type:string;
+        images?:Array<{
+            thumb:string;
+            fullsize:string;
+            alt:string;
+        }>;
+    };
+    likeCount?:number;
+    repostCount?:number;
+    replyCount?:number;
+}
 
 export interface AuthStatus {
     registered:boolean;
@@ -49,7 +86,11 @@ export function State ():{
     isAuthed:ReadonlySignal<boolean>;
     agent:Signal<Agent|null>;
     profile:Signal<UserState|null>;
-    postReq:Signal<RequestFor<{ uri:string, cid:string }, Error>>;
+    postReq:Signal<RequestFor<
+        { uri:string, cid:string }, Error
+    >>;
+    feedReq:Signal<RequestFor<FeedPost[], Error>>;
+    feedCursor:Signal<string|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
     const onRoute = Route()
@@ -61,9 +102,13 @@ export function State ():{
             registered: false,
             authenticated: false
         }),
-        postReq: signal<RequestFor<{ uri:string, cid:string }, Error>>(
-            RequestState<{ uri:string, cid:string }>()
+        postReq: signal<RequestFor<{ uri:string, cid:string }, HTTPError>>(
+            RequestState()
         ),
+        feedReq: signal<RequestFor<FeedPost[], HTTPError>>(
+            RequestState()
+        ),
+        feedCursor: signal<string|null>(null),
         agent: signal<Agent|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname + location.search),
@@ -280,6 +325,62 @@ State.clearOAuthQuery = function ():void {
     clean.search = ''
     clean.hash = ''
     window.history.replaceState(null, '', clean.pathname)
+}
+
+/**
+ * Fetch feed posts from Bluesky search API.
+ * Deduplicates: skips if a request is already in progress.
+ * Pass `loadMore = true` to append the next page.
+ */
+State.fetchFeed = async function (
+    state:AppState,
+    loadMore = false
+):Promise<void> {
+    if (state.feedReq.value.pending) return
+
+    const { start, error, set } = RequestState
+
+    const req = state.feedReq
+
+    if (!loadMore) {
+        req.value = RequestState<FeedPost[]>()
+    }
+    start(req)
+
+    try {
+        const searchParams:Record<string, string> = {
+            q: '#' + INVISIBLE_POST_TAG,
+            sort: 'latest',
+            limit: '30'
+        }
+
+        if (loadMore && state.feedCursor.value) {
+            searchParams.cursor = state.feedCursor.value
+        }
+
+        const data = await ky.get(SEARCH_ENDPOINT, {
+            searchParams
+        }).json<{ posts:FeedPost[]; cursor?:string }>()
+
+        debug('feed search results', data)
+
+        state.feedCursor.value = data.cursor || null
+
+        const posts:FeedPost[] = loadMore ?
+            [
+                ...(req.value.data || []),
+                ...data.posts
+            ] :
+            (data.posts || [])
+
+        set(req, posts)
+    } catch (_err) {
+        const err = (_err instanceof Error ?
+            _err :
+            new Error('Failed to load feed'))
+        debug('feed fetch error', err)
+        error(req, err)
+    }
 }
 
 /**

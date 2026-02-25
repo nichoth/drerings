@@ -9,7 +9,8 @@ interface ButtonProps {
     isSpinning?:Signal<boolean>;
     class?:string;
     children?:ComponentChildren;
-    disabled?:boolean;
+    disabled?:boolean|Signal<boolean>;
+    type?:'button'|'submit'|'reset';
 }
 
 export const LinkBtn:FunctionComponent<{
@@ -24,35 +25,52 @@ export const LinkBtn:FunctionComponent<{
         .concat(props.class?.split(' ') || [])
         .filter(Boolean)
 
-    return html`<a class="${classes}" href="${disabled ? '' : href}">
+    return html`<a
+        class="${classes}"
+        href="${disabled ? undefined : href}"
+        aria-disabled=${disabled || undefined}
+    >
         ${children}
     </a>`
 }
 
 export const Button:FunctionComponent<ButtonProps> = function (props) {
-    const { isSpinning: _isSpinning, ..._props } = props
+    const {
+        isSpinning: _isSpinning,
+        onClick,
+        class: className,
+        children,
+        disabled: _disabled,
+        ..._props
+    } = props
     const isSpinning = _isSpinning || useSignal<boolean>(false)
+    const disabled = typeof _disabled === 'object' ?
+        _disabled.value :
+        _disabled
 
     const classes = (Array.from(new Set([
         'btn',
-        props.class,
+        className,
         isSpinning.value ? 'spinning' : ''
     ]))).filter(Boolean).join(' ').trim()
 
     const click = useCallback(async (ev:MouseEvent) => {
-        if (props.onClick) {
+        if (typeof onClick === 'function') {
             isSpinning.value = true
-            await props.onClick(ev)
-            isSpinning.value = false
+            try {
+                await onClick(ev)
+            } finally {
+                isSpinning.value = false
+            }
         }
-    }, [])
+    }, [onClick])
 
     return html`<button
         ...${_props}
-        onClick=${click}
-        disabled=${isSpinning.value || _props.disabled}
-        className=${classes}
+        onClick=${typeof onClick === 'function' ? click : undefined}
+        disabled=${isSpinning.value || disabled}
+        class=${classes}
     >
-        <span className="btn-content">${props.children}</span>
+        <span class="btn-content">${children}</span>
     </button>`
 }
