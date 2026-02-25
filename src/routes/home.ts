@@ -115,20 +115,22 @@ export const HomeRoute:FunctionComponent<{
                     <textarea
                         id="text"
                         name="text"
+                        disabled=${!state.isAuthed.value || !isCanvasDirty.value}
                         class="post-text"
                         placeholder="My text message${ELLIPSIS}"
                     ></textarea>
                 </div>
 
-                ${state.isAuthed.value && html`<div class="alt-text-field">
+                <div class="alt-text-field">
                     <label for="alt-text">Alt text</label>
                     <textarea
                         id="alt-text"
                         name="alt-text"
+                        disabled=${!state.isAuthed.value || !isCanvasDirty.value}
                         class="alt-text"
                         placeholder="Describe your drawing for people who can't see it${ELLIPSIS}"
                     ></textarea>
-                </div>`}
+                </div>
 
                 <div class="controls">
                     ${state.isAuthed.value ?

@@ -171,6 +171,10 @@ input.input {
 button {
     cursor: pointer;
     border-radius: 0;
+
+    &:disabled {
+        cursor: not-allowed;
+    }
 }
 
 button.btn, a.btn {
