@@ -70,7 +70,8 @@ test('oauthClientId includes redirect_uri and scope', async t => {
         'atproto repo:app.bsky.feed.post?action=create ' +
             'repo:app.bsky.actor.profile?action=create&action=update ' +
             'blob:*/* ' +
-            'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview'
+            'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
+            'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
     )
     t.ok(!!redirectUri, 'client id includes redirect_uri')
 

@@ -97,7 +97,8 @@ describe('state oauth flows', () => {
                     'atproto repo:app.bsky.feed.post?action=create ' +
                     'repo:app.bsky.actor.profile?action=create&action=update ' +
                     'blob:*/* ' +
-                    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview',
+                    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
+                    'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app',
                 redirect_uri: 'http://127.0.0.1:8888/login'
             }
         )

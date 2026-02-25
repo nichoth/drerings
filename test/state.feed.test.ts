@@ -1,4 +1,5 @@
 import {
+    afterEach,
     beforeEach,
     describe,
     expect,
@@ -11,8 +12,7 @@ const {
     mockClient,
     mockGetOAuthClient,
     mockSetAgentFromOAuthSession,
-    mockOauthRedirectUri,
-    mockPublicSearchPosts
+    mockOauthRedirectUri
 } = vi.hoisted(() => {
     const mockClient = {
         initRestore: vi.fn(),
@@ -29,43 +29,12 @@ const {
     const mockOauthRedirectUri = vi.fn(
         () => 'http://127.0.0.1:8888/login'
     )
-    const mockPublicSearchPosts = vi.fn()
 
     return {
         mockClient,
         mockGetOAuthClient,
         mockSetAgentFromOAuthSession,
-        mockOauthRedirectUri,
-        mockPublicSearchPosts
-    }
-})
-
-vi.mock('@atproto/api', () => {
-    class MockBskyAgent {
-        app:{
-            bsky:{
-                feed:{
-                    searchPosts:Mock;
-                };
-            };
-        }
-
-        constructor () {
-            this.app = {
-                bsky: {
-                    feed: {
-                        searchPosts: mockPublicSearchPosts
-                    }
-                }
-            }
-        }
-    }
-
-    class MockAgent {}
-
-    return {
-        BskyAgent: MockBskyAgent,
-        Agent: MockAgent
+        mockOauthRedirectUri
     }
 })
 
@@ -109,11 +78,17 @@ let stateMod:any
 
 describe('State.fetchFeed', () => {
     let searchPostsSpy:Mock
+    let fetchSpy:Mock
 
     beforeEach(async () => {
         stateMod = await import('../src/state')
         vi.clearAllMocks()
         searchPostsSpy = vi.fn()
+        fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as Mock
+    })
+
+    afterEach(() => {
+        fetchSpy.mockRestore()
     })
 
     it('exposes feedReq on State() return value', () => {
@@ -270,24 +245,56 @@ describe('State.fetchFeed', () => {
         expect(state.feedReq.value.data).toBeNull()
     })
 
-    it('uses public feed agent when auth agent is unavailable', async () => {
+    it('uses public search endpoint when auth agent is unavailable', async () => {
         const posts = [makeFeedPost()]
-        mockPublicSearchPosts.mockResolvedValue({
-            data: {
-                posts,
-                cursor: null
+        fetchSpy.mockResolvedValue(new Response(JSON.stringify({
+            posts,
+            cursor: null
+        }), {
+            status: 200,
+            headers: {
+                'content-type': 'application/json'
             }
-        })
+        }))
 
         const state = stateMod.State()
         await stateMod.State.fetchFeed(state)
 
-        expect(mockPublicSearchPosts).toHaveBeenCalledTimes(1)
-        expect(mockPublicSearchPosts).toHaveBeenCalledWith({
-            q: '#drering',
-            sort: 'latest',
-            limit: 30
-        })
+        expect(fetchSpy).toHaveBeenCalledTimes(1)
+        const requestUrl = String(fetchSpy.mock.calls[0][0])
+        expect(requestUrl)
+            .toContain('/xrpc/app.bsky.feed.searchPosts?q=%23drering')
+        expect(requestUrl).toContain('sort=latest')
+        expect(requestUrl).toContain('limit=30')
+        expect(state.feedReq.value.pending).toBe(false)
+        expect(state.feedReq.value.error).toBeNull()
+        expect(state.feedReq.value.data).toEqual(posts)
+    })
+
+    it('falls back to public search endpoint when auth scope is missing', async () => {
+        const posts = [makeFeedPost()]
+        searchPostsSpy.mockRejectedValue(
+            new Error(
+                'Missing required scope ' +
+                '"rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app"'
+            )
+        )
+        fetchSpy.mockResolvedValue(new Response(JSON.stringify({
+            posts,
+            cursor: null
+        }), {
+            status: 200,
+            headers: {
+                'content-type': 'application/json'
+            }
+        }))
+
+        const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
+        await stateMod.State.fetchFeed(state)
+
+        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
+        expect(fetchSpy).toHaveBeenCalledTimes(1)
         expect(state.feedReq.value.pending).toBe(false)
         expect(state.feedReq.value.error).toBeNull()
         expect(state.feedReq.value.data).toEqual(posts)
