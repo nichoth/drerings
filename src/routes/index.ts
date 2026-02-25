@@ -1,4 +1,5 @@
 import Router from '@substrate-system/routes'
+import { State, type AppState } from '../state.js'
 import { HomeRoute } from './home.js'
 import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
@@ -6,7 +7,9 @@ import { LoginRoute } from './login.js'
 import { WhoamiRoute } from './whoami.js'
 import { FeedRoute } from './feed.js'
 
-export default function _Router ():InstanceType<typeof Router> {
+export default function _Router (
+    state:AppState
+):InstanceType<typeof Router> {
     const router = new Router()
 
     router.addRoute('/', () => {
@@ -14,6 +17,7 @@ export default function _Router ():InstanceType<typeof Router> {
     })
 
     router.addRoute('/feed', () => {
+        State.fetchFeed(state)
         return FeedRoute
     })
 

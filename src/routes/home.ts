@@ -133,11 +133,14 @@ export const HomeRoute:FunctionComponent<{
                         html`<${Button}
                             type="submit"
                             isSpinning=${isPosting}
-                            disabled=${disable}
+                            disabled=${disable.value}
                         >
                             Post It
                         <//>` :
-                        html`<${LinkBtn} href="/login">
+                        html`<${LinkBtn}
+                            href="/login"
+                            disabled=${state.authLoading.value}
+                        >
                             Login
                         <//>
                         `

@@ -24,7 +24,11 @@ export const LinkBtn:FunctionComponent<{
         .concat(props.class?.split(' ') || [])
         .filter(Boolean)
 
-    return html`<a class="${classes}" href="${disabled ? '' : href}">
+    return html`<a
+        class="${classes}"
+        href="${disabled ? undefined : href}"
+        aria-disabled=${disabled || undefined}
+    >
         ${children}
     </a>`
 }

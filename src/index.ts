@@ -9,8 +9,8 @@ import Router, { routes } from './routes/index.js'
 import { COPYRIGHT } from './constants.js'
 import './style.css'
 
-const router = Router()
 const state = State()
+const router = Router(state)
 const debug = Debug('drerings')
 
 // set debug logging in local env
@@ -59,27 +59,37 @@ export const Drerings:FunctionComponent = function Drerings () {
         <${Nav} route=${state.route.value} isAuthed=${isAuthed} />
 
         <ul>
-            ${isAuthed.value ?
+            ${state.authLoading.value ?
                 html`
                     <li>
-                        <${Button}
-                            isSpinning=${isResolving}
-                            onClick=${logout}
-                        >
-                            Logout
-                        <//>
+                        <${Button} onClick=${() => {}} disabled=${true}>Logout<//>
                     </li>
                     <li>
-                        <div class="avatar">
-                            <a href="/whoami">
-                                <img
-                                    class="avatar"
-                                    src="${state.profile.value?.avatar}"
-                                />
-                            </a>
-                        </div>
+                        <div class="avatar avatar-placeholder"></div>
                     </li>
-                ` : html`<li><a href="/login">Login</a></li>`
+                ` :
+                isAuthed.value ?
+                    html`
+                        <li>
+                            <${Button}
+                                isSpinning=${isResolving}
+                                onClick=${logout}
+                            >
+                                Logout
+                            <//>
+                        </li>
+                        <li>
+                            <div class="avatar">
+                                <a href="/whoami">
+                                    <img
+                                        class="avatar"
+                                        src="${state.profile.value?.avatar}"
+                                    />
+                                </a>
+                            </div>
+                        </li>
+                    ` :
+                    html`<li><a href="/login">Login</a></li>`
             }
         </ul>
     </header>
