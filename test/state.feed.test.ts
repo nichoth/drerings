@@ -1,5 +1,4 @@
 import {
-    afterEach,
     beforeEach,
     describe,
     expect,
@@ -78,17 +77,11 @@ let stateMod:any
 
 describe('State.fetchFeed', () => {
     let searchPostsSpy:Mock
-    let fetchSpy:Mock
 
     beforeEach(async () => {
         stateMod = await import('../src/state')
         vi.clearAllMocks()
         searchPostsSpy = vi.fn()
-        fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as Mock
-    })
-
-    afterEach(() => {
-        fetchSpy.mockRestore()
     })
 
     it('exposes feedReq on State() return value', () => {
@@ -245,59 +238,40 @@ describe('State.fetchFeed', () => {
         expect(state.feedReq.value.data).toBeNull()
     })
 
-    it('uses public search endpoint when auth agent is unavailable', async () => {
-        const posts = [makeFeedPost()]
-        fetchSpy.mockResolvedValue(new Response(JSON.stringify({
-            posts,
-            cursor: null
-        }), {
-            status: 200,
-            headers: {
-                'content-type': 'application/json'
-            }
-        }))
-
+    it('requires login when auth agent is unavailable', async () => {
         const state = stateMod.State()
         await stateMod.State.fetchFeed(state)
 
-        expect(fetchSpy).toHaveBeenCalledTimes(1)
-        const requestUrl = String(fetchSpy.mock.calls[0][0])
-        expect(requestUrl)
-            .toContain('/xrpc/app.bsky.feed.searchPosts?q=%23drering')
-        expect(requestUrl).toContain('sort=latest')
-        expect(requestUrl).toContain('limit=30')
+        expect(mockClient.initRestore).toHaveBeenCalledTimes(1)
         expect(state.feedReq.value.pending).toBe(false)
-        expect(state.feedReq.value.error).toBeNull()
-        expect(state.feedReq.value.data).toEqual(posts)
+        expect(state.feedReq.value.error?.message)
+            .toBe('You need to log in before loading feed.')
+        expect(state.feedReq.value.data).toBeNull()
     })
 
-    it('falls back to public search endpoint when auth scope is missing', async () => {
-        const posts = [makeFeedPost()]
+    it('shows missing scope error without triggering reauth redirect', async () => {
         searchPostsSpy.mockRejectedValue(
             new Error(
                 'Missing required scope ' +
                 '"rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app"'
             )
         )
-        fetchSpy.mockResolvedValue(new Response(JSON.stringify({
-            posts,
-            cursor: null
-        }), {
-            status: 200,
-            headers: {
-                'content-type': 'application/json'
-            }
-        }))
 
         const state = stateMod.State()
+        state.profile.value = {
+            did: 'did:plc:alice',
+            handle: 'alice.bsky.app',
+            avatar: ''
+        }
         state.agent.value = makeAgent(searchPostsSpy)
         await stateMod.State.fetchFeed(state)
 
         expect(searchPostsSpy).toHaveBeenCalledTimes(1)
-        expect(fetchSpy).toHaveBeenCalledTimes(1)
+        expect(mockClient.signInRedirect).not.toHaveBeenCalled()
         expect(state.feedReq.value.pending).toBe(false)
-        expect(state.feedReq.value.error).toBeNull()
-        expect(state.feedReq.value.data).toEqual(posts)
+        expect(state.feedReq.value.error?.message)
+            .toContain('Missing required scope')
+        expect(state.feedReq.value.data).toBeNull()
     })
 
     it('stores error on network failure', async () => {

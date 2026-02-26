@@ -4,7 +4,13 @@ import {
     type Signal,
     signal
 } from '@preact/signals'
-import type { Agent } from '@atproto/api'
+import type {
+    Agent,
+    AppBskyFeedDefs,
+    AppBskyFeedSearchPosts,
+    AppBskyEmbedImages,
+    BlobRef,
+} from '@atproto/api'
 import type { OAuthRedirectUri } from '@atproto/oauth-client'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
@@ -15,6 +21,7 @@ import {
     oauthRedirectUri,
 } from './util'
 const debug = Debug('drerings:state')
+
 export const OAUTH_CALLBACK_PATH = '/login'
 export const SEARCH_POSTS_SCOPE =
     'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
@@ -28,82 +35,12 @@ export const OAUTH_SCOPE = (
 )
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const INVISIBLE_POST_TAG = 'drering'
-export const BSKY_PUBLIC_SEARCH_SERVICE = 'https://public.api.bsky.app'
 
 export { RequestState, type RequestFor }
 
-type FeedSearchParams = {
-    q:string;
-    sort:'latest'|'top';
-    limit:number;
-    cursor?:string;
-}
+export type FeedPost = AppBskyFeedDefs.PostView
 
-type FeedSearchResponse = {
-    posts:FeedPost[];
-    cursor?:string|null;
-}
-
-function isMissingSearchPostsScopeError (err:unknown):boolean {
-    if (!(err instanceof Error)) return false
-    return err.message.includes('Missing required scope') &&
-        err.message.includes(SEARCH_POSTS_SCOPE)
-}
-
-async function fetchPublicFeed (searchParams:FeedSearchParams):Promise<FeedSearchResponse> {
-    const url = new URL('/xrpc/app.bsky.feed.searchPosts', BSKY_PUBLIC_SEARCH_SERVICE)
-    url.searchParams.set('q', searchParams.q)
-    url.searchParams.set('sort', searchParams.sort)
-    url.searchParams.set('limit', String(searchParams.limit))
-    if (searchParams.cursor) {
-        url.searchParams.set('cursor', searchParams.cursor)
-    }
-
-    const res = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-            accept: 'application/json'
-        }
-    })
-
-    if (!res.ok) {
-        throw new Error(`searchPosts failed (${res.status})`)
-    }
-
-    return await res.json() as FeedSearchResponse
-}
-
-export interface FeedImage {
-    thumb:string;
-    fullsize:string;
-    alt:string;
-}
-
-export interface FeedPost {
-    uri:string;
-    cid:string;
-    author:{
-        did:string;
-        handle:string;
-        displayName?:string;
-        avatar?:string;
-    };
-    record:{
-        text:string;
-        createdAt:string;
-    };
-    embed?:{
-        $type:string;
-        images?:Array<{
-            thumb:string;
-            fullsize:string;
-            alt:string;
-        }>;
-    };
-    likeCount?:number;
-    repostCount?:number;
-    replyCount?:number;
-}
+export type FeedImage = AppBskyEmbedImages.ViewImage
 
 export interface AuthStatus {
     registered:boolean;
@@ -210,7 +147,7 @@ State.post = async function (
                 $type:'app.bsky.embed.images';
                 images:Array<{
                     alt:string;
-                    image:unknown;
+                    image:BlobRef;
                 }>;
             };
         } = {
@@ -394,9 +331,17 @@ State.fetchFeed = async function (
     start(req)
 
     try {
-        const authAgent = state.agent.value
+        const authAgent = state.agent.value || await State.hydrateAgent(state)
+        if (!authAgent) {
+            throw new Error('You need to log in before loading feed.')
+        }
 
-        const searchParams:FeedSearchParams = {
+        const searchParams:{
+            q:string;
+            sort:'latest'|'top';
+            limit:number;
+            cursor?:string;
+        } = {
             q: '#' + INVISIBLE_POST_TAG,
             sort: 'latest',
             limit: 30
@@ -406,20 +351,8 @@ State.fetchFeed = async function (
             searchParams.cursor = state.feedCursor.value
         }
 
-        const data = await (async ():Promise<FeedSearchResponse> => {
-            if (!authAgent) {
-                return fetchPublicFeed(searchParams)
-            }
-
-            try {
-                const res = await authAgent.app.bsky.feed.searchPosts(searchParams)
-                return res.data
-            } catch (_err) {
-                if (!isMissingSearchPostsScopeError(_err)) throw _err
-                debug('auth token missing search scope, retrying via public api')
-                return fetchPublicFeed(searchParams)
-            }
-        })()
+        const res = await authAgent.app.bsky.feed.searchPosts(searchParams)
+        const data:AppBskyFeedSearchPosts.OutputSchema = res.data
 
         debug('feed search results', data)
 
@@ -437,6 +370,7 @@ State.fetchFeed = async function (
         const err = (_err instanceof Error ?
             _err :
             new Error('Failed to load feed'))
+
         debug('feed fetch error', err)
         error(req, err)
     }

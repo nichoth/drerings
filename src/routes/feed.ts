@@ -1,6 +1,10 @@
 import { type FunctionComponent } from 'preact'
 import { html } from 'htm/preact'
 import {
+    AppBskyEmbedImages,
+    type AppBskyFeedPost
+} from '@atproto/api'
+import {
     State,
     type AppState,
     type FeedPost,
@@ -19,18 +23,6 @@ export const FeedRoute:FunctionComponent<{
 
     const { feedReq, feedCursor } = state
     const { pending, data: posts, error } = feedReq.value
-
-    function getImages (post:FeedPost):FeedImage[] {
-        if (!post.embed) return []
-        if (
-            post.embed.$type ===
-                'app.bsky.embed.images#view' &&
-            post.embed.images
-        ) {
-            return post.embed.images
-        }
-        return []
-    }
 
     function formatDate (iso:string):string {
         try {
@@ -76,7 +68,9 @@ export const FeedRoute:FunctionComponent<{
                     `${BSKY_WEB_ORIGIN}/profile/` +
                     post.author.handle
 
-                return html`<article
+                const record = post.record as AppBskyFeedPost.Main
+
+            return html`<article
                     class="feed-item"
                     key=${post.cid}
                 >
@@ -98,11 +92,11 @@ export const FeedRoute:FunctionComponent<{
                     ` : null}
 
                     <div class="feed-item-body">
-                        ${post.record.text ?
+                        ${record.text ?
                             html`<p
                                 class="feed-item-text"
                             >
-                                ${post.record.text}
+                                ${record.text}
                             </p>` :
                             null}
 
@@ -131,8 +125,7 @@ export const FeedRoute:FunctionComponent<{
 
                             <time class="feed-item-date">
                                 ${formatDate(
-                                    post.record
-                                        .createdAt
+                                    record.createdAt
                                 )}
                             </time>
                         </div>
@@ -155,4 +148,12 @@ export const FeedRoute:FunctionComponent<{
             </button>
         </div>` : null}
     </div>`
+}
+
+function getImages (post:FeedPost):FeedImage[] {
+    if (!post.embed) return []
+    if (AppBskyEmbedImages.isView(post.embed)) {
+        return post.embed.images
+    }
+    return []
 }
