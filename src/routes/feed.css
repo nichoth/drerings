@@ -12,15 +12,6 @@
     color: #c00;
 }
 
-.feed-error-actions {
-    margin-top: 1rem;
-    text-align: center;
-}
-
-.feed-error-help {
-    margin-bottom: 0.75rem;
-}
-
 .feed-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

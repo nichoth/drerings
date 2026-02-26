@@ -9,7 +9,6 @@ import {
     type AppState,
     type FeedPost,
     type FeedImage,
-    SEARCH_POSTS_SCOPE,
 } from '../state'
 import { atUriToBskyUrl, BSKY_WEB_ORIGIN } from '../util'
 import Debug from '@substrate-system/debug'
@@ -24,11 +23,6 @@ export const FeedRoute:FunctionComponent<{
 
     const { feedReq, feedCursor } = state
     const { pending, data: posts, error } = feedReq.value
-    const isMissingFeedScope = Boolean(
-        error &&
-        error.message.includes('Missing required scope') &&
-        error.message.includes(SEARCH_POSTS_SCOPE)
-    )
 
     function formatDate (iso:string):string {
         try {
@@ -56,21 +50,6 @@ export const FeedRoute:FunctionComponent<{
             <p class="feed-error">
                 ${error.message}
             </p>
-            ${isMissingFeedScope ? html`<div class="feed-error-actions">
-                <p class="feed-error-help">
-                    Re-authorize once to grant feed-read scope.
-                </p>
-                <button
-                    class="btn"
-                    onClick=${() => {
-                        void State.requestFeedScope(state).catch(err => {
-                            debug('scope upgrade request failed', err)
-                        })
-                    }}
-                >
-                    Grant Required Scope
-                </button>
-            </div>` : null}
         </div>`
     }
 

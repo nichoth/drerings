@@ -23,8 +23,6 @@ import {
 const debug = Debug('drerings:state')
 
 export const OAUTH_CALLBACK_PATH = '/login'
-export const SEARCH_POSTS_SCOPE =
-    'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
 export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const INVISIBLE_POST_TAG = 'drering'
@@ -220,32 +218,6 @@ State.login = async function (_state:AppState, handle:string):Promise<void> {
 
     const client = await getOAuthClient()
     await client.signInRedirect(normalizedHandle, {
-        scope: OAUTH_SCOPE,
-        redirect_uri: oauthRedirectUri() as OAuthRedirectUri
-    })
-}
-
-/**
- * Explicitly request OAuth scopes again for the current account.
- * This is user-triggered only (no automatic redirect).
- */
-State.requestFeedScope = async function (state:AppState):Promise<void> {
-    const loginHint = (
-        state.profile.value?.handle ||
-        state.profile.value?.did ||
-        state.agent.value?.did ||
-        ''
-    ).trim()
-
-    if (!loginHint) {
-        throw new Error(
-            'Could not determine account for scope upgrade. ' +
-            'Please log out and sign in again.'
-        )
-    }
-
-    const client = await getOAuthClient()
-    await client.signInRedirect(loginHint, {
         scope: OAUTH_SCOPE,
         redirect_uri: oauthRedirectUri() as OAuthRedirectUri
     })
