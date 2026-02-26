@@ -9,7 +9,7 @@
 }
 
 .feed-error {
-    color: #c00;
+    color: var(--danger);
 }
 
 .feed-grid {
@@ -46,11 +46,9 @@
 
 .feed-item-text {
     margin: 0 0 0.5rem;
-    font-size: 0.9rem;
     line-height: 1.4;
     overflow: hidden;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
 }
 
@@ -60,7 +58,6 @@
     justify-content: space-between;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.8rem;
 }
 
 .feed-item-author {
@@ -92,6 +89,51 @@
 .feed-item-date {
     flex-shrink: 0;
     opacity: 0.6;
+}
+
+.feed-item-actions {
+    margin-top: 0.35rem;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.feed-item-action {
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    min-height: 1.75rem;
+    padding: 0.2rem 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    color: #52657d;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    white-space: nowrap;
+    outline: 1px solid transparent;
+}
+
+.feed-item-action:hover {
+    border-color: black;
+}
+
+.feed-item-action:focus-visible {
+    outline: 1px solid black;
+}
+
+.feed-item-action > span {
+    display: inline-flex;
+    align-items: center;
+}
+
+.feed-item-action svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
 }
 
 .feed-load-more {

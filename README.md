@@ -1,8 +1,9 @@
-# drerings
+# Drerings
 
 Drawings for friends.
 
-## develop
+
+## Develop
 
 ```sh
 npm start
@@ -20,7 +21,7 @@ npm start
 
 2. Open the app at:
 
-```text
+```
 http://127.0.0.1:8888/login
 ```
 
@@ -39,9 +40,10 @@ http://127.0.0.1:8888/login
 
 ### Optional env vars
 
-- `BSKY_OAUTH_SCOPE`: override OAuth scope (default: `atproto transition:generic`)
-- `BSKY_OAUTH_CLIENT_NAME`: client metadata `client_name`
-- `BSKY_OAUTH_CLIENT_ORIGIN`: override client metadata origin (useful with ngrok/tunnel)
+* `BSKY_OAUTH_SCOPE`: override OAuth scope (default: `atproto transition:generic`)
+* `BSKY_OAUTH_CLIENT_NAME`: client metadata `client_name`
+* `BSKY_OAUTH_CLIENT_ORIGIN`: override client metadata origin
+  (useful with ngrok/tunnel)
 
-If Bluesky cannot reach your local client metadata URL, set `BSKY_OAUTH_CLIENT_ORIGIN`
-to your HTTPS tunnel origin and retry.
+If Bluesky cannot reach your local client metadata URL, set
+`BSKY_OAUTH_CLIENT_ORIGIN` to your HTTPS tunnel origin and retry.

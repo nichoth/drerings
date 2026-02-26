@@ -129,7 +129,7 @@ describe('State.fetchFeed', () => {
     })
 
     it('sets pending to true while fetching', async () => {
-        let resolveSearch:Function
+        let resolveSearch:(arg:any)=>void
         searchPostsSpy.mockReturnValue(new Promise(resolve => {
             resolveSearch = resolve
         }))

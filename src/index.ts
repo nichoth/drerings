@@ -98,9 +98,18 @@ export const Drerings:FunctionComponent = function Drerings () {
         <${ChildNode} state=${state} />
     </main>
     <footer>
-        ${COPYRIGHT} 2026, <a href="https://bsky.app/profile/nichoth.com">
-            @nichoth
-        </a>
+        <div>
+            ${COPYRIGHT} 2026, <a href="https://bsky.app/profile/nichoth.com">
+                @nichoth
+            </a>
+        </div>
+
+        <iframe src="https://github.com/sponsors/nichoth/button" 
+            title="Sponsor nichoth" 
+            height="32" 
+            width="114" 
+            style="border: 0;">
+        </iframe>
     </footer>
     `
 }

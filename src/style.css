@@ -5,6 +5,7 @@
     --focus-color: #00c8ff;
     --middle-gray: #d3d3d363;
     --main-text: black;
+    --danger: #c00;
 }
 
 body {
@@ -23,11 +24,12 @@ body {
 
 footer {
     border-top: 1px solid;
-    padding-top: 2rem;
+    padding-top: 4rem;
     margin: 0 auto;
     margin-top: 4rem;
     max-width: 80vw;
-    text-align: center;
+    display: flex;
+    justify-content: space-around;
 }
 
 .not-found {

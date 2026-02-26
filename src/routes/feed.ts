@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { html } from 'htm/preact'
+import { html, useCallback } from 'htm/preact'
 import {
     AppBskyEmbedImages,
     type AppBskyFeedPost
@@ -13,6 +13,8 @@ import {
 import { atUriToBskyUrl, BSKY_WEB_ORIGIN } from '../util'
 import Debug from '@substrate-system/debug'
 import './feed.css'
+import { IconBlock } from '../components/icon-block'
+import { IconCaution } from '../components/icon-caution'
 const debug = Debug('drerings:view:feed')
 
 export const FeedRoute:FunctionComponent<{
@@ -24,16 +26,64 @@ export const FeedRoute:FunctionComponent<{
     const { feedReq, feedCursor } = state
     const { pending, data: posts, error } = feedReq.value
 
-    function formatDate (iso:string):string {
+    const blockAuthor = useCallback(async (ev:MouseEvent) => {
+        ev.preventDefault()
+        const btn = ev.target as HTMLButtonElement
+        const did = btn.dataset.did!
+        const agent = state.agent.value
+        const repoDid = state.profile.value?.did || agent?.did
+
+        if (!agent || !repoDid || did) return
+
         try {
-            const d = new Date(iso)
-            return d.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
+            await agent.app.bsky.graph.block.create(
+                { repo: repoDid },
+                {
+                    $type: 'app.bsky.graph.block',
+                    subject: did,
+                    createdAt: new Date().toISOString()
+                }
+            )
+        } catch (err) {
+            debug('failed blocking account', err)
+        }
+    }, [])
+
+    // async function blockAuthor (post:FeedPost):Promise<void> {
+    //     const agent = state.agent.value
+    //     const repoDid = state.profile.value?.did || agent?.did
+
+    //     if (!agent || !repoDid || !post.author.did) return
+
+    //     try {
+    //         await agent.app.bsky.graph.block.create(
+    //             { repo: repoDid },
+    //             {
+    //                 $type: 'app.bsky.graph.block',
+    //                 subject: post.author.did,
+    //                 createdAt: new Date().toISOString()
+    //             }
+    //         )
+    //     } catch (err) {
+    //         debug('failed blocking account', err)
+    //     }
+    // }
+
+    async function reportPost (post:FeedPost):Promise<void> {
+        const agent = state.agent.value
+        if (!agent) return
+
+        try {
+            await agent.createModerationReport({
+                reasonType: 'com.atproto.moderation.defs#reasonOther',
+                subject: {
+                    $type: 'com.atproto.repo.strongRef',
+                    uri: post.uri,
+                    cid: post.cid
+                }
             })
-        } catch {
-            return ''
+        } catch (err) {
+            debug('failed reporting post', err)
         }
     }
 
@@ -64,13 +114,12 @@ export const FeedRoute:FunctionComponent<{
             ${posts.map(post => {
                 const images = getImages(post)
                 const bskyUrl = atUriToBskyUrl(post.uri)
-                const authorUrl =
-                    `${BSKY_WEB_ORIGIN}/profile/` +
+                const authorUrl = `${BSKY_WEB_ORIGIN}/profile/` +
                     post.author.handle
 
                 const record = post.record as AppBskyFeedPost.Main
 
-            return html`<article
+                return html`<article
                     class="feed-item"
                     key=${post.cid}
                 >
@@ -124,19 +173,44 @@ export const FeedRoute:FunctionComponent<{
                             </a>
 
                             <time class="feed-item-date">
-                                ${formatDate(
-                                    record.createdAt
-                                )}
+                                ${formatDate(record.createdAt)}
                             </time>
+                        </div>
+
+                        <div class="feed-item-actions">
+                            <button
+                                id="block"
+                                type="button"
+                                class="feed-item-action"
+                                aria-label="Block account"
+                                data-did="${post.author.did}"
+                                title="Block account"
+                                onClick=${blockAuthor}
+                            >
+                                <span>Block</span>
+                                <span><${IconBlock} /></span>
+                            </button>
+
+                            <button
+                                id="report"
+                                type="button"
+                                class="feed-item-action"
+                                aria-label="Report post"
+                                title="Report post"
+                                onClick=${async () => {
+                                    await reportPost(post)
+                                }}
+                            >
+                                <span>Report</span>
+                                <span><${IconCaution} /></span>
+                            </button>
                         </div>
                     </div>
                 </article>`
             })}
         </div>
 
-        ${feedCursor.value ? html`<div
-            class="feed-load-more"
-        >
+        ${feedCursor.value ? html`<div class="feed-load-more">
             <button
                 class="btn"
                 onClick=${() => {
@@ -156,4 +230,17 @@ function getImages (post:FeedPost):FeedImage[] {
         return post.embed.images
     }
     return []
+}
+
+function formatDate (iso:string):string {
+    try {
+        const d = new Date(iso)
+        return d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        })
+    } catch {
+        return ''
+    }
 }
