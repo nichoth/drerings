@@ -59,11 +59,7 @@ describe('oauth utils', () => {
     it('builds client id with expected redirect + scope params', () => {
         const clientId = new URL(oauthClientId())
         expect(clientId.searchParams.get('scope')).toBe(
-            'atproto repo:app.bsky.feed.post?action=create ' +
-            'repo:app.bsky.actor.profile?action=create&action=update ' +
-            'blob:*/* ' +
-            'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
-            'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
+            'atproto transition:generic'
         )
         expect(clientId.searchParams.get('redirect_uri')).toBeTruthy()
 

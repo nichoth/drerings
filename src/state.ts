@@ -25,14 +25,7 @@ const debug = Debug('drerings:state')
 export const OAUTH_CALLBACK_PATH = '/login'
 export const SEARCH_POSTS_SCOPE =
     'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
-export const OAUTH_SCOPE = (
-    'atproto ' +
-    'repo:app.bsky.feed.post?action=create ' +
-    'repo:app.bsky.actor.profile?action=create&action=update ' +
-    'blob:*/* ' +
-    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
-    SEARCH_POSTS_SCOPE
-)
+export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const INVISIBLE_POST_TAG = 'drering'
 

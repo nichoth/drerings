@@ -6,14 +6,7 @@ import type { AppState } from './state'
 import Debug from '@substrate-system/debug'
 const debug = Debug('drerings:util')
 export const OAUTH_CALLBACK_PATH = '/login'
-export const OAUTH_SCOPE = (
-    'atproto ' +
-    'repo:app.bsky.feed.post?action=create ' +
-    'repo:app.bsky.actor.profile?action=create&action=update ' +
-    'blob:*/* ' +
-    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
-    'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
-)
+export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
 export const BSKY_WEB_ORIGIN = 'https://bsky.app'
 

@@ -13,14 +13,7 @@ const OAUTH_INIT_COOKIE = 'drerings_oauth_init'
 const AUTH_COOKIE = 'drerings_auth'
 const OAUTH_INIT_TTL_SECONDS = 60 * 15
 const AUTH_TTL_SECONDS = 60 * 60 * 24 * 14
-const DEFAULT_SCOPE = (
-    'atproto ' +
-    'repo:app.bsky.feed.post?action=create ' +
-    'repo:app.bsky.actor.profile?action=create&action=update ' +
-    'blob:*/* ' +
-    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
-    'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app'
-)
+const DEFAULT_SCOPE = 'atproto transition:generic'
 const OAUTH_CALLBACK_PATH = '/login'
 
 const idResolver = new IdResolver()
