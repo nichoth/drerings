@@ -23,7 +23,7 @@ if (isDev()) {
 }
 
 export const Drerings:FunctionComponent = function Drerings () {
-    debug('rendering example...', state)
+    debug('rendering drerings...', state)
 
     useEffect(() => {
         State.fetchAuthStatus(state).catch(err => {

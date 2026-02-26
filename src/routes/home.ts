@@ -1,5 +1,5 @@
 import { html } from 'htm/preact'
-import { useRef, useEffect, useCallback, useMemo } from 'preact/hooks'
+import { useRef, useEffect, useCallback } from 'preact/hooks'
 import { type FunctionComponent } from 'preact'
 import Atrament from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
@@ -12,28 +12,28 @@ import { Button, LinkBtn } from '../components/button'
 import Debug from '@substrate-system/debug'
 const debug = Debug('drerings:view')
 
+let atrament:Atrament
+
 export const HomeRoute:FunctionComponent<{
     state:AppState
 }> = function HomeRoute ({ state }) {
     const sketchpad = useRef<HTMLCanvasElement>(null)
     const isCanvasDirty = useSignal<boolean>(false)
-    const atrament = useMemo(() => {
+
+    useEffect(() => {
+        debug('sketchpad.current...', sketchpad.current)
+        debug('atrament current...', atrament)
         if (!sketchpad.current) return
         const canvas = sketchpad.current
         const side = Math.max(1, Math.floor(
             Math.min(canvas.offsetWidth, canvas.offsetHeight)
         ))
-        return new Atrament(sketchpad.current, {
+        atrament = new Atrament(sketchpad.current, {
             width: side,
             height: side,
             ignoreModifiers: true,
             fill
         })
-    }, [sketchpad.current])
-
-    useEffect(() => {
-        debug('sketchpad.current', sketchpad.current)
-        if (!atrament) return
 
         atrament.smoothing = 0.7
         atrament.addEventListener('dirty', () => {

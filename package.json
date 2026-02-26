@@ -30,6 +30,7 @@
     "@simplewebauthn/browser": "^13.2.2",
     "@substrate-system/a11y": "^0.0.17",
     "@substrate-system/atrament": "^5.1.4",
+    "@substrate-system/character-counter": "^0.0.4",
     "@substrate-system/css-normalize": "^0.0.13",
     "@substrate-system/dialog": "^0.0.28",
     "@substrate-system/input": "^0.0.21",
