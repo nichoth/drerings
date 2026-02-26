@@ -18,15 +18,16 @@ export const ColophonRoute:FunctionComponent<{
         <p>
             This is a <a href="https://developer.mozilla.org/en-US/docs/Glossary/SPA">
                 single-page application
-            </a>, made with an${NBSP}
+            </a>. It uses an
             <a href="https://github.com/jakubfiala/atrament">
-                open source library, Atrament.
-            </a> It uses <a href="https://nichoth.com/projects/dev-diary-bluesky/">
+                open source library called Atrament
+            </a> for help with rendering on the HTML canvas.
+            We are using <a href="https://nichoth.com/projects/dev-diary-bluesky/">
                 Bluesky as a backend</a>.
         </p>
 
         <p>
-            Any drawing you submit will be posted to Bluesky under the
+            Any drawing you submit here will be posted to Bluesky under the
             username that you signed in with. I am using Bluesky as the backend
             because that way I get a social graph and moderation for free.
         </p>

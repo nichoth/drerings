@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
-import { html, useCallback } from 'htm/preact'
+import { html } from 'htm/preact'
+import { useCallback } from 'preact/hooks'
 import {
     AppBskyEmbedImages,
     type AppBskyFeedPost
