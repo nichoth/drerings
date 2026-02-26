@@ -1,4 +1,5 @@
 import { type FunctionComponent } from 'preact'
+import { useSignal } from '@preact/signals'
 import { html } from 'htm/preact'
 import { useCallback } from 'preact/hooks'
 import {
@@ -13,10 +14,27 @@ import {
 } from '../state'
 import { atUriToBskyUrl, BSKY_WEB_ORIGIN } from '../util'
 import Debug from '@substrate-system/debug'
+import { ModalWindow } from '@substrate-system/dialog'
+import '@substrate-system/dialog/css'
 import './feed.css'
 import { IconBlock } from '../components/icon-block'
 import { IconCaution } from '../components/icon-caution'
-const debug = Debug('drerings:view:feed')
+import { type PostView } from '@atproto/api/dist/client/types/app/bsky/feed/defs'
+const debug = Debug('drerings:view:feed');
+
+(async () => {
+    await Promise.race([
+        // Load all custom elements
+        Promise.allSettled([
+            customElements.whenDefined(ModalWindow.TAG),
+        ]),
+        // Resolve after two seconds
+        new Promise(resolve => setTimeout(resolve, 2000))
+    ])
+
+    // Remove the class, showing the page content
+    document.body.classList.remove('reduce-fouce')
+})()
 
 export const FeedRoute:FunctionComponent<{
     state:AppState
@@ -24,40 +42,23 @@ export const FeedRoute:FunctionComponent<{
     const { state } = props
     const { feedReq, feedCursor } = state
     const { pending, data: posts, error } = feedReq.value
+    const confirm = useSignal<'block'|'report'|null>(null)
+    const pendingBlockOrReport = useSignal<null|string|PostView>(null)
 
     const blockAuthor = useCallback(async (ev:MouseEvent) => {
         ev.preventDefault()
+        confirm.value = 'block'
         const btn = ev.currentTarget as HTMLButtonElement
-        const did = btn.dataset.did
-        const agent = state.agent.value
-        const repoDid = state.profile.value?.did || agent?.did
-
-        if (!agent || !repoDid || !did) return
-
-        try {
-            State.blockProfile(state, did)
-        } catch (err) {
-            debug('failed blocking account', err)
-        }
+        const did = btn.dataset.did!
+        debug('block', did)
+        pendingBlockOrReport.value = did
     }, [])
 
-    async function reportPost (post:FeedPost):Promise<void> {
-        const agent = state.agent.value
-        if (!agent) return
-
-        try {
-            await agent.createModerationReport({
-                reasonType: 'com.atproto.moderation.defs#reasonOther',
-                subject: {
-                    $type: 'com.atproto.repo.strongRef',
-                    uri: post.uri,
-                    cid: post.cid
-                }
-            })
-        } catch (err) {
-            debug('failed reporting post', err)
-        }
-    }
+    const reportPost = useCallback((post:PostView) => {
+        debug('report')
+        confirm.value = 'report'
+        pendingBlockOrReport.value = post
+    }, [])
 
     if (pending && !posts) {
         return html`<div class="route feed">
@@ -193,7 +194,19 @@ export const FeedRoute:FunctionComponent<{
                 ${pending ? 'Loading...' : 'Load more'}
             </button>
         </div>` : null}
-    </div>`
+    </div>
+
+    <${ModalWindow.TAG}
+        onClose=${() => { confirm.value = null }}
+        active=${confirm.value === 'block'}
+    >
+        <div>Confirm block here</div>
+    </${ModalWindow.TAG}>
+
+    <${ModalWindow.TAG} active=${confirm.value === 'report'}>
+        <div>Confirm report here</div>
+    </${ModalWindow.TAG}>
+    `
 }
 
 function getImages (post:FeedPost):FeedImage[] {

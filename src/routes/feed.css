@@ -115,25 +115,42 @@
     line-height: 1;
     white-space: nowrap;
     outline: 1px solid transparent;
-}
 
-.feed-item-action:hover {
-    border-color: black;
-}
+    & svg {
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+    }
 
-.feed-item-action:focus-visible {
-    outline: 1px solid black;
-}
+    &:hover {
+        border-color: black;
+        color: black;
 
-.feed-item-action > span {
-    display: inline-flex;
-    align-items: center;
-}
+        & svg {
+            fill: black;
 
-.feed-item-action svg {
-    width: 1rem;
-    height: 1rem;
-    flex-shrink: 0;
+            & path {
+                fill: black!important;
+            }
+        }
+    }
+
+    &:focus-visible {
+        outline: 1px solid black;
+        color: black;
+        fill: black;
+
+        & svg {
+            & path {
+                fill: black!important;
+            }
+        }
+    }
+
+    & > span {
+        display: inline-flex;
+        align-items: center;
+    }
 }
 
 .feed-load-more {
