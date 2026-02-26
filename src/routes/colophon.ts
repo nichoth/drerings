@@ -1,9 +1,9 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
 import Debug from '@substrate-system/debug'
-import { NBSP } from '../constants.js'
 import { type State } from '../state.js'
 import './colophon.css'
+import { NBSP } from '../constants.js'
 
 const debug = Debug('example:view:colophon')
 
@@ -18,9 +18,9 @@ export const ColophonRoute:FunctionComponent<{
         <p>
             This is a <a href="https://developer.mozilla.org/en-US/docs/Glossary/SPA">
                 single-page application
-            </a>. It uses an
+            </a>. It uses an${NBSP}
             <a href="https://github.com/jakubfiala/atrament">
-                open source library called Atrament
+                open source library called <em>Atrament</em>
             </a> for help with rendering on the HTML canvas.
             We are using <a href="https://nichoth.com/projects/dev-diary-bluesky/">
                 Bluesky as a backend</a>.
@@ -32,8 +32,9 @@ export const ColophonRoute:FunctionComponent<{
             because that way I get a social graph and moderation for free.
         </p>
         <p>
-            So the login screen redirects to Bluesky, but effectively you should
-            think of this as an account/profile for <em>this app</em>.
+            So the login screen redirects to Bluesky for OAuth, but effectively
+            you should think of this as an account/profile
+            for <em>this app</em>.
         </p>
     </div>`
 }
