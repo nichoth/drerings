@@ -233,6 +233,32 @@ State.login = async function (_state:AppState, handle:string):Promise<void> {
 }
 
 /**
+ * Explicitly request OAuth scopes again for the current account.
+ * This is user-triggered only (no automatic redirect).
+ */
+State.requestFeedScope = async function (state:AppState):Promise<void> {
+    const loginHint = (
+        state.profile.value?.handle ||
+        state.profile.value?.did ||
+        state.agent.value?.did ||
+        ''
+    ).trim()
+
+    if (!loginHint) {
+        throw new Error(
+            'Could not determine account for scope upgrade. ' +
+            'Please log out and sign in again.'
+        )
+    }
+
+    const client = await getOAuthClient()
+    await client.signInRedirect(loginHint, {
+        scope: OAUTH_SCOPE,
+        redirect_uri: oauthRedirectUri() as OAuthRedirectUri
+    })
+}
+
+/**
  * Finish OAuth after redirecting back to the app.
  */
 State.finishOAuth = async function (

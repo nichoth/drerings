@@ -111,6 +111,39 @@ describe('state oauth flows', () => {
         expect(mockClient.signInRedirect).not.toHaveBeenCalled()
     })
 
+    it('requestFeedScope redirects with full scope for current profile', async () => {
+        const state = stateMod.State()
+        state.profile.value = {
+            did: 'did:plc:alice',
+            handle: 'alice.bsky.app',
+            avatar: ''
+        }
+
+        await stateMod.State.requestFeedScope(state)
+
+        expect(mockClient.signInRedirect).toHaveBeenCalledWith(
+            'alice.bsky.app',
+            {
+                scope:
+                    'atproto repo:app.bsky.feed.post?action=create ' +
+                    'repo:app.bsky.actor.profile?action=create&action=update ' +
+                    'blob:*/* ' +
+                    'rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview ' +
+                    'rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app',
+                redirect_uri: 'http://127.0.0.1:8888/login'
+            }
+        )
+    })
+
+    it('requestFeedScope rejects when no account can be determined', async () => {
+        const state = stateMod.State()
+
+        await expect(stateMod.State.requestFeedScope(state)).rejects.toThrow(
+            'Could not determine account for scope upgrade. Please log out and sign in again.'
+        )
+        expect(mockClient.signInRedirect).not.toHaveBeenCalled()
+    })
+
     it('finishOAuth processes callback query, hydrates agent, and updates auth', async () => {
         const state = stateMod.State()
         const callbackSession = { did: 'did:plc:callback-user' }
