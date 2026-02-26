@@ -4,20 +4,19 @@ import {
     type Signal,
     signal
 } from '@preact/signals'
+import { Agent, moderatePost } from '@atproto/api'
 import type {
-    Agent,
     AppBskyFeedDefs,
     AppBskyFeedSearchPosts,
     AppBskyEmbedImages,
     BlobRef,
 } from '@atproto/api'
-import type { OAuthRedirectUri } from '@atproto/oauth-client'
+import type { OAuthRedirectUri, OAuthSession } from '@atproto/oauth-client'
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
 import { RequestState, type RequestFor } from '@substrate-system/state'
 import {
     getOAuthClient,
-    setAgentFromOAuthSession,
     oauthRedirectUri,
 } from './util'
 const debug = Debug('drerings:state')
@@ -322,10 +321,11 @@ State.fetchFeed = async function (
     start(req)
 
     try {
-        const authAgent = state.agent.value || await State.hydrateAgent(state)
-        if (!authAgent) {
+        const agent = state.agent.value || await State.hydrateAgent(state)
+        if (!agent) {
             throw new Error('You need to log in before loading feed.')
         }
+        const prefs = await agent.getPreferences()
 
         const searchParams:{
             q:string;
@@ -342,19 +342,29 @@ State.fetchFeed = async function (
             searchParams.cursor = state.feedCursor.value
         }
 
-        const res = await authAgent.app.bsky.feed.searchPosts(searchParams)
+        const res = await agent.app.bsky.feed.searchPosts(searchParams)
         const data:AppBskyFeedSearchPosts.OutputSchema = res.data
 
         debug('feed search results', data)
+
+        const visiblePosts = data.posts.filter((post) => {
+            const moderation = moderatePost(post, {
+                userDid: agent.did,
+                prefs: prefs.moderationPrefs
+            })
+
+            // 'filter' is true if the post is blocked / muted
+            return !moderation.ui('contentList').filter
+        })
 
         state.feedCursor.value = data.cursor || null
 
         const posts:FeedPost[] = loadMore ?
             [
                 ...(req.value.data || []),
-                ...data.posts
+                ...visiblePosts
             ] :
-            (data.posts || [])
+            visiblePosts
 
         set(req, posts)
     } catch (_err) {
@@ -365,6 +375,21 @@ State.fetchFeed = async function (
         debug('feed fetch error', err)
         error(req, err)
     }
+}
+
+State.blockProfile = async function (state:AppState, did:string) {
+    const agent = state.agent.value
+    if (!agent) throw new Error('not agent')
+    const repoDid:string = (state.profile.value?.did || agent.did)!
+
+    await agent.app.bsky.graph.block.create(
+        { repo: repoDid },
+        {
+            $type: 'app.bsky.graph.block',
+            subject: did,
+            createdAt: new Date().toISOString()
+        }
+    )
 }
 
 /**
@@ -388,5 +413,29 @@ State.Logout = async function (state:AppState):Promise<void> {
         state.postReq.value = RequestState<{ uri:string, cid:string }>()
     } catch (err) {
         debug('logout error', err)
+    }
+}
+
+export async function setAgentFromOAuthSession (
+    state:AppState,
+    session:OAuthSession
+):Promise<void> {
+    const agent = new Agent(session)
+    state.agent.value = agent
+
+    try {
+        const profile = await agent.getProfile({ actor: session.did })
+        state.profile.value = {
+            did: profile.data.did || session.did,
+            handle: profile.data.handle || '',
+            avatar: profile.data.avatar || ''
+        }
+    } catch (err) {
+        debug('profile hydrate error', err)
+        state.profile.value = {
+            did: session.did,
+            handle: '',
+            avatar: ''
+        }
     }
 }

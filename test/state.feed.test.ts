@@ -128,6 +128,49 @@ describe('State.fetchFeed', () => {
         expect(state.feedCursor.value).toBe('cursor-abc')
     })
 
+    it('filters out posts from blocked accounts', async () => {
+        const visible = makeFeedPost({ cid: 'visible-cid' })
+        const blocked = makeFeedPost({
+            cid: 'blocked-cid',
+            author: {
+                did: 'did:plc:blocked',
+                handle: 'blocked.bsky.social',
+                displayName: 'Blocked',
+                avatar: 'https://example.com/blocked.png',
+                viewer: {
+                    blocking: 'at://did:plc:self/app.bsky.graph.block/abc'
+                }
+            }
+        })
+        const blockedByList = makeFeedPost({
+            cid: 'blocked-list-cid',
+            author: {
+                did: 'did:plc:blocked-list',
+                handle: 'blockedlist.bsky.social',
+                displayName: 'Blocked List',
+                avatar: 'https://example.com/blocked-list.png',
+                viewer: {
+                    blockingByList: {
+                        uri: 'at://did:plc:self/app.bsky.graph.list/list1'
+                    }
+                }
+            }
+        })
+
+        searchPostsSpy.mockResolvedValue({
+            data: {
+                posts: [visible, blocked, blockedByList],
+                cursor: null
+            }
+        })
+
+        const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
+        await stateMod.State.fetchFeed(state)
+
+        expect(state.feedReq.value.data).toEqual([visible])
+    })
+
     it('sets pending to true while fetching', async () => {
         let resolveSearch:(arg:any)=>void
         searchPostsSpy.mockReturnValue(new Promise(resolve => {

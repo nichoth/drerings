@@ -1,10 +1,9 @@
 import type {
     BrowserOAuthClient as BrowserOAuthClientType
 } from '@atproto/oauth-client-browser'
-import type { OAuthSession } from '@atproto/oauth-client'
-import type { AppState } from './state'
-import Debug from '@substrate-system/debug'
-const debug = Debug('drerings:util')
+// import Debug from '@substrate-system/debug'
+// const debug = Debug('drerings:util')
+
 export const OAUTH_CALLBACK_PATH = '/login'
 export const OAUTH_SCOPE = 'atproto transition:generic'
 export const HANDLE_RESOLVER_URL = 'https://bsky.social'
@@ -122,31 +121,6 @@ export async function getOAuthClient ():Promise<BrowserOAuthClientType> {
     }
 
     return oauthClientPromise
-}
-
-export async function setAgentFromOAuthSession (
-    state:AppState,
-    session:OAuthSession
-):Promise<void> {
-    const { Agent: AtprotoAgent } = await import('@atproto/api')
-    const agent = new AtprotoAgent(session)
-    state.agent.value = agent
-
-    try {
-        const profile = await agent.getProfile({ actor: session.did })
-        state.profile.value = {
-            did: profile.data.did || session.did,
-            handle: profile.data.handle || '',
-            avatar: profile.data.avatar || ''
-        }
-    } catch (err) {
-        debug('profile hydrate error', err)
-        state.profile.value = {
-            did: session.did,
-            handle: '',
-            avatar: ''
-        }
-    }
 }
 
 /**

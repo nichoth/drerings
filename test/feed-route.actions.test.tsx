@@ -72,7 +72,7 @@ describe('FeedRoute moderation actions', () => {
         }
 
         render(h(FeedRoute, { state }))
-        fireEvent.click(await screen.findByText('Block'))
+        fireEvent.click(screen.getByLabelText('Block account'))
 
         await waitFor(() => {
             expect(blockCreateSpy).toHaveBeenCalledTimes(1)
@@ -82,7 +82,7 @@ describe('FeedRoute moderation actions', () => {
             { repo: 'did:plc:self' },
             expect.objectContaining({
                 $type: 'app.bsky.graph.block',
-                subject: undefined,
+                subject: 'did:plc:poster',
                 createdAt: expect.any(String)
             })
         )
@@ -102,7 +102,7 @@ describe('FeedRoute moderation actions', () => {
         } as any
 
         render(h(FeedRoute, { state }))
-        fireEvent.click(await screen.findByText('Report'))
+        fireEvent.click(screen.getByLabelText('Report post'))
 
         await waitFor(() => {
             expect(reportSpy).toHaveBeenCalledTimes(1)

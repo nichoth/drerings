@@ -22,53 +22,24 @@ export const FeedRoute:FunctionComponent<{
     state:AppState
 }> = function (props) {
     const { state } = props
-    debug('the feed route', state)
-
     const { feedReq, feedCursor } = state
     const { pending, data: posts, error } = feedReq.value
 
     const blockAuthor = useCallback(async (ev:MouseEvent) => {
         ev.preventDefault()
-        const btn = ev.target as HTMLButtonElement
-        const did = btn.dataset.did!
+        const btn = ev.currentTarget as HTMLButtonElement
+        const did = btn.dataset.did
         const agent = state.agent.value
         const repoDid = state.profile.value?.did || agent?.did
 
-        if (!agent || !repoDid || did) return
+        if (!agent || !repoDid || !did) return
 
         try {
-            await agent.app.bsky.graph.block.create(
-                { repo: repoDid },
-                {
-                    $type: 'app.bsky.graph.block',
-                    subject: did,
-                    createdAt: new Date().toISOString()
-                }
-            )
+            State.blockProfile(state, did)
         } catch (err) {
             debug('failed blocking account', err)
         }
     }, [])
-
-    // async function blockAuthor (post:FeedPost):Promise<void> {
-    //     const agent = state.agent.value
-    //     const repoDid = state.profile.value?.did || agent?.did
-
-    //     if (!agent || !repoDid || !post.author.did) return
-
-    //     try {
-    //         await agent.app.bsky.graph.block.create(
-    //             { repo: repoDid },
-    //             {
-    //                 $type: 'app.bsky.graph.block',
-    //                 subject: post.author.did,
-    //                 createdAt: new Date().toISOString()
-    //             }
-    //         )
-    //     } catch (err) {
-    //         debug('failed blocking account', err)
-    //     }
-    // }
 
     async function reportPost (post:FeedPost):Promise<void> {
         const agent = state.agent.value
