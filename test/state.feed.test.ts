@@ -61,8 +61,21 @@ function makeFeedPost (overrides:Partial<any> = {}) {
     }
 }
 
-function makeAgent (searchPosts:Mock):any {
+function makeAgent (
+    searchPosts:Mock,
+    {
+        did = 'did:plc:self',
+        moderationPrefs = {}
+    }:{
+        did?:string;
+        moderationPrefs?:any;
+    } = {}
+):any {
     return {
+        did,
+        getPreferences: vi.fn(async () => ({
+            moderationPrefs
+        })),
         app: {
             bsky: {
                 feed: {
@@ -150,6 +163,7 @@ describe('State.fetchFeed', () => {
                 displayName: 'Blocked List',
                 avatar: 'https://example.com/blocked-list.png',
                 viewer: {
+                    blocking: 'at://did:plc:self/app.bsky.graph.block/def',
                     blockingByList: {
                         uri: 'at://did:plc:self/app.bsky.graph.list/list1'
                     }

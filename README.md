@@ -74,8 +74,7 @@ npm test
 npm run test:e2e
 ```
 
-
-## Test the block & report buttons
+### Test the block & report buttons
 
 ```sh
 npm run test:e2e -- test/feed-route.actions.test.tsx
