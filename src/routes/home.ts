@@ -5,7 +5,7 @@ import Atrament from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
 import { useComputed, useSignal } from '@preact/signals'
 import { ELLIPSIS } from '../constants'
-import { atUriToBskyUrl } from '../util'
+import { atUriToBskyUrl, BSKY_WEB_ORIGIN } from '../util'
 import './home.css'
 import { State, type AppState } from '../state'
 import { Button, LinkBtn } from '../components/button'
@@ -150,6 +150,17 @@ export const HomeRoute:FunctionComponent<{
                         `
                     }
                 </div>
+                ${!state.isAuthed.value ? html`
+                    <p class="create-account-link">
+                        Need a Bluesky account? <a
+                            href="${BSKY_WEB_ORIGIN}"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            Create one
+                        </a>.
+                    </p>
+                ` : null}
                 ${postError.value && html`<p class="error-banner">${postError.value}</p>`}
                 ${postSuccess.value && html`
                     <p class="success-banner">Posted to Bluesky.</p>

@@ -8,6 +8,16 @@
     --danger: #c00;
 }
 
+a {
+    transition: all 0.2s;
+    text-decoration: underline;
+    text-underline-offset: 1px;
+
+    &:hover {
+        text-underline-offset: 3px;
+    }
+}
+
 body {
     font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
     margin-bottom: 4rem;

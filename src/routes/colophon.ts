@@ -21,7 +21,7 @@ export const ColophonRoute:FunctionComponent<{
             </a>. It uses an${NBSP}
             <a href="https://github.com/jakubfiala/atrament">
                 open source library called <em>Atrament</em>
-            </a> for help with rendering on the HTML canvas.
+            </a> for help with rendering the HTML canvas.
             We are using <a href="https://nichoth.com/projects/dev-diary-bluesky/">
                 Bluesky as a backend</a>.
         </p>
@@ -30,11 +30,13 @@ export const ColophonRoute:FunctionComponent<{
             Any drawing you submit here will be posted to Bluesky under the
             username that you signed in with. I am using Bluesky as the backend
             because that way I get a social graph and moderation for free.
-        </p>
-        <p>
-            So the login screen redirects to Bluesky for OAuth, but effectively
+            The login screen redirects to Bluesky for OAuth, but effectively
             you should think of this as an account/profile
             for <em>this app</em>.
+        </p>
+
+        <p>
+
         </p>
     </div>`
 }

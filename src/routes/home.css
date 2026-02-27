@@ -46,6 +46,10 @@
         & .alt-text-field {
             margin-top: 0.25rem;
         }
+
+        & .create-account-link {
+            text-align: right;
+        }
     }
 
     & textarea {

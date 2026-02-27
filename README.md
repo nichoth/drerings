@@ -2,6 +2,18 @@
 
 Drawings for friends.
 
+<details><summary><h2>Contents</h2></summary>
+
+<!-- toc -->
+
+- [Develop](#develop)
+- [OAuth Local Testing](#oauth-local-testing)
+  * [Troubleshooting](#troubleshooting)
+  * [Optional env vars](#optional-env-vars)
+
+<!-- tocstop -->
+
+</details>
 
 ## Develop
 
@@ -47,3 +59,32 @@ http://127.0.0.1:8888/login
 
 If Bluesky cannot reach your local client metadata URL, set
 `BSKY_OAUTH_CLIENT_ORIGIN` to your HTTPS tunnel origin and retry.
+
+## Test
+
+### Unit tests (faster)
+
+```sh
+npm test
+```
+
+### E2E tests
+
+```sh
+npm run test:e2e
+```
+
+
+## Test the block & report buttons
+
+```sh
+npm run test:e2e -- test/feed-route.actions.test.tsx
+```
+
+### the blocked-feed filtering test file
+
+```sh
+npm run test:e2e -- test/state.feed.test.ts
+```
+
+---

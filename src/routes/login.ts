@@ -13,7 +13,11 @@ import {
     type RequestFor
 } from '../state.js'
 import './login.css'
-import { hasOAuthCallback, readOAuthParamsFromLocation } from '../util.js'
+import {
+    BSKY_WEB_ORIGIN,
+    hasOAuthCallback,
+    readOAuthParamsFromLocation
+} from '../util.js'
 
 const debug = Debug('drerings:login')
 
@@ -128,6 +132,7 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
             <form class="login-form" onSubmit=${startOAuth}>
                 <${SubstrateInput.TAG}
                     label="Bluesky Handle"
+                    name="handle"
                     id="bsky-handle"
                     placeholder="alice.bsky.app"
                     value=${handle.value}
@@ -135,7 +140,7 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                         handle.value = (ev.target as HTMLInputElement).value
                     }}
                     disabled=${isSubmitting.value}
-                    autocomplete="username"
+                    autocomplete="handle"
                 ><//>
 
                 <div class="controls">
@@ -147,6 +152,16 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
                         Continue with Bluesky
                     <//>
                 </div>
+
+                <p class="create-account-link">
+                    Need a Bluesky account? <a
+                        href="${BSKY_WEB_ORIGIN}/signup"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        Create one
+                    </a>.
+                </p>
             </form>
         `}
     </div>`

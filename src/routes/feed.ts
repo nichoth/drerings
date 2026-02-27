@@ -45,7 +45,7 @@ export const FeedRoute:FunctionComponent<{
     const confirm = useSignal<'block'|'report'|null>(null)
     const pendingBlockOrReport = useSignal<null|string|PostView>(null)
 
-    const blockAuthor = useCallback(async (ev:MouseEvent) => {
+    const blockAuthor = useCallback((ev:MouseEvent) => {
         ev.preventDefault()
         confirm.value = 'block'
         const btn = ev.currentTarget as HTMLButtonElement
@@ -59,6 +59,60 @@ export const FeedRoute:FunctionComponent<{
         confirm.value = 'report'
         pendingBlockOrReport.value = post
     }, [])
+
+    const closeConfirmModal = useCallback(() => {
+        confirm.value = null
+        pendingBlockOrReport.value = null
+    }, [])
+
+    const confirmBlock = useCallback(async () => {
+        const did = pendingBlockOrReport.value
+        const agent = state.agent.value
+        const repoDid = state.profile.value?.did || agent?.did
+
+        if (typeof did !== 'string' || !agent || !repoDid) {
+            return closeConfirmModal()
+        }
+
+        try {
+            await agent.app.bsky.graph.block.create(
+                { repo: repoDid },
+                {
+                    $type: 'app.bsky.graph.block',
+                    subject: did,
+                    createdAt: new Date().toISOString()
+                }
+            )
+        } catch (err) {
+            debug('failed blocking account', err)
+        } finally {
+            closeConfirmModal()
+        }
+    }, [state.agent.value, state.profile.value?.did, pendingBlockOrReport.value])
+
+    const confirmReport = useCallback(async () => {
+        const pendingTarget = pendingBlockOrReport.value
+        const post = (typeof pendingTarget === 'string' ?
+            null :
+            pendingTarget)
+        const agent = state.agent.value
+        if (!agent || !post) return closeConfirmModal()
+
+        try {
+            await agent.createModerationReport({
+                reasonType: 'com.atproto.moderation.defs#reasonOther',
+                subject: {
+                    $type: 'com.atproto.repo.strongRef',
+                    uri: post.uri,
+                    cid: post.cid
+                }
+            })
+        } catch (err) {
+            debug('failed reporting post', err)
+        } finally {
+            closeConfirmModal()
+        }
+    }, [state.agent.value, pendingBlockOrReport.value])
 
     if (pending && !posts) {
         return html`<div class="route feed">
@@ -197,14 +251,53 @@ export const FeedRoute:FunctionComponent<{
     </div>
 
     <${ModalWindow.TAG}
-        onClose=${() => { confirm.value = null }}
+        onClose=${closeConfirmModal}
         active=${confirm.value === 'block'}
     >
-        <div>Confirm block here</div>
+        <div class="feed-confirm-body">
+            <p>Block this account?</p>
+            <div class="feed-confirm-actions">
+                <button
+                    type="button"
+                    class="feed-confirm-btn"
+                    onClick=${closeConfirmModal}
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="feed-confirm-btn"
+                    onClick=${confirmBlock}
+                >
+                    Confirm block
+                </button>
+            </div>
+        </div>
     </${ModalWindow.TAG}>
 
-    <${ModalWindow.TAG} active=${confirm.value === 'report'}>
-        <div>Confirm report here</div>
+    <${ModalWindow.TAG}
+        onClose=${closeConfirmModal}
+        active=${confirm.value === 'report'}
+    >
+        <div class="feed-confirm-body">
+            <p>Report this post?</p>
+            <div class="feed-confirm-actions">
+                <button
+                    type="button"
+                    class="feed-confirm-btn"
+                    onClick=${closeConfirmModal}
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="feed-confirm-btn"
+                    onClick=${confirmReport}
+                >
+                    Confirm report
+                </button>
+            </div>
+        </div>
     </${ModalWindow.TAG}>
     `
 }

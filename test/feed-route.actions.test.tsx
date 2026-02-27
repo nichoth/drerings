@@ -73,6 +73,7 @@ describe('FeedRoute moderation actions', () => {
 
         render(h(FeedRoute, { state }))
         fireEvent.click(screen.getByLabelText('Block account'))
+        fireEvent.click(screen.getByText('Confirm block'))
 
         await waitFor(() => {
             expect(blockCreateSpy).toHaveBeenCalledTimes(1)
@@ -103,6 +104,7 @@ describe('FeedRoute moderation actions', () => {
 
         render(h(FeedRoute, { state }))
         fireEvent.click(screen.getByLabelText('Report post'))
+        fireEvent.click(screen.getByText('Confirm report'))
 
         await waitFor(() => {
             expect(reportSpy).toHaveBeenCalledTimes(1)
