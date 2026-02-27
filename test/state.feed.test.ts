@@ -11,7 +11,8 @@ const {
     mockClient,
     mockGetOAuthClient,
     mockSetAgentFromOAuthSession,
-    mockOauthRedirectUri
+    mockOauthRedirectUri,
+    mockFetch
 } = vi.hoisted(() => {
     const mockClient = {
         initRestore: vi.fn(),
@@ -28,12 +29,14 @@ const {
     const mockOauthRedirectUri = vi.fn(
         () => 'http://127.0.0.1:8888/login'
     )
+    const mockFetch = vi.fn()
 
     return {
         mockClient,
         mockGetOAuthClient,
         mockSetAgentFromOAuthSession,
-        mockOauthRedirectUri
+        mockOauthRedirectUri,
+        mockFetch
     }
 })
 
@@ -94,6 +97,11 @@ describe('State.fetchFeed', () => {
     beforeEach(async () => {
         stateMod = await import('../src/state')
         vi.clearAllMocks()
+        vi.stubGlobal('fetch', mockFetch as any)
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: vi.fn(async () => ({ counts: {} }))
+        })
         searchPostsSpy = vi.fn()
     })
 
@@ -111,6 +119,24 @@ describe('State.fetchFeed', () => {
         const state = stateMod.State()
         expect(state.feedCursor).toBeDefined()
         expect(state.feedCursor.value).toBeNull()
+    })
+
+    it('exposes feedLikeCounts on State() return value', () => {
+        const state = stateMod.State()
+        expect(state.feedLikeCounts).toBeDefined()
+        expect(state.feedLikeCounts.value).toEqual({})
+    })
+
+    it('exposes feedPageIndex on State() return value', () => {
+        const state = stateMod.State()
+        expect(state.feedPageIndex).toBeDefined()
+        expect(state.feedPageIndex.value).toBe(0)
+    })
+
+    it('exposes feedPageCursors on State() return value', () => {
+        const state = stateMod.State()
+        expect(state.feedPageCursors).toBeDefined()
+        expect(state.feedPageCursors.value).toEqual([null])
     })
 
     it('fetches posts and stores them in feedReq', async () => {
@@ -133,12 +159,46 @@ describe('State.fetchFeed', () => {
         expect(searchPostsSpy).toHaveBeenCalledWith({
             q: '#drering',
             sort: 'latest',
-            limit: 30
+            limit: 20
         })
         expect(state.feedReq.value.pending).toBe(false)
         expect(state.feedReq.value.data).toEqual(posts)
         expect(state.feedReq.value.error).toBeNull()
         expect(state.feedCursor.value).toBe('cursor-abc')
+    })
+
+    it('fetches like counts from constellation API for visible posts', async () => {
+        const posts = [makeFeedPost({
+            cid: 'post-like-count-1',
+            uri: 'at://did:plc:alice/app.bsky.feed.post/likecount1'
+        })]
+        searchPostsSpy.mockResolvedValue({
+            data: {
+                posts,
+                cursor: null
+            }
+        })
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: vi.fn(async () => ({
+                counts: {
+                    'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+                }
+            }))
+        })
+
+        const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
+        await stateMod.State.fetchFeed(state)
+
+        expect(mockFetch).toHaveBeenCalledTimes(1)
+        expect(mockFetch.mock.calls[0][0]).toContain('/api/constellation/likes?')
+        expect(mockFetch.mock.calls[0][0]).toContain(
+            'uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2Flikecount1'
+        )
+        expect(state.feedLikeCounts.value).toEqual({
+            'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+        })
     })
 
     it('filters out posts from blocked accounts', async () => {
@@ -241,7 +301,7 @@ describe('State.fetchFeed', () => {
         }
     )
 
-    it('loads more posts with cursor and appends', async () => {
+    it('loads next page with cursor and replaces data', async () => {
         const firstPosts = [makeFeedPost({ cid: 'first' })]
         const morePosts = [makeFeedPost({ cid: 'second' })]
 
@@ -262,20 +322,60 @@ describe('State.fetchFeed', () => {
         const state = stateMod.State()
         state.agent.value = makeAgent(searchPostsSpy)
         await stateMod.State.fetchFeed(state)
-        await stateMod.State.fetchFeed(state, true)
+        await stateMod.State.fetchFeed(state, 'next')
 
         expect(searchPostsSpy).toHaveBeenCalledTimes(2)
         expect(searchPostsSpy.mock.calls[1][0]).toEqual({
             q: '#drering',
             sort: 'latest',
-            limit: 30,
+            limit: 20,
             cursor: 'page-2'
         })
-        expect(state.feedReq.value.data).toEqual([
-            ...firstPosts,
-            ...morePosts
-        ])
+        expect(state.feedReq.value.data).toEqual(morePosts)
+        expect(state.feedPageIndex.value).toBe(1)
+        expect(state.feedPageCursors.value).toEqual([null, 'page-2'])
         expect(state.feedCursor.value).toBeNull()
+    })
+
+    it('loads previous page using stored cursors', async () => {
+        const firstPosts = [makeFeedPost({ cid: 'first-page' })]
+        const secondPosts = [makeFeedPost({ cid: 'second-page' })]
+
+        searchPostsSpy
+            .mockResolvedValueOnce({
+                data: {
+                    posts: firstPosts,
+                    cursor: 'page-2'
+                }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    posts: secondPosts,
+                    cursor: 'page-3'
+                }
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    posts: firstPosts,
+                    cursor: 'page-2'
+                }
+            })
+
+        const state = stateMod.State()
+        state.agent.value = makeAgent(searchPostsSpy)
+        await stateMod.State.fetchFeed(state)
+        await stateMod.State.fetchFeed(state, 'next')
+        await stateMod.State.fetchFeed(state, 'prev')
+
+        expect(searchPostsSpy).toHaveBeenCalledTimes(3)
+        expect(searchPostsSpy.mock.calls[2][0]).toEqual({
+            q: '#drering',
+            sort: 'latest',
+            limit: 20
+        })
+        expect(state.feedReq.value.data).toEqual(firstPosts)
+        expect(state.feedPageIndex.value).toBe(0)
+        expect(state.feedCursor.value).toBe('page-2')
     })
 
     it('stores error in feedReq on rpc failure', async () => {

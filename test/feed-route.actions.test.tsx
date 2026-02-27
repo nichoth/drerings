@@ -120,3 +120,53 @@ describe('FeedRoute moderation actions', () => {
         })
     })
 })
+
+describe('FeedRoute pagination controls', () => {
+    it('renders next and prev buttons with correct disabled state', () => {
+        const state = createFeedState([makePost()])
+        state.feedCursor.value = 'next-cursor'
+        state.feedPageIndex.value = 0
+
+        render(h(FeedRoute, { state }))
+
+        expect((screen.getByRole('button', { name: 'Prev' }) as
+            HTMLButtonElement).disabled)
+            .toBe(true)
+        expect((screen.getByRole('button', { name: 'Next' }) as
+            HTMLButtonElement).disabled)
+            .toBe(false)
+    })
+
+    it('requests next and previous pages from controls', async () => {
+        const state = createFeedState([makePost()])
+        state.feedCursor.value = 'next-cursor'
+        state.feedPageIndex.value = 1
+
+        const fetchFeedSpy = vi.spyOn(State, 'fetchFeed')
+            .mockResolvedValue(undefined)
+
+        render(h(FeedRoute, { state }))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Prev' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+        expect(fetchFeedSpy).toHaveBeenCalledWith(state, 'prev')
+        expect(fetchFeedSpy).toHaveBeenCalledWith(state, 'next')
+    })
+})
+
+describe('FeedRoute like counts', () => {
+    it('renders constellation like counts for posts', () => {
+        const post = makePost({
+            uri: 'at://did:plc:poster/app.bsky.feed.post/liked-post'
+        })
+        const state = createFeedState([post])
+        state.feedLikeCounts.value = {
+            'at://did:plc:poster/app.bsky.feed.post/liked-post': 12
+        }
+
+        render(h(FeedRoute, { state }))
+
+        expect(screen.getByText('12 likes')).toBeTruthy()
+    })
+})

@@ -40,8 +40,10 @@ export const FeedRoute:FunctionComponent<{
     state:AppState
 }> = function (props) {
     const { state } = props
-    const { feedReq, feedCursor } = state
+    const { feedReq, feedCursor, feedPageIndex, feedLikeCounts } = state
     const { pending, data: posts, error } = feedReq.value
+    const hasPrevPage = feedPageIndex.value > 0
+    const hasNextPage = !!feedCursor.value
     const confirm = useSignal<'block'|'report'|null>(null)
     const pendingBlockOrReport = useSignal<null|string|PostView>(null)
 
@@ -143,6 +145,10 @@ export const FeedRoute:FunctionComponent<{
                 const bskyUrl = atUriToBskyUrl(post.uri)
                 const authorUrl = `${BSKY_WEB_ORIGIN}/profile/` +
                     post.author.handle
+                const likeCount = typeof feedLikeCounts.value[post.uri] ===
+                    'number' ?
+                    feedLikeCounts.value[post.uri] :
+                    (post.likeCount || 0)
 
                 const record = post.record as AppBskyFeedPost.Main
 
@@ -202,6 +208,10 @@ export const FeedRoute:FunctionComponent<{
                             <time class="feed-item-date">
                                 ${formatDate(record.createdAt)}
                             </time>
+
+                            <span class="feed-item-like-count">
+                                ${formatLikeCount(likeCount)}
+                            </span>
                         </div>
 
                         <div class="feed-item-actions">
@@ -237,15 +247,24 @@ export const FeedRoute:FunctionComponent<{
             })}
         </div>
 
-        ${feedCursor.value ? html`<div class="feed-load-more">
+        ${(hasPrevPage || hasNextPage) ? html`<div class="feed-pagination">
             <button
                 class="btn"
                 onClick=${() => {
-                    State.fetchFeed(state, true)
+                    State.fetchFeed(state, 'prev')
                 }}
-                disabled=${pending}
+                disabled=${pending || !hasPrevPage}
             >
-                ${pending ? 'Loading...' : 'Load more'}
+                Prev
+            </button>
+            <button
+                class="btn"
+                onClick=${() => {
+                    State.fetchFeed(state, 'next')
+                }}
+                disabled=${pending || !hasNextPage}
+            >
+                Next
             </button>
         </div>` : null}
     </div>
@@ -321,4 +340,8 @@ function formatDate (iso:string):string {
     } catch {
         return ''
     }
+}
+
+function formatLikeCount (count:number):string {
+    return `${count} like${count === 1 ? '' : 's'}`
 }

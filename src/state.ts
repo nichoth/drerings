@@ -31,6 +31,8 @@ export { RequestState, type RequestFor }
 export type FeedPost = AppBskyFeedDefs.PostView
 
 export type FeedImage = AppBskyEmbedImages.ViewImage
+export type FeedPageDirection = 'next'|'prev'
+export type FeedLikeCounts = Record<string, number>
 
 export interface AuthStatus {
     registered:boolean;
@@ -64,6 +66,9 @@ export function State ():{
     >>;
     feedReq:Signal<RequestFor<FeedPost[], Error>>;
     feedCursor:Signal<string|null>;
+    feedPageIndex:Signal<number>;
+    feedPageCursors:Signal<Array<string|null>>;
+    feedLikeCounts:Signal<FeedLikeCounts>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
     const onRoute = Route()
@@ -82,6 +87,9 @@ export function State ():{
             RequestState()
         ),
         feedCursor: signal<string|null>(null),
+        feedPageIndex: signal<number>(0),
+        feedPageCursors: signal<Array<string|null>>([null]),
+        feedLikeCounts: signal<FeedLikeCounts>({}),
         agent: signal<Agent|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname + location.search),
@@ -303,21 +311,45 @@ State.clearOAuthQuery = function ():void {
 /**
  * Fetch feed posts from Bluesky search API.
  * Deduplicates: skips if a request is already in progress.
- * Pass `loadMore = true` to append the next page.
+ * Pass direction to move to the next/previous page.
  */
 State.fetchFeed = async function (
     state:AppState,
-    loadMore = false
+    direction?:FeedPageDirection
 ):Promise<void> {
     if (state.feedReq.value.pending) return
 
     const { start, error, set } = RequestState
 
     const req = state.feedReq
+    const prevPageIndex = state.feedPageIndex.value
+    const prevPageCursors = [...state.feedPageCursors.value]
+    const prevFeedCursor = state.feedCursor.value
+    let pageCursor:string|null = null
 
-    if (!loadMore) {
-        req.value = RequestState<FeedPost[]>()
+    if (direction === 'next') {
+        const nextCursor = state.feedCursor.value
+        if (!nextCursor) return
+        const nextIndex = state.feedPageIndex.value + 1
+        state.feedPageIndex.value = nextIndex
+        const cursors = [...state.feedPageCursors.value]
+        cursors[nextIndex] = nextCursor
+        state.feedPageCursors.value = cursors
+        pageCursor = nextCursor
+    } else if (direction === 'prev') {
+        if (state.feedPageIndex.value === 0) return
+        const prevIndex = state.feedPageIndex.value - 1
+        state.feedPageIndex.value = prevIndex
+        pageCursor = state.feedPageCursors.value[prevIndex] || null
+    } else {
+        state.feedPageIndex.value = 0
+        state.feedPageCursors.value = [null]
+        state.feedCursor.value = null
     }
+
+    state.feedLikeCounts.value = {}
+
+    req.value = RequestState<FeedPost[]>()
     start(req)
 
     try {
@@ -335,11 +367,11 @@ State.fetchFeed = async function (
         } = {
             q: '#' + INVISIBLE_POST_TAG,
             sort: 'latest',
-            limit: 30
+            limit: 20
         }
 
-        if (loadMore && state.feedCursor.value) {
-            searchParams.cursor = state.feedCursor.value
+        if (pageCursor) {
+            searchParams.cursor = pageCursor
         }
 
         const res = await agent.app.bsky.feed.searchPosts(searchParams)
@@ -359,21 +391,71 @@ State.fetchFeed = async function (
 
         state.feedCursor.value = data.cursor || null
 
-        const posts:FeedPost[] = loadMore ?
-            [
-                ...(req.value.data || []),
-                ...visiblePosts
-            ] :
-            visiblePosts
-
-        set(req, posts)
+        set(req, visiblePosts)
+        await State.fetchFeedLikeCounts(state, visiblePosts)
     } catch (_err) {
         const err = (_err instanceof Error ?
             _err :
             new Error('Failed to load feed'))
 
+        state.feedPageIndex.value = prevPageIndex
+        state.feedPageCursors.value = prevPageCursors
+        state.feedCursor.value = prevFeedCursor
+        state.feedLikeCounts.value = {}
+
         debug('feed fetch error', err)
         error(req, err)
+    }
+}
+
+State.fetchFeedLikeCounts = async function (
+    state:AppState,
+    posts:FeedPost[]
+):Promise<void> {
+    const uris = [...new Set(posts
+        .map(post => post.uri)
+        .filter((uri):uri is string => typeof uri === 'string' && !!uri))]
+
+    if (!uris.length) {
+        state.feedLikeCounts.value = {}
+        return
+    }
+
+    try {
+        const url = new URL('/api/constellation/likes', window.location.origin)
+        uris.forEach((uri) => {
+            url.searchParams.append('uri', uri)
+        })
+
+        const res = await fetch(url.toString(), {
+            headers: {
+                Accept: 'application/json'
+            }
+        })
+
+        if (!res.ok) {
+            throw new Error(`Failed to fetch like counts (${res.status})`)
+        }
+
+        const body = await res.json() as {
+            counts?:Record<string, unknown>;
+        }
+        const counts:Record<string, unknown> = body && typeof body === 'object' &&
+            body.counts && typeof body.counts === 'object' ?
+            body.counts :
+            {}
+
+        const nextCounts:FeedLikeCounts = {}
+        uris.forEach((uri) => {
+            const raw = counts[uri]
+            if (typeof raw !== 'number' || !Number.isFinite(raw)) return
+            nextCounts[uri] = raw
+        })
+
+        state.feedLikeCounts.value = nextCounts
+    } catch (err) {
+        debug('feed like counts error', err)
+        state.feedLikeCounts.value = {}
     }
 }
 

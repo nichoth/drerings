@@ -91,6 +91,12 @@
     opacity: 0.6;
 }
 
+.feed-item-like-count {
+    flex-shrink: 0;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+}
+
 .feed-item-actions {
     margin-top: 0.35rem;
     display: flex;
@@ -153,7 +159,9 @@
     }
 }
 
-.feed-load-more {
-    text-align: center;
+.feed-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
     margin: 2rem 0;
 }
