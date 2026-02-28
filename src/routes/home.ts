@@ -19,6 +19,9 @@ const debug = Debug('drerings:view')
 
 let atrament:Atrament
 const DEFAULT_BRUSH_COLOR = '#000000'
+const DEFAULT_BRUSH_SIZE = 4
+const MIN_BRUSH_SIZE = 1
+const MAX_BRUSH_SIZE = 40
 
 export const HomeRoute:FunctionComponent<{
     state:AppState
@@ -26,6 +29,7 @@ export const HomeRoute:FunctionComponent<{
     const sketchpad = useRef<HTMLCanvasElement>(null)
     const isCanvasDirty = useSignal<boolean>(false)
     const brushColor = useSignal<string>(DEFAULT_BRUSH_COLOR)
+    const brushSize = useSignal<number>(DEFAULT_BRUSH_SIZE)
 
     useEffect(() => {
         debug('sketchpad.current...', sketchpad.current)
@@ -39,6 +43,7 @@ export const HomeRoute:FunctionComponent<{
             width: side,
             height: side,
             ignoreModifiers: true,
+            weight: brushSize.value,
             fill
         })
 
@@ -50,12 +55,29 @@ export const HomeRoute:FunctionComponent<{
         atrament.addEventListener('clean', () => {
             isCanvasDirty.value = false
         })
+
+        return () => {
+            atrament.destroy()
+        }
     }, [sketchpad.current])
 
     const onColorChange = useCallback((nextColor:string) => {
         brushColor.value = nextColor
         if (atrament) atrament.color = nextColor
     }, [])
+
+    const onSizeChange = useCallback((ev:Event) => {
+        const target = ev.target as HTMLInputElement
+        const nextSize = Number(target.value)
+        if (!Number.isFinite(nextSize)) return
+        brushSize.value = nextSize
+    }, [])
+
+    useEffect(() => {
+        if (atrament) {
+            atrament.weight = brushSize.value
+        }
+    }, [brushSize.value])
 
     const disable = useComputed<boolean>(() => {
         return (
@@ -150,6 +172,24 @@ export const HomeRoute:FunctionComponent<{
                             `see it${ELLIPSIS}`
                         }
                     ></textarea>
+                </div>
+
+                <div class="brush-size-wrap">
+                    <label for="brush-size">Brush size</label>
+                    <div class="brush-size-row">
+                        <input
+                            id="brush-size"
+                            type="range"
+                            min=${MIN_BRUSH_SIZE}
+                            max=${MAX_BRUSH_SIZE}
+                            step="1"
+                            value=${brushSize.value}
+                            disabled=${isPosting.value}
+                            onInput=${onSizeChange}
+                            onChange=${onSizeChange}
+                        />
+                        <output for="brush-size">${brushSize.value}</output>
+                    </div>
                 </div>
 
                 <div class="color-picker-wrap">

@@ -193,6 +193,43 @@ picker dependency):
 
 Default brush color is `#000000` on page load.
 
+### Brush Size Control
+
+The home route should include a native brush size control so users can
+change stroke thickness while drawing.
+
+#### UX
+
+- Use a single `<input type="range">` control labeled `Brush size`.
+- Show the current numeric value next to the slider.
+- Keep the control in the same form area as existing brush controls.
+
+#### Behavior
+
+- Control value updates `atrament.weight` live on input.
+- Size changes affect subsequent strokes only.
+- Default brush size on page load is `4`.
+- Allowed range is `1` to `40` with step `1`.
+- No persistence: brush size resets to default on fresh page load.
+
+#### State Scope
+
+- Keep brush size state local to `HomeRoute`.
+- Do not add brush size to global app state in `src/state.ts`.
+
+#### Accessibility
+
+- The range input must have an associated visible label.
+- The current value must be visible as text, not color-only or gesture-only.
+
+#### Acceptance Criteria
+
+1. On first load, drawing uses weight `4`.
+2. Moving the slider updates `atrament.weight` without page reload.
+3. Drawing after slider change shows visibly thicker/thinner strokes.
+4. Post/login/feed flows continue to behave exactly as before.
+5. Reloading the page resets brush size to the default value.
+
 ### Image Export
 
 Before posting, the canvas is exported via `canvasToSquareBlob`:

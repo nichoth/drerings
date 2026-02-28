@@ -1,24 +1,28 @@
 import { h } from 'preact'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/preact'
+import { fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { ColorPicker } from '../src/components/color-picker'
 import { State } from '../src/state'
 import { HomeRoute } from '../src/routes/home'
 
 const atramentTestState = vi.hoisted(() => ({
-    readColor: null as null|(()=>string)
+    readColor: null as null|(()=>string),
+    readWeight: null as null|(()=>number)
 }))
 
 vi.mock('@substrate-system/atrament', () => {
     return {
         default: class MockAtrament {
             color = '#000000'
+            weight = 4
             smoothing = 0
             clear = vi.fn()
             addEventListener = vi.fn()
+            destroy = vi.fn()
 
             constructor () {
                 atramentTestState.readColor = () => this.color
+                atramentTestState.readWeight = () => this.weight
             }
         }
     }
@@ -48,6 +52,20 @@ describe('ColorPicker', () => {
 })
 
 describe('HomeRoute color picker integration', () => {
+    it('uses default atrament brush size', () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        expect(atramentTestState.readWeight?.()).toBe(4)
+        expect((screen.getByLabelText('Brush size') as HTMLInputElement).value)
+            .toBe('4')
+    })
+
     it('updates atrament brush color from picker changes', () => {
         const state = State()
         state.auth.value = {
@@ -66,5 +84,25 @@ describe('HomeRoute color picker integration', () => {
         })
 
         expect(atramentTestState.readColor?.()).toBe('#3b82f6')
+    })
+
+    it('updates atrament brush size from slider changes', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        const slider = screen.getByLabelText('Brush size') as HTMLInputElement
+        slider.value = '13'
+        fireEvent.change(slider)
+
+        await waitFor(() => {
+            expect(atramentTestState.readWeight?.()).toBe(13)
+        })
+        expect(slider.value).toBe('13')
+        expect(screen.getByText('13')).toBeTruthy()
     })
 })
