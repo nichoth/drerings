@@ -34,8 +34,8 @@ export const ColophonRoute:FunctionComponent<{
             Any drawing you submit here will be posted to Bluesky under the
             username that you signed in with. I am using Bluesky as the backend
             because that way I get a social graph and moderation for free.
-            The login screen redirects to Bluesky for OAuth, but effectively
-            you should think of this as an account/profile
+            The login screen redirects to Bluesky for OAuth, but
+            you should think of it as an account/profile
             for <em>this app</em>.
         </p>
 

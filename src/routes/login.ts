@@ -118,7 +118,11 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
     return html`<div class="route login">
         <h2>Sign In</h2>
         <p class="login-intro">
-            Sign in with your Bluesky account using OAuth.
+            Login with your Bluesky account using OAuth.
+        </p>
+        <p>
+            Any drawing you post will be visible in bluesky on the account
+            that you signed in with.
         </p>
 
         ${errorMessage.value &&

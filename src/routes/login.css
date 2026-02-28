@@ -3,8 +3,8 @@
     margin: 0 auto;
     margin-top: 2rem;
 
-    & .login-intro {
-        margin-bottom: 1rem;
+    & p {
+        margin-bottom: 0;
     }
 
     & .login-form {
