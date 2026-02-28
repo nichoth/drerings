@@ -20,6 +20,13 @@
         align-items: center;
         gap: 0.35rem;
         flex-wrap: wrap;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    & .swatch-item {
+        display: inline-flex;
     }
 
     & .swatch {

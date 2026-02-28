@@ -89,7 +89,7 @@ npm run test:e2e -- test/state.feed.test.ts
 ### test the color picker
 
 ```sh
-npm run test:e2e -- test/home-route.color-picker.test.ts
+npx vitest run test/home-route.color-picker.test.ts
 ```
 
 ---

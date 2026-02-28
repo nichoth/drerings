@@ -1,6 +1,12 @@
 import { h } from 'preact'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/preact'
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within
+} from '@testing-library/preact'
 import { ColorPicker } from '../src/components/color-picker'
 import { State } from '../src/state'
 import { HomeRoute } from '../src/routes/home'
@@ -48,6 +54,18 @@ describe('ColorPicker', () => {
         })
 
         expect(onChange).toHaveBeenCalledWith('#22c55e')
+    })
+
+    it('exposes preset swatches as list items', () => {
+        const onChange = vi.fn()
+        render(h(ColorPicker, {
+            id: 'test-color-picker',
+            value: '#000000',
+            onChange
+        }))
+
+        const swatchList = screen.getByRole('list', { name: 'Preset colors' })
+        expect(within(swatchList).getAllByRole('listitem').length).toBeGreaterThan(0)
     })
 })
 
