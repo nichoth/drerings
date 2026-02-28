@@ -16,13 +16,17 @@ export const ColophonRoute:FunctionComponent<{
         <h2>About Drerings</h2>
 
         <p>
-            This is a <a href="https://developer.mozilla.org/en-US/docs/Glossary/SPA">
+            This is a <a
+                href="https://developer.mozilla.org/en-US/docs/Glossary/SPA"
+            >
                 single-page application
             </a>. It uses an${NBSP}
             <a href="https://github.com/jakubfiala/atrament">
                 open source library called <em>Atrament</em>
             </a> for help with rendering the HTML canvas.
-            We are using <a href="https://nichoth.com/projects/dev-diary-bluesky/">
+            We are using <a
+                href="https://nichoth.com/projects/dev-diary-bluesky/"
+            >
                 Bluesky as a backend</a>.
         </p>
 

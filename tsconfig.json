@@ -29,5 +29,11 @@
     "src/**/*",
     "test",
     "lib.es5.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "public",
+    "dist",
+    ".netlify"
   ]
 }

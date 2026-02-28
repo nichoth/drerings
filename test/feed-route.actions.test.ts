@@ -2,12 +2,13 @@ import { h } from 'preact'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/preact'
 import { FeedRoute } from '../src/routes/feed'
-import { State, type AppState } from '../src/state'
+import { State, type AppState, type FeedPost } from '../src/state'
 
-function makePost (overrides:Partial<any> = {}):any {
+function makePost (overrides:Partial<FeedPost> = {}):FeedPost {
     return {
         uri: 'at://did:plc:poster/app.bsky.feed.post/abc123',
         cid: 'bafy-post-cid',
+        indexedAt: '2026-02-25T22:00:00.000Z',
         author: {
             did: 'did:plc:poster',
             handle: 'poster.bsky.social',
@@ -19,10 +20,10 @@ function makePost (overrides:Partial<any> = {}):any {
             createdAt: '2026-02-25T22:00:00.000Z'
         },
         ...overrides
-    }
+    } as FeedPost
 }
 
-function createFeedState (posts:any[]):AppState {
+function createFeedState (posts:FeedPost[]):AppState {
     const state = State()
     state.feedReq.value = {
         pending: false,

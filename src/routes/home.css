@@ -47,6 +47,10 @@
             margin-top: 0.25rem;
         }
 
+        & .color-picker-wrap {
+            margin-top: 0.25rem;
+        }
+
         & .create-account-link {
             text-align: right;
         }

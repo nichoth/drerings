@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
     mockClient,
     mockGetOAuthClient,
-    mockSetAgentFromOAuthSession,
     mockOauthRedirectUri
 } = vi.hoisted(() => {
     const mockClient = {
@@ -15,31 +14,21 @@ const {
     }
 
     const mockGetOAuthClient = vi.fn(async () => mockClient)
-    const mockSetAgentFromOAuthSession = vi.fn(async (state:any, session:any) => {
-        state.agent.value = { did: session.did } as any
-        state.profile.value = {
-            did: session.did,
-            handle: 'alice.bsky.app',
-            avatar: 'https://example.com/avatar.png'
-        }
-    })
     const mockOauthRedirectUri = vi.fn(() => 'http://127.0.0.1:8888/login')
 
     return {
         mockClient,
         mockGetOAuthClient,
-        mockSetAgentFromOAuthSession,
         mockOauthRedirectUri
     }
 })
 
 vi.mock('../src/util', () => ({
     getOAuthClient: mockGetOAuthClient,
-    setAgentFromOAuthSession: mockSetAgentFromOAuthSession,
     oauthRedirectUri: mockOauthRedirectUri
 }))
 
-let stateMod:any
+let stateMod:typeof import('../src/state')
 
 describe('state oauth flows', () => {
     beforeEach(async () => {
@@ -56,7 +45,8 @@ describe('state oauth flows', () => {
         mockClient.revoke.mockResolvedValue(undefined)
     })
 
-    it('fetchAuthStatus marks state unauthenticated when no session is restored', async () => {
+    it('fetchAuthStatus marks state unauthenticated ' +
+        'when no session is restored', async () => {
         const state = stateMod.State()
         state.profile.value = {
             did: 'did:plc:old',
@@ -81,7 +71,7 @@ describe('state oauth flows', () => {
         const auth = await stateMod.State.fetchAuthStatus(state)
 
         expect(auth).toEqual({ registered: true, authenticated: true })
-        expect(mockSetAgentFromOAuthSession).toHaveBeenCalledWith(state, session)
+        expect(state.agent.value).toBeTruthy()
         expect(state.profile.value?.did).toBe('did:plc:alice')
     })
 
@@ -100,13 +90,14 @@ describe('state oauth flows', () => {
     })
 
     it('login rejects empty handle before oauth call', async () => {
-        await expect(stateMod.State.login(stateMod.State(), '   ')).rejects.toThrow(
-            'Bluesky handle is required'
-        )
+        await expect(
+            stateMod.State.login(stateMod.State(), '   ')
+        ).rejects.toThrow('Bluesky handle is required')
         expect(mockClient.signInRedirect).not.toHaveBeenCalled()
     })
 
-    it('finishOAuth processes callback query, hydrates agent, and updates auth', async () => {
+    it('finishOAuth processes callback query, ' +
+        'hydrates agent, and updates auth', async () => {
         const state = stateMod.State()
         const callbackSession = { did: 'did:plc:callback-user' }
         mockClient.initCallback.mockResolvedValue({ session: callbackSession })
@@ -118,14 +109,16 @@ describe('state oauth flows', () => {
         expect(params.get('state')).toBe('s123')
         expect(params.get('code')).toBe('c456')
         expect(redirectUri).toBe('http://127.0.0.1:8888/login')
-        expect(mockSetAgentFromOAuthSession).toHaveBeenCalledWith(
-            state,
-            callbackSession
-        )
-        expect(state.auth.value).toEqual({ registered: true, authenticated: true })
+        expect(state.agent.value).toBeTruthy()
+        expect(state.profile.value?.did).toBe('did:plc:callback-user')
+        expect(state.auth.value).toEqual({
+            registered: true,
+            authenticated: true
+        })
     })
 
-    it('createAgent restores oauth session by did and hydrates agent', async () => {
+    it('createAgent restores oauth session by did ' +
+        'and hydrates agent', async () => {
         const state = stateMod.State()
         const session = { did: 'did:plc:create-agent' }
         mockClient.restore.mockResolvedValue(session)
@@ -133,7 +126,8 @@ describe('state oauth flows', () => {
         await stateMod.State.createAgent(state, 'did:plc:create-agent')
 
         expect(mockClient.restore).toHaveBeenCalledWith('did:plc:create-agent')
-        expect(mockSetAgentFromOAuthSession).toHaveBeenCalledWith(state, session)
+        expect(state.agent.value).toBeTruthy()
+        expect(state.profile.value?.did).toBe('did:plc:create-agent')
     })
 
     it('hydrateAgent returns null when no session is available', async () => {
@@ -143,22 +137,26 @@ describe('state oauth flows', () => {
         const agent = await stateMod.State.hydrateAgent(state)
 
         expect(agent).toBeNull()
-        expect(mockSetAgentFromOAuthSession).not.toHaveBeenCalled()
     })
 
-    it('hydrateAgent restores session and marks authenticated', async () => {
+    it('hydrateAgent restores session and marks authenticated',
+        async () => {
         const state = stateMod.State()
         const session = { did: 'did:plc:hydrate-user' }
         mockClient.initRestore.mockResolvedValue({ session })
 
         const agent = await stateMod.State.hydrateAgent(state)
 
-        expect(agent).not.toBeNull()
-        expect(mockSetAgentFromOAuthSession).toHaveBeenCalledWith(state, session)
-        expect(state.auth.value).toEqual({ registered: true, authenticated: true })
+        expect(agent).toBeTruthy()
+        expect(state.profile.value?.did).toBe('did:plc:hydrate-user')
+        expect(state.auth.value).toEqual({
+            registered: true,
+            authenticated: true
+        })
     })
 
-    it('post publishes with current agent and records request success state', async () => {
+    it('post publishes with current agent ' +
+        'and records request success state', async () => {
         const state = stateMod.State()
         const postSpy = vi.fn(async () => ({
             uri: 'at://did:plc:alice/app.bsky.feed.post/123',
@@ -223,7 +221,8 @@ describe('state oauth flows', () => {
         await stateMod.State.post(state, 'caption text', imageBlob)
 
         expect(uploadBlobSpy).toHaveBeenCalledTimes(1)
-        expect(uploadBlobSpy.mock.calls[0][1]).toEqual({ encoding: 'image/png' })
+        expect(uploadBlobSpy.mock.calls[0][1])
+            .toEqual({ encoding: 'image/png' })
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
             text: 'caption text',
             tags: ['drering'],
@@ -237,7 +236,8 @@ describe('state oauth flows', () => {
         }))
     })
 
-    it('post fails and stores request error when no session can be restored', async () => {
+    it('post fails and stores request error ' +
+        'when no session can be restored', async () => {
         const state = stateMod.State()
         const hydrateSpy = vi.spyOn(stateMod.State, 'hydrateAgent')
             .mockResolvedValue(null)
@@ -252,7 +252,8 @@ describe('state oauth flows', () => {
         )
     })
 
-    it('logout revokes current did session and clears in-memory auth state', async () => {
+    it('logout revokes current did session and clears in-memory auth state',
+        async () => {
         const state = stateMod.State()
         state.profile.value = {
             did: 'did:plc:logout-user',
@@ -273,13 +274,17 @@ describe('state oauth flows', () => {
         await stateMod.State.Logout(state)
 
         expect(mockClient.revoke).toHaveBeenCalledWith('did:plc:logout-user')
-        expect(state.auth.value).toEqual({ registered: false, authenticated: false })
+        expect(state.auth.value).toEqual({
+            registered: false,
+            authenticated: false
+        })
         expect(state.profile.value).toBeNull()
         expect(state.agent.value).toBeNull()
         expect(state.postReq.value.data).toBeNull()
     })
 
-    it('logout falls back to restored session signOut when did is missing', async () => {
+    it('logout falls back to restored session signOut when did is missing',
+        async () => {
         const state = stateMod.State()
         const signOut = vi.fn(async () => {})
         mockClient.initRestore.mockResolvedValue({

@@ -100,7 +100,10 @@ export function oauthClientId ():string {
         return clientId.toString()
     }
 
-    const clientId = new URL('/api/auth/oauth/client-metadata', window.location.origin)
+    const clientId = new URL(
+        '/api/auth/oauth/client-metadata',
+        window.location.origin
+    )
     clientId.searchParams.set('redirect_uri', redirectUri)
     clientId.searchParams.set('scope', scope)
     return clientId.toString()
@@ -126,7 +129,9 @@ export async function getOAuthClient ():Promise<BrowserOAuthClientType> {
 /**
  * True when URL looks like an OAuth callback redirect.
  */
-export const hasOAuthCallback = function (query:URLSearchParams|string):boolean {
+export const hasOAuthCallback = function (
+    query:URLSearchParams|string
+):boolean {
     const params = typeof query === 'string' ?
         new URLSearchParams(query.replace(/^\?/, '')) :
         query
@@ -177,4 +182,47 @@ function parseAtUri (atUri:string):ParsedAtUri {
 
 function encodeAtUriPathPart (value:string):string {
     return encodeURIComponent(value).replace(/%3A/gi, ':')
+}
+
+export function canvasToSquareBlob (
+    canvas:HTMLCanvasElement,
+    type:string
+):Promise<Blob> {
+    if (canvas.width === canvas.height) {
+        return canvasToBlob(canvas, type)
+    }
+
+    const side = Math.max(canvas.width, canvas.height)
+    const squareCanvas = document.createElement('canvas')
+    squareCanvas.width = side
+    squareCanvas.height = side
+
+    const context = squareCanvas.getContext('2d')
+    if (!context) {
+        return Promise.reject(
+            new Error('Could not create square image context')
+        )
+    }
+
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, side, side)
+    const x = Math.floor((side - canvas.width) / 2)
+    const y = Math.floor((side - canvas.height) / 2)
+    context.drawImage(canvas, x, y)
+
+    return canvasToBlob(squareCanvas, type)
+}
+
+export function canvasToBlob (
+    canvas:HTMLCanvasElement,
+    type:string
+):Promise<Blob> {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) {
+                return reject(new Error('Could not encode drawing image'))
+            }
+            resolve(blob)
+        }, type)
+    })
 }

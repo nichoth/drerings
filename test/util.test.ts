@@ -22,16 +22,19 @@ describe('oauth utils', () => {
         expect(fromHash.get('error')).toBe('bad')
     })
 
-    it('merges search and hash params while preserving search precedence', () => {
+    it('merges search and hash params ' +
+        'while preserving search precedence', () => {
         const merged = oauthParamsFromUrlLike(
-            'https://example.com/login?state=from-search#code=abc&iss=https%3A%2F%2Fbsky.social'
+            'https://example.com/login?state=from-search#code=abc&' +
+                'iss=https%3A%2F%2Fbsky.social'
         )
         expect(merged.get('state')).toBe('from-search')
         expect(merged.get('code')).toBe('abc')
         expect(merged.get('iss')).toBe('https://bsky.social')
 
         const overlap = oauthParamsFromUrlLike(
-            'https://example.com/login?state=search-value#state=hash-value&code=abc'
+            'https://example.com/login?state=search-value#' +
+                'state=hash-value&code=abc'
         )
         expect(overlap.get('state')).toBe('search-value')
         expect(overlap.get('code')).toBe('abc')
@@ -42,7 +45,9 @@ describe('oauth utils', () => {
         expect(hasOAuthCallback('state=abc&error=access_denied')).toBe(true)
         expect(hasOAuthCallback('code=123')).toBe(false)
         expect(hasOAuthCallback('state=abc')).toBe(false)
-        expect(hasOAuthCallback('state=abc&iss=https://bsky.social')).toBe(false)
+        expect(
+            hasOAuthCallback('state=abc&iss=https://bsky.social')
+        ).toBe(false)
     })
 
     it('normalizes localhost redirect URI for local oauth dev', () => {
@@ -98,10 +103,13 @@ describe('at uri conversion', () => {
         )
     })
 
-    it('converts feed/list/starterpack at uris to corresponding web routes', () => {
+    it('converts feed/list/starterpack at uris ' +
+        'to corresponding web routes', () => {
         expect(atUriToBskyUrl(
             'at://alice.bsky.social/app.bsky.feed.generator/my-feed'
-        )).toBe('https://bsky.app/profile/alice.bsky.social/feed/my-feed')
+        )).toBe(
+            'https://bsky.app/profile/alice.bsky.social/feed/my-feed'
+        )
         expect(atUriToBskyUrl(
             'at://alice.bsky.social/app.bsky.graph.list/my-list'
         )).toBe('https://bsky.app/profile/alice.bsky.social/lists/my-list')
@@ -137,7 +145,8 @@ describe('config helpers', () => {
         expect(doc.id).toBe('did:web:example.com')
         expect(doc.service[0].type).toBe('BskyFeedGenerator')
         expect(doc.service[0].serviceEndpoint).toBe('https://example.com')
-        expect(doc.verificationMethod[0].controller).toBe('did:web:example.com')
+        expect(doc.verificationMethod[0].controller)
+            .toBe('did:web:example.com')
         expect(config.recordName).toBe('drering')
     })
 })

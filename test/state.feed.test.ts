@@ -167,7 +167,8 @@ describe('State.fetchFeed', () => {
         expect(state.feedCursor.value).toBe('cursor-abc')
     })
 
-    it('fetches like counts from constellation API for visible posts', async () => {
+    it('fetches like counts from constellation API for visible posts',
+        async () => {
         const posts = [makeFeedPost({
             cid: 'post-like-count-1',
             uri: 'at://did:plc:alice/app.bsky.feed.post/likecount1'
@@ -192,7 +193,8 @@ describe('State.fetchFeed', () => {
         await stateMod.State.fetchFeed(state)
 
         expect(mockFetch).toHaveBeenCalledTimes(1)
-        expect(mockFetch.mock.calls[0][0]).toContain('/api/constellation/likes?')
+        expect(mockFetch.mock.calls[0][0])
+            .toContain('/api/constellation/likes?')
         expect(mockFetch.mock.calls[0][0]).toContain(
             'uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2Flikecount1'
         )
@@ -406,11 +408,13 @@ describe('State.fetchFeed', () => {
         expect(state.feedReq.value.data).toBeNull()
     })
 
-    it('shows missing scope error without triggering reauth redirect', async () => {
+    it('shows missing scope error without triggering reauth redirect',
+        async () => {
         searchPostsSpy.mockRejectedValue(
             new Error(
                 'Missing required scope ' +
-                '"rpc:app.bsky.feed.searchPosts?aud=did:web:api.bsky.app"'
+                '"rpc:app.bsky.feed.searchPosts?' +
+                'aud=did:web:api.bsky.app"'
             )
         )
 

@@ -96,7 +96,10 @@ function parseCount (rawBody:string):number {
     return 0
 }
 
-function jsonResponse<T extends Record<string, unknown>> (body:T, status:number):Response {
+function jsonResponse<T extends Record<string, unknown>> (
+    body:T,
+    status:number
+):Response {
     return new Response(JSON.stringify(body), {
         status,
         headers: {

@@ -62,7 +62,12 @@ export const Drerings:FunctionComponent = function Drerings () {
             ${state.authLoading.value ?
                 html`
                     <li>
-                        <${Button} onClick=${() => {}} disabled=${true}>Logout<//>
+                        <${Button}
+                            onClick=${() => {}}
+                            disabled=${true}
+                        >
+                            Logout
+                        <//>
                     </li>
                     <li>
                         <div class="avatar avatar-placeholder"></div>

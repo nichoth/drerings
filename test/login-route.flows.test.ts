@@ -96,7 +96,8 @@ describe('login route flows', () => {
         history.replaceState(
             null,
             '',
-            '/login?state=abc&error=access_denied&error_description=Denied+by+user'
+            '/login?state=abc&error=access_denied&' +
+                'error_description=Denied+by+user'
         )
 
         const state = createLoginState()

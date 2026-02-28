@@ -1,0 +1,45 @@
+.color-picker-field {
+    & .color-picker-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    & .color-input {
+        inline-size: 3rem;
+        block-size: 2rem;
+        padding: 0;
+        border: 1px solid;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    & .color-swatches {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    & .swatch {
+        inline-size: 1.25rem;
+        block-size: 1.25rem;
+        border: 1px solid;
+        border-radius: 9999px;
+        background: var(--swatch-color);
+        padding: 0;
+        cursor: pointer;
+    }
+
+    & .swatch.active {
+        outline: 2px solid;
+        outline-offset: 1px;
+    }
+
+    & .swatch:disabled,
+    & .color-input:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}

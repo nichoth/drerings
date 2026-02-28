@@ -9,9 +9,9 @@
   "scripts": {
     "lint": "eslint \"./**/*.{ts,js}\"",
     "build-tests": "esbuild test/index.ts --bundle --format=cjs --keep-names > test/test-bundle.js",
+    "test": "esbuild ./test/index.ts --bundle | tapout",
     "test:e2e": "vitest run",
     "test:watch": "vitest",
-    "test": "esbuild ./test/index.ts --bundle | tapout",
     "build": "mkdir -p ./public && rm -rf ./public/* && vite build && cp _public/* public",
     "build:staging": "mkdir -p ./public && rm -rf ./public/* && vite build --mode=\"staging\" && cp _public/* public",
     "toc": "markdown-toc --maxdepth 3 -i README.md",

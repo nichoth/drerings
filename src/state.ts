@@ -178,7 +178,9 @@ State.post = async function (
 
         return post
     } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to post to Bluesky')
+        const error = err instanceof Error ?
+            err :
+            new Error('Failed to post to Bluesky')
         RequestState.error(req, error)
         throw error
     }
@@ -440,9 +442,10 @@ State.fetchFeedLikeCounts = async function (
         const body = await res.json() as {
             counts?:Record<string, unknown>;
         }
-        const counts:Record<string, unknown> = body && typeof body === 'object' &&
+        const counts:Record<string, unknown> =
+            body && typeof body === 'object' &&
             body.counts && typeof body.counts === 'object' ?
-            body.counts :
+                body.counts :
             {}
 
         const nextCounts:FeedLikeCounts = {}

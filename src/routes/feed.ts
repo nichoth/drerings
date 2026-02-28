@@ -2,10 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useSignal } from '@preact/signals'
 import { html } from 'htm/preact'
 import { useCallback } from 'preact/hooks'
-import {
-    AppBskyEmbedImages,
-    type AppBskyFeedPost
-} from '@atproto/api'
+import { AppBskyEmbedImages, type AppBskyFeedPost } from '@atproto/api'
 import {
     State,
     type AppState,
@@ -19,7 +16,9 @@ import '@substrate-system/dialog/css'
 import './feed.css'
 import { IconBlock } from '../components/icon-block'
 import { IconCaution } from '../components/icon-caution'
-import { type PostView } from '@atproto/api/dist/client/types/app/bsky/feed/defs'
+import {
+    type PostView
+} from '@atproto/api/dist/client/types/app/bsky/feed/defs'
 const debug = Debug('drerings:view:feed');
 
 (async () => {
@@ -90,7 +89,11 @@ export const FeedRoute:FunctionComponent<{
         } finally {
             closeConfirmModal()
         }
-    }, [state.agent.value, state.profile.value?.did, pendingBlockOrReport.value])
+    }, [
+        state.agent.value,
+        state.profile.value?.did,
+        pendingBlockOrReport.value
+    ])
 
     const confirmReport = useCallback(async () => {
         const pendingTarget = pendingBlockOrReport.value
