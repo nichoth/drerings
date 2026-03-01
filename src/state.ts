@@ -92,22 +92,30 @@ export function State ():{
         feedLikeCounts: signal<FeedLikeCounts>({}),
         agent: signal<Agent|null>(null),
         profile: signal<UserState|null>(null),
-        route: signal<string>(location.pathname + location.search),
+        route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
         })
     }
 
     /**
-     * set the app state to match the browser URL
+     * Set the app state to match the browser URL.
+     * These are 'click' events typically.
      */
     onRoute((path:string, data) => {
+        debug('path', path)
         // handle hash clicks
         if (path.includes('#')) {
             // assuming link is like '#link'
-            const href = path.split('#').pop()!
-            debug('the href...', href)
-            return document.getElementById(href)?.scrollIntoView()
+            debug('hashing... aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+            const pathParts = path.split('#')
+            // const href = pathParts.pop()!
+            state.route.value = pathParts.shift()?.split('?').shift()
+            return setTimeout(() => {
+                document.getElementById(pathParts.pop()!)?.scrollIntoView()
+            }, 1)
+            // return
+            // return document.getElementById(href)?.scrollIntoView()
         }
 
         state.route.value = path.split('?').shift()
