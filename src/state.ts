@@ -105,7 +105,9 @@ export function State ():{
         // handle hash clicks
         if (path.includes('#')) {
             // assuming link is like '#link'
-            document.getElementById(path)?.scrollIntoView()
+            const href = path.split('#').pop()!
+            debug('the href...', href)
+            return document.getElementById(href)?.scrollIntoView()
         }
 
         state.route.value = path.split('?').shift()

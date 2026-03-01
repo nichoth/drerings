@@ -15,7 +15,7 @@ export const ColophonRoute:FunctionComponent<{
     debug('colophon', state)
 
     useEffect(() => {
-        anchor({ visible: 'touch' })
+        anchor({ visible: 'touch', base: '/colophon' })
     }, [])
 
     return html`<div class="route colophon">
