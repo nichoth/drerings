@@ -28,7 +28,7 @@ vi.mock('../src/util', () => ({
     oauthRedirectUri: mockOauthRedirectUri
 }))
 
-let stateMod:typeof import('../src/state')
+let stateMod
 
 describe('state oauth flows', () => {
     beforeEach(async () => {
@@ -141,19 +141,19 @@ describe('state oauth flows', () => {
 
     it('hydrateAgent restores session and marks authenticated',
         async () => {
-        const state = stateMod.State()
-        const session = { did: 'did:plc:hydrate-user' }
-        mockClient.initRestore.mockResolvedValue({ session })
+            const state = stateMod.State()
+            const session = { did: 'did:plc:hydrate-user' }
+            mockClient.initRestore.mockResolvedValue({ session })
 
-        const agent = await stateMod.State.hydrateAgent(state)
+            const agent = await stateMod.State.hydrateAgent(state)
 
-        expect(agent).toBeTruthy()
-        expect(state.profile.value?.did).toBe('did:plc:hydrate-user')
-        expect(state.auth.value).toEqual({
-            registered: true,
-            authenticated: true
+            expect(agent).toBeTruthy()
+            expect(state.profile.value?.did).toBe('did:plc:hydrate-user')
+            expect(state.auth.value).toEqual({
+                registered: true,
+                authenticated: true
+            })
         })
-    })
 
     it('post publishes with current agent ' +
         'and records request success state', async () => {
@@ -176,7 +176,8 @@ describe('state oauth flows', () => {
             text: 'New drering from @alice.bsky.app',
             tags: ['drering']
         }))
-        expect(typeof postSpy.mock.calls[0][0].createdAt).toBe('string')
+        const call = (postSpy.mock.calls as any[][])[0]
+        expect(call && call.length && typeof call[0].createdAt).toBe('string')
         expect(res).toEqual({
             uri: 'at://did:plc:alice/app.bsky.feed.post/123',
             cid: 'bafy-post-cid'
@@ -221,7 +222,7 @@ describe('state oauth flows', () => {
         await stateMod.State.post(state, 'caption text', imageBlob)
 
         expect(uploadBlobSpy).toHaveBeenCalledTimes(1)
-        expect(uploadBlobSpy.mock.calls[0][1])
+        expect((uploadBlobSpy.mock.calls as any[][])[0][1])
             .toEqual({ encoding: 'image/png' })
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
             text: 'caption text',
@@ -254,47 +255,47 @@ describe('state oauth flows', () => {
 
     it('logout revokes current did session and clears in-memory auth state',
         async () => {
-        const state = stateMod.State()
-        state.profile.value = {
-            did: 'did:plc:logout-user',
-            handle: 'logout.bsky.app',
-            avatar: ''
-        }
-        state.auth.value = { registered: true, authenticated: true }
-        state.agent.value = { did: 'did:plc:logout-user' } as any
-        state.postReq.value = {
-            pending: false,
-            data: {
-                uri: 'at://did:plc:logout-user/app.bsky.feed.post/old',
-                cid: 'old-cid'
-            },
-            error: null
-        }
+            const state = stateMod.State()
+            state.profile.value = {
+                did: 'did:plc:logout-user',
+                handle: 'logout.bsky.app',
+                avatar: ''
+            }
+            state.auth.value = { registered: true, authenticated: true }
+            state.agent.value = { did: 'did:plc:logout-user' } as any
+            state.postReq.value = {
+                pending: false,
+                data: {
+                    uri: 'at://did:plc:logout-user/app.bsky.feed.post/old',
+                    cid: 'old-cid'
+                },
+                error: null
+            }
 
-        await stateMod.State.Logout(state)
+            await stateMod.State.Logout(state)
 
-        expect(mockClient.revoke).toHaveBeenCalledWith('did:plc:logout-user')
-        expect(state.auth.value).toEqual({
-            registered: false,
-            authenticated: false
+            expect(mockClient.revoke).toHaveBeenCalledWith('did:plc:logout-user')
+            expect(state.auth.value).toEqual({
+                registered: false,
+                authenticated: false
+            })
+            expect(state.profile.value).toBeNull()
+            expect(state.agent.value).toBeNull()
+            expect(state.postReq.value.data).toBeNull()
         })
-        expect(state.profile.value).toBeNull()
-        expect(state.agent.value).toBeNull()
-        expect(state.postReq.value.data).toBeNull()
-    })
 
     it('logout falls back to restored session signOut when did is missing',
         async () => {
-        const state = stateMod.State()
-        const signOut = vi.fn(async () => {})
-        mockClient.initRestore.mockResolvedValue({
-            session: { signOut }
+            const state = stateMod.State()
+            const signOut = vi.fn(async () => {})
+            mockClient.initRestore.mockResolvedValue({
+                session: { signOut }
+            })
+
+            await stateMod.State.Logout(state)
+
+            expect(mockClient.revoke).not.toHaveBeenCalled()
+            expect(mockClient.initRestore).toHaveBeenCalledWith(false)
+            expect(signOut).toHaveBeenCalledTimes(1)
         })
-
-        await stateMod.State.Logout(state)
-
-        expect(mockClient.revoke).not.toHaveBeenCalled()
-        expect(mockClient.initRestore).toHaveBeenCalledWith(false)
-        expect(signOut).toHaveBeenCalledTimes(1)
-    })
 })

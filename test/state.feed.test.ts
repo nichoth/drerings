@@ -169,39 +169,39 @@ describe('State.fetchFeed', () => {
 
     it('fetches like counts from constellation API for visible posts',
         async () => {
-        const posts = [makeFeedPost({
-            cid: 'post-like-count-1',
-            uri: 'at://did:plc:alice/app.bsky.feed.post/likecount1'
-        })]
-        searchPostsSpy.mockResolvedValue({
-            data: {
-                posts,
-                cursor: null
-            }
-        })
-        mockFetch.mockResolvedValue({
-            ok: true,
-            json: vi.fn(async () => ({
-                counts: {
-                    'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+            const posts = [makeFeedPost({
+                cid: 'post-like-count-1',
+                uri: 'at://did:plc:alice/app.bsky.feed.post/likecount1'
+            })]
+            searchPostsSpy.mockResolvedValue({
+                data: {
+                    posts,
+                    cursor: null
                 }
-            }))
-        })
+            })
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: vi.fn(async () => ({
+                    counts: {
+                        'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+                    }
+                }))
+            })
 
-        const state = stateMod.State()
-        state.agent.value = makeAgent(searchPostsSpy)
-        await stateMod.State.fetchFeed(state)
+            const state = stateMod.State()
+            state.agent.value = makeAgent(searchPostsSpy)
+            await stateMod.State.fetchFeed(state)
 
-        expect(mockFetch).toHaveBeenCalledTimes(1)
-        expect(mockFetch.mock.calls[0][0])
-            .toContain('/api/constellation/likes?')
-        expect(mockFetch.mock.calls[0][0]).toContain(
-            'uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2Flikecount1'
-        )
-        expect(state.feedLikeCounts.value).toEqual({
-            'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+            expect(mockFetch).toHaveBeenCalledTimes(1)
+            expect(mockFetch.mock.calls[0][0])
+                .toContain('/api/constellation/likes?')
+            expect(mockFetch.mock.calls[0][0]).toContain(
+                'uri=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2Flikecount1'
+            )
+            expect(state.feedLikeCounts.value).toEqual({
+                'at://did:plc:alice/app.bsky.feed.post/likecount1': 7
+            })
         })
-    })
 
     it('filters out posts from blocked accounts', async () => {
         const visible = makeFeedPost({ cid: 'visible-cid' })
@@ -410,30 +410,30 @@ describe('State.fetchFeed', () => {
 
     it('shows missing scope error without triggering reauth redirect',
         async () => {
-        searchPostsSpy.mockRejectedValue(
-            new Error(
-                'Missing required scope ' +
+            searchPostsSpy.mockRejectedValue(
+                new Error(
+                    'Missing required scope ' +
                 '"rpc:app.bsky.feed.searchPosts?' +
                 'aud=did:web:api.bsky.app"'
+                )
             )
-        )
 
-        const state = stateMod.State()
-        state.profile.value = {
-            did: 'did:plc:alice',
-            handle: 'alice.bsky.app',
-            avatar: ''
-        }
-        state.agent.value = makeAgent(searchPostsSpy)
-        await stateMod.State.fetchFeed(state)
+            const state = stateMod.State()
+            state.profile.value = {
+                did: 'did:plc:alice',
+                handle: 'alice.bsky.app',
+                avatar: ''
+            }
+            state.agent.value = makeAgent(searchPostsSpy)
+            await stateMod.State.fetchFeed(state)
 
-        expect(searchPostsSpy).toHaveBeenCalledTimes(1)
-        expect(mockClient.signInRedirect).not.toHaveBeenCalled()
-        expect(state.feedReq.value.pending).toBe(false)
-        expect(state.feedReq.value.error?.message)
-            .toContain('Missing required scope')
-        expect(state.feedReq.value.data).toBeNull()
-    })
+            expect(searchPostsSpy).toHaveBeenCalledTimes(1)
+            expect(mockClient.signInRedirect).not.toHaveBeenCalled()
+            expect(state.feedReq.value.pending).toBe(false)
+            expect(state.feedReq.value.error?.message)
+                .toContain('Missing required scope')
+            expect(state.feedReq.value.data).toBeNull()
+        })
 
     it('stores error on network failure', async () => {
         searchPostsSpy.mockRejectedValue(
