@@ -102,6 +102,12 @@ export function State ():{
      * set the app state to match the browser URL
      */
     onRoute((path:string, data) => {
+        // handle hash clicks
+        if (path.includes('#')) {
+            // assuming link is like '#link'
+            document.getElementById(path)?.scrollIntoView()
+        }
+
         state.route.value = path.split('?').shift()
         // handle scroll state like a web browser
         // (restore scroll position on back/forward)
@@ -442,11 +448,11 @@ State.fetchFeedLikeCounts = async function (
         const body = await res.json() as {
             counts?:Record<string, unknown>;
         }
-        const counts:Record<string, unknown> =
-            body && typeof body === 'object' &&
-            body.counts && typeof body.counts === 'object' ?
-                body.counts :
-            {}
+        const counts:Record<string, unknown> = (
+            body &&
+            (typeof body === 'object' && body.counts &&
+                typeof body.counts === 'object') ? body.counts : {}
+        )
 
         const nextCounts:FeedLikeCounts = {}
         uris.forEach((uri) => {

@@ -1,6 +1,8 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
+import { useEffect } from 'preact/hooks'
 import Debug from '@substrate-system/debug'
+import { anchor } from '@substrate-system/anchor'
 import { type State } from '../state.js'
 import './colophon.css'
 import { NBSP } from '../constants.js'
@@ -11,6 +13,10 @@ export const ColophonRoute:FunctionComponent<{
     state:ReturnType<typeof State>
 }> = function ColophonRoute ({ state }) {
     debug('colophon', state)
+
+    useEffect(() => {
+        anchor({ visible: 'touch' })
+    }, [])
 
     return html`<div class="route colophon">
         <h2>About Drerings</h2>
@@ -39,6 +45,7 @@ export const ColophonRoute:FunctionComponent<{
             for <em>this app</em>.
         </p>
 
+        <h2>The Feed</h2>
         <p>
 
         </p>

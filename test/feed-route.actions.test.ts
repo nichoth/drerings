@@ -120,6 +120,37 @@ describe('FeedRoute moderation actions', () => {
             }
         })
     })
+
+    it('hides block and report actions on posts by the current user', () => {
+        const ownPost = makePost({
+            cid: 'bafy-own-post',
+            uri: 'at://did:plc:self/app.bsky.feed.post/self-post',
+            author: {
+                did: 'did:plc:self',
+                handle: 'self.bsky.social',
+                displayName: 'Self',
+                avatar: 'https://example.com/self.jpg'
+            }
+        })
+        const otherPost = makePost({
+            cid: 'bafy-other-post',
+            uri: 'at://did:plc:poster/app.bsky.feed.post/other-post'
+        })
+
+        const state = createFeedState([ownPost, otherPost])
+        state.profile.value = {
+            did: 'did:plc:self',
+            handle: 'self.bsky.social',
+            avatar: ''
+        }
+
+        render(h(FeedRoute, { state }))
+
+        expect(screen.getAllByLabelText('Block account'))
+            .toHaveLength(1)
+        expect(screen.getAllByLabelText('Report post'))
+            .toHaveLength(1)
+    })
 })
 
 describe('FeedRoute pagination controls', () => {

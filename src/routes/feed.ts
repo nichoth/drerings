@@ -41,6 +41,7 @@ export const FeedRoute:FunctionComponent<{
     const { state } = props
     const { feedReq, feedCursor, feedPageIndex, feedLikeCounts } = state
     const { pending, data: posts, error } = feedReq.value
+    const currentDid = state.profile.value?.did || state.agent.value?.did
     const hasPrevPage = feedPageIndex.value > 0
     const hasNextPage = !!feedCursor.value
     const confirm = useSignal<'block'|'report'|null>(null)
@@ -152,6 +153,8 @@ export const FeedRoute:FunctionComponent<{
                     'number' ?
                     feedLikeCounts.value[post.uri] :
                     (post.likeCount || 0)
+                const isCurrentUsersPost = !!currentDid &&
+                    post.author.did === currentDid
 
                 const record = post.record as AppBskyFeedPost.Main
 
@@ -217,7 +220,7 @@ export const FeedRoute:FunctionComponent<{
                             </span>
                         </div>
 
-                        <div class="feed-item-actions">
+                        ${isCurrentUsersPost ? null : html`<div class="feed-item-actions">
                             <button
                                 id="block"
                                 type="button"
@@ -244,7 +247,7 @@ export const FeedRoute:FunctionComponent<{
                                 <span>Report</span>
                                 <span><${IconCaution} /></span>
                             </button>
-                        </div>
+                        </div>`}
                     </div>
                 </article>`
             })}
