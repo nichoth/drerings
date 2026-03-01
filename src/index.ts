@@ -1,6 +1,6 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent, render } from 'preact'
-import { useCallback, useEffect, useMemo } from 'preact/hooks'
+import { useCallback, useMemo } from 'preact/hooks'
 import { type Signal, useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
@@ -24,12 +24,6 @@ if (isDev()) {
 
 export const Drerings:FunctionComponent = function Drerings () {
     debug('rendering drerings...', state)
-
-    useEffect(() => {
-        State.fetchAuthStatus(state).catch(err => {
-            debug('initial auth hydrate error', err)
-        })
-    }, [])
 
     const match = useMemo(() => {
         return router.match(state.route.value)

@@ -98,6 +98,10 @@ export function State ():{
         })
     }
 
+    State.fetchAuthStatus(state).catch(err => {
+        debug('initial auth hydrate error', err)
+    })
+
     /**
      * Set the app state to match the browser URL.
      * These are 'click' events typically.
@@ -107,15 +111,13 @@ export function State ():{
         // handle hash clicks
         if (path.includes('#')) {
             // assuming link is like '#link'
-            debug('hashing... aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
             const pathParts = path.split('#')
             // const href = pathParts.pop()!
             state.route.value = pathParts.shift()?.split('?').shift()
             return setTimeout(() => {
+                // wait for veiw to render
                 document.getElementById(pathParts.pop()!)?.scrollIntoView()
             }, 1)
-            // return
-            // return document.getElementById(href)?.scrollIntoView()
         }
 
         state.route.value = path.split('?').shift()
