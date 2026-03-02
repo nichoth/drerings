@@ -96,10 +96,17 @@ export const Drerings:FunctionComponent = function Drerings () {
     <main>
         <${ChildNode} state=${state} />
     </main>
+
     <footer>
         <div>
             ${COPYRIGHT} 2026, <a href="https://bsky.app/profile/nichoth.com">
                 @nichoth
+            </a>
+        </div>
+
+        <div>
+            <a href="https://github.com/nichoth/drerings">
+                See the source code
             </a>
         </div>
 
