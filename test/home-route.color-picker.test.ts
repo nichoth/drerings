@@ -15,6 +15,8 @@ const atramentTestState = vi.hoisted(() => ({
     readColor: null as null|(()=>string),
     readWeight: null as null|(()=>number),
     readMode: null as null|(()=>string),
+    emitDirty: null as null|(()=>void),
+    emitClean: null as null|(()=>void),
     constructCount: 0
 }))
 
@@ -28,7 +30,10 @@ vi.mock('@substrate-system/atrament', () => {
             mode = 'draw'
             smoothing = 0
             clear = vi.fn()
-            addEventListener = vi.fn()
+            addEventListener = vi.fn((name:string, cb:()=>void) => {
+                if (name === 'dirty') atramentTestState.emitDirty = cb
+                if (name === 'clean') atramentTestState.emitClean = cb
+            })
             destroy = vi.fn()
 
             constructor (
@@ -86,6 +91,8 @@ describe('ColorPicker', () => {
 describe('HomeRoute color picker integration', () => {
     beforeEach(() => {
         atramentTestState.constructCount = 0
+        atramentTestState.emitDirty = null
+        atramentTestState.emitClean = null
     })
 
     it('uses default atrament brush size', () => {
@@ -301,5 +308,77 @@ describe('HomeRoute color picker integration', () => {
             expect(textCounter?.getAttribute('count')).toBe('5')
         })
         expect(altCounter?.getAttribute('count')).toBe('11')
+    })
+
+    it('disables Post It when text is over 300 and enables at 300', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        const button = screen.getByRole('button', {
+            name: 'Post It'
+        }) as HTMLButtonElement
+        const textInput = screen.getByLabelText('Text') as HTMLTextAreaElement
+
+        expect(button.disabled).toBe(true)
+        atramentTestState.emitDirty?.()
+        await waitFor(() => {
+            expect(button.disabled).toBe(false)
+            expect(textInput.disabled).toBe(false)
+        })
+
+        fireEvent.input(textInput, {
+            target: { value: 'a'.repeat(301) }
+        })
+        await waitFor(() => {
+            expect(button.disabled).toBe(true)
+        })
+
+        fireEvent.input(textInput, {
+            target: { value: 'a'.repeat(300) }
+        })
+        await waitFor(() => {
+            expect(button.disabled).toBe(false)
+        })
+    })
+
+    it('disables Post It when alt text is over 2000 and enables at 2000', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        const button = screen.getByRole('button', {
+            name: 'Post It'
+        }) as HTMLButtonElement
+        const altInput = screen.getByLabelText('Alt text') as HTMLTextAreaElement
+
+        expect(button.disabled).toBe(true)
+        atramentTestState.emitDirty?.()
+        await waitFor(() => {
+            expect(button.disabled).toBe(false)
+            expect(altInput.disabled).toBe(false)
+        })
+
+        fireEvent.input(altInput, {
+            target: { value: 'a'.repeat(2001) }
+        })
+        await waitFor(() => {
+            expect(button.disabled).toBe(true)
+        })
+
+        fireEvent.input(altInput, {
+            target: { value: 'a'.repeat(2000) }
+        })
+        await waitFor(() => {
+            expect(button.disabled).toBe(false)
+        })
     })
 })

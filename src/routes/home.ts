@@ -112,13 +112,6 @@ export const HomeRoute:FunctionComponent<{
         }
     }, [isEraserEnabled.value])
 
-    const disable = useComputed<boolean>(() => {
-        return (
-            state.postReq.value.pending ||
-            (state.isAuthed.value && !isCanvasDirty.value)
-        )
-    })
-
     const postError = useComputed<string|null>(() => {
         return state.postReq.value.error?.message || null
     })
@@ -143,6 +136,14 @@ export const HomeRoute:FunctionComponent<{
     })
     const altTextCount = useComputed<number>(() => {
         return countGraphemes(altText.value)
+    })
+    const disable = useComputed<boolean>(() => {
+        return (
+            state.postReq.value.pending ||
+            postTextCount.value > BSKY_POST_TEXT_MAX ||
+            altTextCount.value > BSKY_ALT_TEXT_MAX ||
+            (state.isAuthed.value && !isCanvasDirty.value)
+        )
     })
 
     const login = useCallback((ev:SubmitEvent) => {
