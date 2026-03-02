@@ -7,6 +7,8 @@ import { State } from './state.js'
 import { Button } from './components/button.js'
 import Router, { routes } from './routes/index.js'
 import { COPYRIGHT } from './constants.js'
+import { ModalWindow } from '@substrate-system/dialog'
+import { CharacterCounter } from '@substrate-system/character-counter'
 import './style.css'
 
 const state = State()
@@ -21,6 +23,22 @@ if (isDev()) {
 } else {
     localStorage.removeItem('DEBUG')
 }
+
+// one global FOUCE handler
+(async () => {
+    await Promise.race([
+        // Load all custom elements
+        Promise.allSettled([
+            customElements.whenDefined(CharacterCounter.TAG),
+            customElements.whenDefined(ModalWindow.TAG)
+        ]),
+        // Resolve after two seconds
+        new Promise(resolve => setTimeout(resolve, 2000))
+    ])
+
+    // Remove the class, showing the page content
+    document.body.classList.remove('reduce-fouce')
+})()
 
 export const Drerings:FunctionComponent = function Drerings () {
     debug('rendering drerings...', state)

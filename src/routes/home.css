@@ -33,6 +33,17 @@
         flex-direction: column;
         gap: 0.75rem;
 
+        & .post-text {
+            &.disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+
+                & textarea {
+                    cursor: not-allowed;
+                }
+            }
+        }
+
         & check-box.eraser {
             & label {
                 display: flex;
@@ -56,6 +67,32 @@
 
         & .alt-text-field {
             margin-top: 0.25rem;
+
+            &.disabled {
+                cursor: not-allowed;
+                opacity: 0.4;
+
+                & textarea {
+                    cursor: not-allowed;
+                }
+            }
+        }
+
+        & .textarea-with-counter {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 0.5rem;
+
+            & character-counter {
+                margin-bottom: 0.35rem;
+                justify-self: end;
+
+                & .counter-wrapper {
+                    flex-direction: row-reverse;
+                    gap: 0.2rem;
+                }
+            }
         }
 
         & .brush-size-wrap {
@@ -111,6 +148,20 @@
 
     & .alt-text {
         min-height: 6.5rem;
+    }
+}
+
+@media (max-width: 42rem) {
+    .route.home {
+        & form {
+            & .textarea-with-counter {
+                grid-template-columns: 1fr;
+
+                & character-counter {
+                    margin-bottom: 0;
+                }
+            }
+        }
     }
 }
 

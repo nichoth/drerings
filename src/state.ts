@@ -61,9 +61,7 @@ export function State ():{
     isAuthed:ReadonlySignal<boolean>;
     agent:Signal<Agent|null>;
     profile:Signal<UserState|null>;
-    postReq:Signal<RequestFor<
-        { uri:string, cid:string }, Error
-    >>;
+    postReq:Signal<RequestFor<{ uri:string, cid:string }, Error>>;
     feedReq:Signal<RequestFor<FeedPost[], Error>>;
     feedCursor:Signal<string|null>;
     feedPageIndex:Signal<number>;

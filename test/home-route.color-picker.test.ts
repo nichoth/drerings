@@ -264,4 +264,42 @@ describe('HomeRoute color picker integration', () => {
         expect(atramentTestState.constructCount).toBe(1)
         getContextSpy.mockRestore()
     })
+
+    it('renders post and alt counters with Bluesky limits', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        const { container } = render(h(HomeRoute, { state }))
+        const textCounter = container.querySelector(
+            'character-counter[data-counter-for="text"]'
+        )
+        const altCounter = container.querySelector(
+            'character-counter[data-counter-for="alt-text"]'
+        )
+
+        expect(textCounter).toBeTruthy()
+        expect(altCounter).toBeTruthy()
+        expect(textCounter?.getAttribute('max')).toBe('300')
+        expect(altCounter?.getAttribute('max')).toBe('2000')
+        expect(textCounter?.getAttribute('count')).toBe('0')
+        expect(altCounter?.getAttribute('count')).toBe('0')
+
+        const textInput = screen.getByLabelText('Text') as HTMLTextAreaElement
+        const altInput = screen.getByLabelText('Alt text') as HTMLTextAreaElement
+
+        fireEvent.input(textInput, {
+            target: { value: 'hello' }
+        })
+        fireEvent.input(altInput, {
+            target: { value: 'description' }
+        })
+
+        await waitFor(() => {
+            expect(textCounter?.getAttribute('count')).toBe('5')
+        })
+        expect(altCounter?.getAttribute('count')).toBe('11')
+    })
 })

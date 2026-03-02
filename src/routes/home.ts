@@ -5,6 +5,8 @@ import Atrament, { MODE_DRAW, MODE_ERASE } from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
 import '@substrate-system/check-box'
 import '@substrate-system/check-box/css'
+import { CharacterCounter } from '@substrate-system/character-counter'
+import '@substrate-system/character-counter/css'
 import { useComputed, useSignal } from '@preact/signals'
 import { ELLIPSIS } from '../constants'
 import {
@@ -24,6 +26,12 @@ const DEFAULT_BRUSH_COLOR = '#000000'
 const DEFAULT_BRUSH_SIZE = 4
 const MIN_BRUSH_SIZE = 1
 const MAX_BRUSH_SIZE = 40
+const BSKY_POST_TEXT_MAX = 300
+const BSKY_ALT_TEXT_MAX = 2000
+const graphemeSegmenter = (
+    typeof Intl !== 'undefined' &&
+    'Segmenter' in Intl
+) ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
 
 export const HomeRoute:FunctionComponent<{
     state:AppState
@@ -33,6 +41,8 @@ export const HomeRoute:FunctionComponent<{
     const brushColor = useSignal<string>(DEFAULT_BRUSH_COLOR)
     const brushSize = useSignal<number>(DEFAULT_BRUSH_SIZE)
     const isEraserEnabled = useSignal<boolean>(false)
+    const postText = useSignal<string>('')
+    const altText = useSignal<string>('')
 
     useEffect(() => {
         debug('sketchpad.current...', sketchpad.current)
@@ -81,6 +91,14 @@ export const HomeRoute:FunctionComponent<{
         if (!target || typeof target.checked !== 'boolean') return
         isEraserEnabled.value = target.checked
     }, [])
+    const onTextInput = useCallback((ev:Event) => {
+        const target = ev.target as HTMLTextAreaElement
+        postText.value = target.value
+    }, [])
+    const onAltTextInput = useCallback((ev:Event) => {
+        const target = ev.target as HTMLTextAreaElement
+        altText.value = target.value
+    }, [])
 
     useEffect(() => {
         if (atrament) {
@@ -120,6 +138,12 @@ export const HomeRoute:FunctionComponent<{
         }
     })
     const isPosting = useComputed<boolean>(() => state.postReq.value.pending)
+    const postTextCount = useComputed<number>(() => {
+        return countGraphemes(postText.value)
+    })
+    const altTextCount = useComputed<number>(() => {
+        return countGraphemes(altText.value)
+    })
 
     const login = useCallback((ev:SubmitEvent) => {
         ev.preventDefault()
@@ -130,24 +154,25 @@ export const HomeRoute:FunctionComponent<{
     const submitDrering = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
         if (state.postReq.value.pending) return
-        const form = ev.target as HTMLFormElement
-        const textarea = form.elements['text'] as HTMLTextAreaElement
-        const altInput = form.elements['alt-text'] as HTMLTextAreaElement
-        const text = textarea.value.trim()
-        const altText = altInput.value.trim()
+        const text = postText.value.trim()
+        const imageAltText = altText.value.trim()
         const canvas = sketchpad.current
 
         try {
             if (!canvas) throw new Error('Drawing canvas not found')
             const imageBlob = await canvasToSquareBlob(canvas, 'image/png')
-            await State.post(state, text, imageBlob, altText)
-            textarea.value = ''
-            altInput.value = ''
+            await State.post(state, text, imageBlob, imageAltText)
+            postText.value = ''
+            altText.value = ''
             if (atrament) atrament.clear()
         } catch (err) {
             debug('submit drering error', err)
         }
     }, [])
+
+    const disableInputs = useComputed<boolean>(() => {
+        return (!state.isAuthed.value || !isCanvasDirty.value)
+    })
 
     return html`<div class="route home">
         <p>
@@ -160,33 +185,51 @@ export const HomeRoute:FunctionComponent<{
             </div>
 
             <form onSubmit=${state.isAuthed.value ? submitDrering : login}>
-                <div>
+                <div class="post-text${disableInputs.value ? ' disabled' : ''}">
                     <label for="text">Text</label>
-                    <textarea
-                        id="text"
-                        name="text"
-                        disabled=${
-                            !state.isAuthed.value || !isCanvasDirty.value
-                        }
-                        class="post-text"
-                        placeholder="My text message${ELLIPSIS}"
-                    ></textarea>
+                    <div class="textarea-with-counter">
+                        <textarea
+                            id="text"
+                            name="text"
+                            disabled=${
+                                !state.isAuthed.value || !isCanvasDirty.value
+                            }
+                            class="post-text"
+                            value=${postText.value}
+                            onInput=${onTextInput}
+                            placeholder="My text message${ELLIPSIS}"
+                        ></textarea>
+                        <${CharacterCounter.TAG}
+                            max=${BSKY_POST_TEXT_MAX}
+                            count=${postTextCount.value}
+                            data-counter-for="text"
+                        ><//>
+                    </div>
                 </div>
 
-                <div class="alt-text-field">
+                <div class="alt-text-field${disableInputs.value ? ' disabled' : ''}">
                     <label for="alt-text">Alt text</label>
-                    <textarea
-                        id="alt-text"
-                        name="alt-text"
-                        disabled=${
-                            !state.isAuthed.value || !isCanvasDirty.value
-                        }
-                        class="alt-text"
-                        placeholder=${
-                            "Describe your drawing for people who can't " +
-                            `see it${ELLIPSIS}`
-                        }
-                    ></textarea>
+                    <div class="textarea-with-counter">
+                        <textarea
+                            id="alt-text"
+                            name="alt-text"
+                            disabled=${
+                                !state.isAuthed.value || !isCanvasDirty.value
+                            }
+                            class="alt-text"
+                            value=${altText.value}
+                            onInput=${onAltTextInput}
+                            placeholder=${
+                                "Describe your drawing for people who can't " +
+                                `see it${ELLIPSIS}`
+                            }
+                        ></textarea>
+                        <${CharacterCounter.TAG}
+                            max=${BSKY_ALT_TEXT_MAX}
+                            count=${altTextCount.value}
+                            data-counter-for="alt-text"
+                        ><//>
+                    </div>
                 </div>
 
                 <div class="brush-size-wrap">
@@ -275,4 +318,12 @@ export const HomeRoute:FunctionComponent<{
             </form>
         </div>
     </div>`
+}
+
+function countGraphemes (value:string):number {
+    if (!value) return 0
+    if (graphemeSegmenter) {
+        return Array.from(graphemeSegmenter.segment(value)).length
+    }
+    return Array.from(value).length
 }
