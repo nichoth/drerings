@@ -2,4 +2,8 @@
     margin: 0 auto;
     margin-top: 2rem;
     max-width: 40rem;
+
+    & code {
+        font-size: 1rem;
+    }
 }

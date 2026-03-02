@@ -52,5 +52,13 @@ export const ColophonRoute:FunctionComponent<{
             The better option would be to use a <a href="https://docs.bsky.app/docs/tutorials/custom-feeds">
                 custom feed</a> that filters for the tag.
         </p>
+
+        <h2>Posts</h2>
+        <p>
+            In the post screen, you will notice there is a character limit
+            of <code>274</code>. That's because every post has a link back
+            to this website appended to it, so we subtract that length from
+            the 300 total character count that Bluesky gives you.
+        </p>
     </div>`
 }

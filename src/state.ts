@@ -9,6 +9,7 @@ import type {
     AppBskyFeedDefs,
     AppBskyFeedSearchPosts,
     AppBskyEmbedImages,
+    AppBskyRichtextFacet,
     BlobRef,
 } from '@atproto/api'
 import type { OAuthRedirectUri, OAuthSession } from '@atproto/oauth-client'
@@ -168,16 +169,7 @@ State.post = async function (
             text:string;
             createdAt:string;
             tags:string[];
-            facets?:Array<{
-                index:{
-                    byteStart:number;
-                    byteEnd:number;
-                };
-                features:Array<{
-                    $type:'app.bsky.richtext.facet#link';
-                    uri:string;
-                }>;
-            }>;
+            facets?:AppBskyRichtextFacet.Main[];
             embed?:{
                 $type:'app.bsky.embed.images';
                 images:Array<{
@@ -187,10 +179,10 @@ State.post = async function (
             };
         } = {
             text,
+            facets: [createPostFooterFacet(text)],
             createdAt: new Date().toISOString(),
             tags: [INVISIBLE_POST_TAG]
         }
-        postRecord.facets = [createPostFooterFacet(text)]
 
         if (imageBlob && imageBlob.size > 0) {
             const encoding = imageBlob.type || 'image/png'
