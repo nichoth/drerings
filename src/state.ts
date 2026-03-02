@@ -98,9 +98,15 @@ export function State ():{
         })
     }
 
-    State.fetchAuthStatus(state).catch(err => {
-        debug('initial auth hydrate error', err)
-    })
+    // OAuth browser client storage requires IndexedDB. Skip eager restore in
+    // environments where it is unavailable (e.g. jsdom tests).
+    const hasIndexedDb = typeof window !== 'undefined' &&
+        'indexedDB' in window
+    if (hasIndexedDb) {
+        State.fetchAuthStatus(state).catch(err => {
+            debug('initial auth hydrate error', err)
+        })
+    }
 
     /**
      * Set the app state to match the browser URL.

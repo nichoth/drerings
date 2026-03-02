@@ -13,14 +13,18 @@ import { HomeRoute } from '../src/routes/home'
 
 const atramentTestState = vi.hoisted(() => ({
     readColor: null as null|(()=>string),
-    readWeight: null as null|(()=>number)
+    readWeight: null as null|(()=>number),
+    readMode: null as null|(()=>string)
 }))
 
 vi.mock('@substrate-system/atrament', () => {
     return {
+        MODE_DRAW: 'draw',
+        MODE_ERASE: 'erase',
         default: class MockAtrament {
             color = '#000000'
             weight = 4
+            mode = 'draw'
             smoothing = 0
             clear = vi.fn()
             addEventListener = vi.fn()
@@ -29,6 +33,7 @@ vi.mock('@substrate-system/atrament', () => {
             constructor () {
                 atramentTestState.readColor = () => this.color
                 atramentTestState.readWeight = () => this.weight
+                atramentTestState.readMode = () => this.mode
             }
         }
     }
@@ -122,5 +127,41 @@ describe('HomeRoute color picker integration', () => {
         })
         expect(slider.value).toBe('13')
         expect(screen.getByText('13')).toBeTruthy()
+    })
+
+    it('defaults eraser to unchecked draw mode', () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        const eraser = screen.getByText('Eraser').closest('check-box')
+        expect(eraser).toBeTruthy()
+        expect(atramentTestState.readMode?.()).toBe('draw')
+    })
+
+    it('toggles atrament mode when eraser checkbox changes', () => {
+        const state = State()
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        render(h(HomeRoute, { state }))
+
+        const eraser = screen.getByText('Eraser').closest('check-box')
+        expect(eraser).toBeTruthy()
+        if (!eraser) return
+
+        ;(eraser as HTMLInputElement & { checked:boolean }).checked = true
+        fireEvent.change(eraser)
+        expect(atramentTestState.readMode?.()).toBe('erase')
+
+        ;(eraser as HTMLInputElement & { checked:boolean }).checked = false
+        fireEvent.change(eraser)
+        expect(atramentTestState.readMode?.()).toBe('draw')
     })
 })

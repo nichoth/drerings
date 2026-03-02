@@ -33,6 +33,17 @@
         flex-direction: column;
         gap: 0.75rem;
 
+        & check-box.eraser {
+            & label {
+                display: flex;
+                align-items: center;
+
+                & span {
+                    margin-bottom: 0;
+                }
+            }
+        }
+
         & label {
             display: block;
             text-align: left;
