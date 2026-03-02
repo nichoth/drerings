@@ -289,7 +289,7 @@ describe('HomeRoute color picker integration', () => {
 
         expect(textCounter).toBeTruthy()
         expect(altCounter).toBeTruthy()
-        expect(textCounter?.getAttribute('max')).toBe('300')
+        expect(textCounter?.getAttribute('max')).toBe('274')
         expect(altCounter?.getAttribute('max')).toBe('2000')
         expect(textCounter?.getAttribute('count')).toBe('0')
         expect(altCounter?.getAttribute('count')).toBe('0')
@@ -310,7 +310,7 @@ describe('HomeRoute color picker integration', () => {
         expect(altCounter?.getAttribute('count')).toBe('11')
     })
 
-    it('disables Post It when text is over 300 and enables at 300', async () => {
+    it('disables Post It when text is over 274 and enables at 274', async () => {
         const state = State()
         state.auth.value = {
             registered: true,
@@ -332,14 +332,14 @@ describe('HomeRoute color picker integration', () => {
         })
 
         fireEvent.input(textInput, {
-            target: { value: 'a'.repeat(301) }
+            target: { value: 'a'.repeat(275) }
         })
         await waitFor(() => {
             expect(button.disabled).toBe(true)
         })
 
         fireEvent.input(textInput, {
-            target: { value: 'a'.repeat(300) }
+            target: { value: 'a'.repeat(274) }
         })
         await waitFor(() => {
             expect(button.disabled).toBe(false)

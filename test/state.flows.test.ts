@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const POST_FOOTER = '\n\nposted with drerings.app'
+const POST_LINK_URL = 'https://drerings.app/'
+
 const {
     mockClient,
     mockGetOAuthClient,
@@ -173,9 +176,25 @@ describe('state oauth flows', () => {
 
         expect(postSpy).toHaveBeenCalledTimes(1)
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
-            text: 'New drering from @alice.bsky.app',
+            text: `New drering from @alice.bsky.app${POST_FOOTER}`,
             tags: ['drering']
         }))
+        const postCall = (postSpy.mock.calls as any[][])[0]?.[0]
+        const text = postCall?.text as string
+        const linkLabel = 'posted with drerings.app'
+        const linkStart = text.length - linkLabel.length
+        const encoder = new TextEncoder()
+        const expectedByteStart = encoder.encode(text.slice(0, linkStart)).length
+        const expectedByteEnd = expectedByteStart + encoder.encode(linkLabel).length
+        expect(postCall.facets).toEqual([expect.objectContaining({
+            index: expect.objectContaining({
+                byteStart: expectedByteStart,
+                byteEnd: expectedByteEnd
+            }),
+            features: [expect.objectContaining({
+                uri: POST_LINK_URL
+            })]
+        })])
         const call = (postSpy.mock.calls as any[][])[0]
         expect(call && call.length && typeof call[0].createdAt).toBe('string')
         expect(res).toEqual({
@@ -225,7 +244,7 @@ describe('state oauth flows', () => {
         expect((uploadBlobSpy.mock.calls as any[][])[0][1])
             .toEqual({ encoding: 'image/png' })
         expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
-            text: 'caption text',
+            text: `caption text${POST_FOOTER}`,
             tags: ['drering'],
             embed: {
                 $type: 'app.bsky.embed.images',
@@ -233,7 +252,12 @@ describe('state oauth flows', () => {
                     alt: 'caption text',
                     image: expect.any(Object)
                 }]
-            }
+            },
+            facets: [expect.objectContaining({
+                features: [expect.objectContaining({
+                    uri: POST_LINK_URL
+                })]
+            })]
         }))
     })
 

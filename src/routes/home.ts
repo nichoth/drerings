@@ -9,6 +9,7 @@ import { CharacterCounter } from '@substrate-system/character-counter'
 import '@substrate-system/character-counter/css'
 import { useComputed, useSignal } from '@preact/signals'
 import { ELLIPSIS } from '../constants'
+import { countGraphemes, POST_TEXT_INPUT_MAX } from '../post-text'
 import {
     atUriToBskyUrl,
     BSKY_WEB_ORIGIN,
@@ -26,12 +27,7 @@ const DEFAULT_BRUSH_COLOR = '#000000'
 const DEFAULT_BRUSH_SIZE = 4
 const MIN_BRUSH_SIZE = 1
 const MAX_BRUSH_SIZE = 40
-const BSKY_POST_TEXT_MAX = 300
 const BSKY_ALT_TEXT_MAX = 2000
-const graphemeSegmenter = (
-    typeof Intl !== 'undefined' &&
-    'Segmenter' in Intl
-) ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
 
 export const HomeRoute:FunctionComponent<{
     state:AppState
@@ -140,7 +136,7 @@ export const HomeRoute:FunctionComponent<{
     const disable = useComputed<boolean>(() => {
         return (
             state.postReq.value.pending ||
-            postTextCount.value > BSKY_POST_TEXT_MAX ||
+            postTextCount.value > POST_TEXT_INPUT_MAX ||
             altTextCount.value > BSKY_ALT_TEXT_MAX ||
             (state.isAuthed.value && !isCanvasDirty.value)
         )
@@ -201,7 +197,7 @@ export const HomeRoute:FunctionComponent<{
                             placeholder="My text message${ELLIPSIS}"
                         ></textarea>
                         <${CharacterCounter.TAG}
-                            max=${BSKY_POST_TEXT_MAX}
+                            max=${POST_TEXT_INPUT_MAX}
                             count=${postTextCount.value}
                             data-counter-for="text"
                         ><//>
@@ -319,12 +315,4 @@ export const HomeRoute:FunctionComponent<{
             </form>
         </div>
     </div>`
-}
-
-function countGraphemes (value:string):number {
-    if (!value) return 0
-    if (graphemeSegmenter) {
-        return Array.from(graphemeSegmenter.segment(value)).length
-    }
-    return Array.from(value).length
 }

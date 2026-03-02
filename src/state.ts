@@ -19,6 +19,10 @@ import {
     getOAuthClient,
     oauthRedirectUri,
 } from './util'
+import {
+    appendPostFooter,
+    createPostFooterFacet
+} from './post-text'
 const debug = Debug('drerings:state')
 
 export const OAUTH_CALLBACK_PATH = '/login'
@@ -157,12 +161,23 @@ State.post = async function (
             throw new Error('You need to log in before posting.')
         }
 
-        const text = (textContent || '').trim() ||
+        const baseText = (textContent || '').trim() ||
             `New drering from @${state.profile.value?.handle || 'unknown'}`
+        const text = appendPostFooter(baseText)
         const postRecord:{
             text:string;
             createdAt:string;
             tags:string[];
+            facets?:Array<{
+                index:{
+                    byteStart:number;
+                    byteEnd:number;
+                };
+                features:Array<{
+                    $type:'app.bsky.richtext.facet#link';
+                    uri:string;
+                }>;
+            }>;
             embed?:{
                 $type:'app.bsky.embed.images';
                 images:Array<{
@@ -175,6 +190,7 @@ State.post = async function (
             createdAt: new Date().toISOString(),
             tags: [INVISIBLE_POST_TAG]
         }
+        postRecord.facets = [createPostFooterFacet(text)]
 
         if (imageBlob && imageBlob.size > 0) {
             const encoding = imageBlob.type || 'image/png'
@@ -183,7 +199,7 @@ State.post = async function (
             postRecord.embed = {
                 $type: 'app.bsky.embed.images',
                 images: [{
-                    alt: altText || text || 'Drering',
+                    alt: altText || baseText || 'Drering',
                     image: upload.data.blob
                 }]
             }
