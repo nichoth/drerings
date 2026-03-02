@@ -1,8 +1,10 @@
 import { html } from 'htm/preact'
 import { useRef, useEffect, useCallback } from 'preact/hooks'
 import { type FunctionComponent } from 'preact'
-import Atrament from '@substrate-system/atrament'
+import Atrament, { MODE_DRAW, MODE_ERASE } from '@substrate-system/atrament'
 import fill from '@substrate-system/atrament/fill?worker'
+import '@substrate-system/check-box'
+import '@substrate-system/check-box/css'
 import { useComputed, useSignal } from '@preact/signals'
 import { ELLIPSIS } from '../constants'
 import {
@@ -30,6 +32,7 @@ export const HomeRoute:FunctionComponent<{
     const isCanvasDirty = useSignal<boolean>(false)
     const brushColor = useSignal<string>(DEFAULT_BRUSH_COLOR)
     const brushSize = useSignal<number>(DEFAULT_BRUSH_SIZE)
+    const isEraserEnabled = useSignal<boolean>(false)
 
     useEffect(() => {
         debug('sketchpad.current...', sketchpad.current)
@@ -73,11 +76,23 @@ export const HomeRoute:FunctionComponent<{
         brushSize.value = nextSize
     }, [])
 
+    const onEraserChange = useCallback((ev:Event) => {
+        const target = ev.target as (EventTarget & { checked?:boolean })|null
+        if (!target || typeof target.checked !== 'boolean') return
+        isEraserEnabled.value = target.checked
+    }, [])
+
     useEffect(() => {
         if (atrament) {
             atrament.weight = brushSize.value
         }
     }, [brushSize.value])
+
+    useEffect(() => {
+        if (atrament) {
+            atrament.mode = isEraserEnabled.value ? MODE_ERASE : MODE_DRAW
+        }
+    }, [isEraserEnabled.value])
 
     const disable = useComputed<boolean>(() => {
         return (
@@ -190,6 +205,18 @@ export const HomeRoute:FunctionComponent<{
                         />
                         <output for="brush-size">${brushSize.value}</output>
                     </div>
+                </div>
+
+                <div class="eraser-wrap">
+                    <check-box
+                        class="eraser"
+                        name="eraser"
+                        disabled=${isPosting.value ? true : undefined}
+                        onChange=${onEraserChange}
+                        onInput=${onEraserChange}
+                    >
+                        Eraser
+                    </check-box>
                 </div>
 
                 <div class="color-picker-wrap">

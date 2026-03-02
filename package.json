@@ -33,6 +33,7 @@
     "@substrate-system/anchor": "^0.0.10",
     "@substrate-system/atrament": "^5.1.4",
     "@substrate-system/character-counter": "^0.0.4",
+    "@substrate-system/check-box": "^0.0.14",
     "@substrate-system/css-normalize": "^0.0.13",
     "@substrate-system/dialog": "^0.0.28",
     "@substrate-system/input": "^0.0.22",
