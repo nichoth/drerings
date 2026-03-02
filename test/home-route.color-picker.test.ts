@@ -31,7 +31,14 @@ vi.mock('@substrate-system/atrament', () => {
             addEventListener = vi.fn()
             destroy = vi.fn()
 
-            constructor () {
+            constructor (
+                canvas?:HTMLCanvasElement,
+                config:{ width?:number, height?:number } = {}
+            ) {
+                if (canvas?.tagName === 'CANVAS') {
+                    if (config.width) canvas.width = config.width
+                    if (config.height) canvas.height = config.height
+                }
                 atramentTestState.constructCount += 1
                 atramentTestState.readColor = () => this.color
                 atramentTestState.readWeight = () => this.weight
@@ -190,5 +197,71 @@ describe('HomeRoute color picker integration', () => {
             expect(screen.queryByText(/Need a Bluesky account/i)).toBeNull()
         })
         expect(atramentTestState.constructCount).toBe(1)
+    })
+
+    it('preserves existing canvas pixels when auth resolves', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: false,
+            authenticated: false
+        }
+
+        const { container } = render(h(HomeRoute, { state }))
+        const canvas = container.querySelector('#sketchpad') as
+            HTMLCanvasElement|null
+        expect(canvas).toBeTruthy()
+        if (!canvas) return
+
+        let alpha = 0
+        let width = canvas.width
+        let height = canvas.height
+
+        Object.defineProperty(canvas, 'width', {
+            configurable: true,
+            get: () => width,
+            set: (value:number) => {
+                width = value
+                alpha = 0
+            }
+        })
+        Object.defineProperty(canvas, 'height', {
+            configurable: true,
+            get: () => height,
+            set: (value:number) => {
+                height = value
+                alpha = 0
+            }
+        })
+
+        const ctx = {
+            fillStyle: '#000000',
+            fillRect: () => {
+                alpha = 255
+            },
+            getImageData: () => ({
+                data: new Uint8ClampedArray([0, 0, 0, alpha])
+            })
+        }
+        const getContextSpy = vi.spyOn(canvas, 'getContext')
+            .mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+
+        ctx.fillStyle = '#000000'
+        ctx.fillRect(0, 0, 1, 1)
+        const before = ctx.getImageData().data[3]
+        expect(before).toBeGreaterThan(0)
+
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        await waitFor(() => {
+            expect(screen.queryByText(/Need a Bluesky account/i)).toBeNull()
+        })
+
+        const after = ctx.getImageData().data[3]
+        expect(after).toBeGreaterThan(0)
+        expect(atramentTestState.constructCount).toBe(1)
+        getContextSpy.mockRestore()
     })
 })
