@@ -62,7 +62,7 @@ export const HomeRoute:FunctionComponent<{
         return () => {
             atrament.destroy()
         }
-    }, [sketchpad.current])
+    }, [])
 
     const onColorChange = useCallback((nextColor:string) => {
         brushColor.value = nextColor

@@ -1,5 +1,5 @@
 import { h } from 'preact'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
     fireEvent,
     render,
@@ -14,7 +14,8 @@ import { HomeRoute } from '../src/routes/home'
 const atramentTestState = vi.hoisted(() => ({
     readColor: null as null|(()=>string),
     readWeight: null as null|(()=>number),
-    readMode: null as null|(()=>string)
+    readMode: null as null|(()=>string),
+    constructCount: 0
 }))
 
 vi.mock('@substrate-system/atrament', () => {
@@ -31,6 +32,7 @@ vi.mock('@substrate-system/atrament', () => {
             destroy = vi.fn()
 
             constructor () {
+                atramentTestState.constructCount += 1
                 atramentTestState.readColor = () => this.color
                 atramentTestState.readWeight = () => this.weight
                 atramentTestState.readMode = () => this.mode
@@ -75,6 +77,10 @@ describe('ColorPicker', () => {
 })
 
 describe('HomeRoute color picker integration', () => {
+    beforeEach(() => {
+        atramentTestState.constructCount = 0
+    })
+
     it('uses default atrament brush size', () => {
         const state = State()
         state.auth.value = {
@@ -163,5 +169,26 @@ describe('HomeRoute color picker integration', () => {
         ;(eraser as HTMLInputElement & { checked:boolean }).checked = false
         fireEvent.change(eraser)
         expect(atramentTestState.readMode?.()).toBe('draw')
+    })
+
+    it('does not recreate atrament when auth state changes', async () => {
+        const state = State()
+        state.auth.value = {
+            registered: false,
+            authenticated: false
+        }
+
+        render(h(HomeRoute, { state }))
+        expect(atramentTestState.constructCount).toBe(1)
+
+        state.auth.value = {
+            registered: true,
+            authenticated: true
+        }
+
+        await waitFor(() => {
+            expect(screen.queryByText(/Need a Bluesky account/i)).toBeNull()
+        })
+        expect(atramentTestState.constructCount).toBe(1)
     })
 })
