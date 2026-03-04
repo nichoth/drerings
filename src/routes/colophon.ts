@@ -48,7 +48,7 @@ export const ColophonRoute:FunctionComponent<{
         <h2>The Feed</h2>
         <p>
             The feed is just a chronological list of all posts that contain
-            the tag "drerings." It doesn't use you social graph in any way.
+            the tag "drerings." It doesn't use your social graph in any way.
             The better option would be to use a <a href="https://docs.bsky.app/docs/tutorials/custom-feeds">
                 custom feed</a> that filters for the tag.
         </p>
