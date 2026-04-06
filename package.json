@@ -71,7 +71,7 @@
     "stylelint-config-standard": "^39.0.0",
     "tap-spec": "^5.0.0",
     "typescript": "^5.8.2",
-    "vite": "^7.0.0",
+    "vite": "^7.3.2",
     "vitest": "^4.0.18"
   },
   "author": "nichoth <nichoth@nichoth.com> (https://nichoth.com)"
