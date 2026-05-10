@@ -16,26 +16,29 @@ export interface SessionUser {
 
 export async function createMagicLinkLogin (
     email:string
-):Promise<MagicLinkLogin> {
+):Promise<MagicLinkLogin|null> {
+    const db = getDatabase()
+    const lookup = await db.pool.query<{
+        id:string;
+        subscription_status:'free'|'active'|'canceled'|'past_due';
+    }>(
+        'SELECT id, subscription_status FROM users WHERE email = $1',
+        [email]
+    )
+    const user = lookup.rows[0]
+
+    if (!user || user.subscription_status === 'free') return null
+
     const token = crypto.randomBytes(32).toString('base64url')
     const expiresAt = new Date(Date.now() + (15 * 60 * 1000))
-    const db = getDatabase()
-    const result = await db.pool.query<{ user_id:string }>(`
-        WITH selected_user AS (
-            INSERT INTO users (email)
-            VALUES ($1)
-            ON CONFLICT (email)
-            DO UPDATE SET email = EXCLUDED.email
-            RETURNING id
-        )
+    const insert = await db.pool.query<{ user_id:string }>(`
         INSERT INTO magic_link_tokens (token, user_id, expires_at, purpose)
-        SELECT $2, id, $3, 'login'
-        FROM selected_user
+        VALUES ($1, $2, $3, 'login')
         RETURNING user_id
-    `, [email, token, expiresAt])
+    `, [token, user.id, expiresAt])
 
     return {
-        userId: result.rows[0].user_id,
+        userId: insert.rows[0].user_id,
         token,
         expiresAt
     }

@@ -15,7 +15,13 @@ describe('US-004 auth helpers', () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-05-10T12:00:00.000Z'))
 
-        const query = vi.fn<Query>(async () => {
+        const query = vi.fn<Query>(async (sql) => {
+            if (sql.includes('SELECT id, subscription_status FROM users')) {
+                return { rows: [{
+                    id: 'user-1',
+                    subscription_status: 'active'
+                }] }
+            }
             return { rows: [{ user_id: 'user-1' }] }
         })
 
@@ -32,14 +38,17 @@ describe('US-004 auth helpers', () => {
         )
         const login = await createMagicLinkLogin('user@example.com')
 
-        expect(login.userId).toBe('user-1')
-        expect(login.token.length).toBeGreaterThan(20)
-        expect(login.expiresAt.toISOString())
+        expect(login).not.toBeNull()
+        expect(login?.userId).toBe('user-1')
+        expect(login!.token.length).toBeGreaterThan(20)
+        expect(login!.expiresAt.toISOString())
             .toBe('2026-05-10T12:15:00.000Z')
-        const call = query.mock.calls[0]!
-        expect(call[1][0]).toBe('user@example.com')
-        expect(call[1][1]).toBe(login.token)
-        expect(call[1][2]).toEqual(login.expiresAt)
+        const lookupCall = query.mock.calls[0]!
+        expect(lookupCall[1][0]).toBe('user@example.com')
+        const insertCall = query.mock.calls[1]!
+        expect(insertCall[1][0]).toBe(login!.token)
+        expect(insertCall[1][1]).toBe('user-1')
+        expect(insertCall[1][2]).toEqual(login!.expiresAt)
 
         vi.useRealTimers()
     })
@@ -102,5 +111,57 @@ describe('US-004 auth helpers', () => {
         expect(request.from).toBe('Login <login@example.com>')
         expect(request.to).toBe('user@example.com')
         expect(request.text).toContain('token=token-1')
+    })
+})
+
+describe('createMagicLinkLogin paid-only gating', () => {
+    it('returns null when email has no paid history', async () => {
+        vi.resetModules()
+
+        const query = vi.fn<Query>(async (sql) => {
+            if (sql.includes('SELECT id, subscription_status FROM users')) {
+                return { rows: [{
+                    id: 'user-1',
+                    subscription_status: 'free'
+                }] }
+            }
+            return { rows: [] }
+        })
+
+        vi.doMock('@netlify/database', () => ({
+            getDatabase: () => ({ pool: { query } })
+        }))
+
+        const store = await import('../netlify/lib/auth-store')
+        const result = await store.createMagicLinkLogin('free@example.com')
+
+        expect(result).toBeNull()
+    })
+
+    it('issues a token when subscription is or was paid', async () => {
+        vi.resetModules()
+
+        const query = vi.fn<Query>(async (sql) => {
+            if (sql.includes('SELECT id, subscription_status FROM users')) {
+                return { rows: [{
+                    id: 'user-1',
+                    subscription_status: 'active'
+                }] }
+            }
+            if (sql.includes('INSERT INTO magic_link_tokens')) {
+                return { rows: [{ user_id: 'user-1' }] }
+            }
+            return { rows: [] }
+        })
+
+        vi.doMock('@netlify/database', () => ({
+            getDatabase: () => ({ pool: { query } })
+        }))
+
+        const store = await import('../netlify/lib/auth-store')
+        const result = await store.createMagicLinkLogin('paid@example.com')
+
+        expect(result).not.toBeNull()
+        expect(result?.userId).toBe('user-1')
     })
 })
