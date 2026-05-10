@@ -10,6 +10,12 @@
   `netlify/database/migrations/<prefix>_<slug>/migration.sql`.
 - Netlify Blobs helpers should call `getStore(...)` lazily inside exported
   operations, not at module load, so Netlify runtime context is available.
+- Netlify Functions can live in nested directories under `netlify/functions`
+  to match redirected API paths like `/api/auth/magic-link`.
+- Shared backend helpers live under `netlify/lib/*`; keep function handlers
+  thin and put reusable storage, email, session, and HTTP helpers there.
+- One-time token consumption should be atomic in SQL with a guarded
+  `UPDATE ... RETURNING`, checking both `used_at IS NULL` and expiry.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -94,4 +100,44 @@ Thread: https://ampcode.com/threads/
     created after Netlify has populated its runtime context.
   - Drawing image blob keys use
     `users/<userId>/drawings/<drawingId>.png`.
+---
+## 2026-05-09 22:52 PDT - US-004
+Thread: https://ampcode.com/threads/
+- Added magic-link auth functions for
+  `POST /api/auth/magic-link` and
+  `GET /api/auth/magic-link/callback`.
+- Added backend helpers for magic-link token creation/consumption, Resend
+  delivery, signed session cookies, and shared HTTP JSON/origin parsing.
+- Replaced the login placeholder with a single email form, Send link button,
+  inline error handling, and a check-your-email success state.
+- Added US-004 regression coverage for the API handlers, auth helpers, Resend
+  payloads, and login route flow.
+- Marked US-004 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/auth/magic-link.ts`,
+  `netlify/functions/auth/magic-link-callback.ts`,
+  `netlify/lib/auth-store.ts`, `netlify/lib/http.ts`,
+  `netlify/lib/resend.ts`, `netlify/lib/session.ts`,
+  `src/routes/login.ts`, `src/routes/login.css`,
+  `test/us004-auth-helpers.test.ts`,
+  `test/us004-magic-link-api.test.ts`,
+  `test/login-route.flows.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us004-auth-helpers.test.ts
+  test/us004-magic-link-api.test.ts test/login-route.flows.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback
+  against `http://127.0.0.1:8889/login` confirmed one Sign In heading, one
+  Email input, one Send link button, and no page errors. Browser Use's Node
+  REPL bridge was not exposed, and Computer Use was blocked by macOS
+  authentication, so the browser check used Playwright against the local dev
+  server.
+- **Learnings for future iterations:**
+  - Netlify Functions route cleanly from `/api/*` when nested under
+    `netlify/functions`, for example `auth/magic-link.ts`.
+  - `@netlify/database` exposes `getDatabase().pool.query(...)`; use
+    parameterized SQL for helper modules under `netlify/lib`.
+  - Magic-link login currently upserts a user before inserting the token
+    because `magic_link_tokens.user_id` is non-nullable.
+  - Resend delivery uses `RESEND_API_KEY`, with optional
+    `RESEND_FROM_EMAIL`; no Resend SDK dependency is required.
+  - Session cookies require `SESSION_SECRET` outside test/local Netlify mode.
 ---
