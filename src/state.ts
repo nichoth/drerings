@@ -378,14 +378,17 @@ State.PublishDrawing = async function (
 }
 
 State.StartCheckout = async function (
-    state:AppState
+    state:AppState,
+    email:string
 ):Promise<void> {
     state.checkoutLoading.value = true
     state.checkoutError.value = null
 
     try {
         const response = await fetch('/api/billing/checkout', {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
         })
 
         if (!response.ok) {
