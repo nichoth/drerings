@@ -46,4 +46,10 @@
     & .login-error {
         color: var(--danger);
     }
+
+    & .login-passkey {
+        border-top: 1px solid var(--input-border);
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+    }
 }

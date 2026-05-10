@@ -16,6 +16,12 @@
   thin and put reusable storage, email, session, and HTTP helpers there.
 - One-time token consumption should be atomic in SQL with a guarded
   `UPDATE ... RETURNING`, checking both `used_at IS NULL` and expiry.
+- WebAuthn passkey flows use `@simplewebauthn/server` in Netlify helpers and
+  `@simplewebauthn/browser` in routes; challenge state is carried by a short
+  lived signed `challenge_token` returned beside the generated options.
+- Passkey API handlers are nested under
+  `netlify/functions/auth/passkey/<flow>/<step>.ts` to match paths like
+  `/api/auth/passkey/register/options`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -140,4 +146,47 @@ Thread: https://ampcode.com/threads/
   - Resend delivery uses `RESEND_API_KEY`, with optional
     `RESEND_FROM_EMAIL`; no Resend SDK dependency is required.
   - Session cookies require `SESSION_SECRET` outside test/local Netlify mode.
+---
+## 2026-05-09 23:03 PDT - US-005
+Thread: https://ampcode.com/threads/
+- Added passkey registration and sign-in endpoints for options and verify
+  steps under `/api/auth/passkey/*`.
+- Added shared WebAuthn helpers for signed challenge tokens, registration
+  verification, authentication verification, passkey storage, and counter
+  updates.
+- Added session cookie parsing for endpoint authorization without exposing the
+  US-006 `getSession`/`whoami` contract yet.
+- Added passkey sign-in to the login route, with magic-link-only fallback when
+  WebAuthn is unavailable.
+- Added a settings route with a logged-in-only "Register a passkey" action.
+- Marked US-005 as passing in `specs/prd.json`.
+- Files changed: `package.json`, `package-lock.json`,
+  `netlify/lib/session.ts`, `netlify/lib/passkeys.ts`,
+  `netlify/functions/auth/passkey/register/options.ts`,
+  `netlify/functions/auth/passkey/register/verify.ts`,
+  `netlify/functions/auth/passkey/login/options.ts`,
+  `netlify/functions/auth/passkey/login/verify.ts`,
+  `src/routes/login.ts`, `src/routes/login.css`,
+  `src/routes/settings.ts`, `src/routes/settings.css`,
+  `src/routes/index.ts`, `test/us005-passkey-helpers.test.ts`,
+  `test/us005-passkey-api.test.ts`, `test/us005-passkey-ui.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification:
+  `npx vitest run test/us005-passkey-helpers.test.ts
+  test/us005-passkey-api.test.ts test/us005-passkey-ui.test.ts`;
+  `npx vitest run test/login-route.flows.test.ts test/state.flows.test.ts
+  test/us004-magic-link-api.test.ts test/us004-auth-helpers.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback against
+  `http://127.0.0.1:5173/login` and `/settings` confirmed the passkey button,
+  signed-out settings state, and no console or page errors.
+- Browser Use note: the required Node REPL tool was not exposed in this
+  session, so browser verification used Playwright against the local Vite dev
+  server.
+- **Learnings for future iterations:**
+  - SimpleWebAuthn v13 returns credential data as
+    `registrationInfo.credential`; store its `id`, `publicKey`, and `counter`.
+  - Existing `passkeys.public_key` is text, so encode public keys as base64url
+    on write and decode to `Uint8Array` before WebAuthn authentication checks.
+  - Until US-006 adds `getSession`, passkey registration can authorize with
+    `readSessionUserFromCookie(event)` from `netlify/lib/session.ts`.
 ---

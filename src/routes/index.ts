@@ -4,6 +4,7 @@ import { HomeRoute } from './home.js'
 import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
 import { LoginRoute } from './login.js'
+import { SettingsRoute } from './settings.js'
 
 export default function _Router (
     _state:AppState
@@ -26,10 +27,15 @@ export default function _Router (
         return LoginRoute
     })
 
+    router.addRoute('/settings', () => {
+        return SettingsRoute
+    })
+
     return router
 }
 
 export const routes = [
     { href: '/', text: 'Home' },
-    { href: '/colophon', text: 'About' }
+    { href: '/colophon', text: 'About' },
+    { href: '/settings', text: 'Settings' }
 ]

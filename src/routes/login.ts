@@ -2,15 +2,24 @@ import { html } from 'htm/preact'
 import type { FunctionComponent } from 'preact'
 import { useCallback } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
+import {
+    browserSupportsWebAuthn,
+    startAuthentication
+} from '@simplewebauthn/browser'
 import { type AppState } from '../state.js'
 import { Button } from '../components/button.js'
 import './login.css'
 
-export const LoginRoute:FunctionComponent<{ state:AppState }> = function () {
+export const LoginRoute:FunctionComponent<{
+    state:AppState;
+}> = function ({ state }) {
     const email = useSignal<string>('')
     const error = useSignal<string>('')
     const isSent = useSignal<boolean>(false)
     const isSending = useSignal<boolean>(false)
+    const passkeyError = useSignal<string>('')
+    const passkeySending = useSignal<boolean>(false)
+    const supportsPasskeys = browserSupportsWebAuthn()
 
     const submit = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
@@ -40,6 +49,57 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function () {
             isSending.value = false
         }
     }, [])
+
+    const signInWithPasskey = useCallback(async () => {
+        passkeyError.value = ''
+        passkeySending.value = true
+
+        try {
+            const optionsResponse = await fetch(
+                '/api/auth/passkey/login/options',
+                { method: 'POST' }
+            )
+
+            if (!optionsResponse.ok) {
+                const body = await optionsResponse.json().catch(() => ({}))
+                throw new Error(body.error || 'Unable to start passkey.')
+            }
+
+            const optionsBody = await optionsResponse.json()
+            const response = await startAuthentication({
+                optionsJSON: optionsBody.options
+            })
+            const verifyResponse = await fetch(
+                '/api/auth/passkey/login/verify',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        challenge_token: optionsBody.challenge_token,
+                        response
+                    })
+                }
+            )
+
+            if (!verifyResponse.ok) {
+                const body = await verifyResponse.json().catch(() => ({}))
+                throw new Error(body.error || 'Passkey sign-in failed.')
+            }
+
+            state.auth.value = {
+                registered: true,
+                authenticated: true
+            }
+        } catch (err) {
+            passkeyError.value = err instanceof Error ?
+                err.message :
+                'Passkey sign-in failed.'
+        } finally {
+            passkeySending.value = false
+        }
+    }, [state])
 
     return html`<div class="route login">
         <h2>Sign In</h2>
@@ -79,6 +139,26 @@ export const LoginRoute:FunctionComponent<{ state:AppState }> = function () {
                     Send link
                 <//>
             </form>`
+        }
+
+        ${supportsPasskeys ?
+            html`<div class="login-passkey">
+                <${Button}
+                    type="button"
+                    onClick=${signInWithPasskey}
+                    isSpinning=${passkeySending}
+                >
+                    Sign in with passkey
+                <//>
+
+                ${passkeyError.value ?
+                    html`<p role="alert" class="login-error">
+                        ${passkeyError.value}
+                    </p>` :
+                    null
+                }
+            </div>` :
+            null
         }
     </div>`
 }
