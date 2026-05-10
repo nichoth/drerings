@@ -60,6 +60,8 @@ export function State (): {
     isAuthed:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
     currentDrawing:Signal<SavedDrawing|null>;
+    checkoutLoading:Signal<boolean>;
+    checkoutError:Signal<string|null>;
     savedDrawings:Signal<SavedDrawing[]>;
     savedDrawingsLoading:Signal<boolean>;
     savedDrawingsError:Signal<string|null>;
@@ -77,6 +79,8 @@ export function State (): {
         }),
         currentUser: signal<CurrentUser|null>(null),
         currentDrawing: signal<SavedDrawing|null>(null),
+        checkoutLoading: signal<boolean>(false),
+        checkoutError: signal<string|null>(null),
         savedDrawings: signal<SavedDrawing[]>([]),
         savedDrawingsLoading: signal<boolean>(false),
         savedDrawingsError: signal<string|null>(null),
@@ -342,6 +346,46 @@ State.PublishDrawing = async function (
     return { id }
 }
 
+State.StartCheckout = async function (
+    state:AppState
+):Promise<void> {
+    state.checkoutLoading.value = true
+    state.checkoutError.value = null
+
+    try {
+        const response = await fetch('/api/billing/checkout', {
+            method: 'POST'
+        })
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to start checkout right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { url?:unknown }
+
+        if (typeof body.url !== 'string' || body.url.trim() === '') {
+            throw new Error('Unable to start checkout right now.')
+        }
+
+        location.assign(body.url)
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to start checkout right now.'
+
+        state.checkoutError.value = message
+
+        throw err
+    } finally {
+        state.checkoutLoading.value = false
+    }
+}
+
 State.FetchPublicPost = async function (
     _state:AppState,
     postId:string
@@ -386,6 +430,7 @@ function clearAuthState (state:AppState):void {
     }
     state.currentUser.value = null
     state.currentDrawing.value = null
+    state.checkoutError.value = null
     state.savedDrawings.value = []
     state.profile.value = null
 }

@@ -48,6 +48,10 @@
         border-top: 1px solid var(--input-border);
         padding-top: 1rem;
     }
+
+    & .pricing-error {
+        color: var(--danger);
+    }
 }
 
 @media (max-width: 42rem) {

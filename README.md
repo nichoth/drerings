@@ -7,6 +7,7 @@ Drawings for friends.
 <!-- toc -->
 
 - [Develop](#develop)
+- [Autumn Billing](#autumn-billing)
 - [OAuth Local Testing](#oauth-local-testing)
   * [Troubleshooting](#troubleshooting)
   * [Optional env vars](#optional-env-vars)
@@ -20,6 +21,24 @@ Drawings for friends.
 ```sh
 npm start
 ```
+
+## Autumn Billing
+
+`POST /api/billing/checkout` creates an Autumn checkout session for the
+signed-in user. Local development can run without Autumn credentials; the
+checkout endpoint returns a mocked `/account?status=ok` URL when
+`NETLIFY_LOCAL=true` and no Autumn secret is configured.
+
+Live checkout requires these Netlify environment variables:
+
+* `AUTUMN_SECRET_KEY`: Autumn secret key, sent as the bearer token.
+* `AUTUMN_PRODUCT_ID`: Autumn product ID for the paid plan. Defaults to
+  `paid` for local testing.
+* `AUTUMN_API_URL`: optional API base URL override. Defaults to
+  `https://api.useautumn.com`.
+
+The checkout success return URL is `/account?status=ok`. The Stripe Checkout
+cancel URL is passed through Autumn as `/account?status=cancel`.
 
 ## OAuth Local Testing
 

@@ -1,13 +1,17 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
+import { useCallback } from 'preact/hooks'
 import { Button } from '../components/button'
-import { type AppState } from '../state'
+import { State, type AppState } from '../state'
 import './pricing.css'
 
 export const PricingRoute:FunctionComponent<{
     state:AppState;
 }> = function PricingRoute ({ state }) {
     const currentUser = state.currentUser.value
+    const startCheckout = useCallback(async () => {
+        await State.StartCheckout(state).catch(() => {})
+    }, [state])
 
     return html`<div class="route pricing">
         <section class="pricing-intro">
@@ -57,9 +61,18 @@ export const PricingRoute:FunctionComponent<{
             <${Button}
                 type="button"
                 disabled=${!currentUser}
+                isSpinning=${state.checkoutLoading}
+                onClick=${currentUser ? startCheckout : undefined}
             >
                 Subscribe - $5/month
             <//>
+
+            ${state.checkoutError.value ?
+                html`<p role="alert" class="pricing-error">
+                    ${state.checkoutError.value}
+                </p>` :
+                null
+            }
         </section>
     </div>`
 }

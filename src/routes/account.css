@@ -1,0 +1,17 @@
+.route.account {
+    max-width: 42rem;
+    margin-inline: auto;
+
+    & .account-subscription {
+        border-top: 1px solid var(--input-border);
+        padding-top: 1rem;
+    }
+
+    & .account-success {
+        color: var(--success);
+    }
+
+    & .account-note {
+        color: var(--main-text);
+    }
+}

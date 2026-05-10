@@ -58,6 +58,12 @@
   `/post/:id` route owns document title and Open Graph metadata updates.
 - Client route tests can render through `Router(state).match(path)` to verify
   route registration and component rendering together.
+- Billing checkout lives at `netlify/functions/billing/checkout.ts`, with
+  Autumn API details isolated in `netlify/lib/billing.ts`; local Netlify
+  development may use a mocked checkout URL when no Autumn secret is set.
+- Checkout UI state follows the SPA state pattern through
+  `State.StartCheckout`, `state.checkoutLoading`, and
+  `state.checkoutError`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -488,4 +494,43 @@ Thread: https://ampcode.com/threads/
     browser checks; intercept or allow that expected signed-out signal.
   - Route tests can render a route through `Router(state).match(path)` to
     cover dynamic route registration without importing the route component.
+---
+## 2026-05-10 01:44 PDT - US-014
+Thread: https://ampcode.com/threads/
+- Added `POST /api/billing/checkout`, gated by `getSession(event)`, to create
+  an Autumn checkout session for the signed-in user.
+- Added `netlify/lib/billing.ts` to call Autumn's `/checkout` endpoint,
+  persist `users.autumn_customer_id`, and return a mocked account URL for
+  local Netlify development when no Autumn secret is configured.
+- Wired the `/pricing` Subscribe button through `State.StartCheckout` so it
+  posts to `/api/billing/checkout`, redirects to the returned URL, and shows
+  inline checkout errors.
+- Added `/account` to receive `/account?status=ok` and
+  `/account?status=cancel` returns from checkout.
+- Documented the Autumn environment variables in `README.md`.
+- Marked US-014 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/billing/checkout.ts`,
+  `netlify/lib/billing.ts`, `src/state.ts`, `src/routes/pricing.ts`,
+  `src/routes/pricing.css`, `src/routes/account.ts`,
+  `src/routes/account.css`, `src/routes/index.ts`, `README.md`,
+  `test/us014-billing-store.test.ts`,
+  `test/us014-billing-checkout-api.test.ts`,
+  `test/us014-checkout-ui.test.ts`, `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us014-billing-store.test.ts
+  test/us014-billing-checkout-api.test.ts test/us014-checkout-ui.test.ts`;
+  `npx vitest run test/us014-billing-store.test.ts
+  test/us014-billing-checkout-api.test.ts test/us014-checkout-ui.test.ts
+  test/us013-pricing-page.test.ts test/state.flows.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
+  fallback against `http://localhost:8889/pricing` confirmed signed-in
+  checkout redirect to `/account?status=ok`, cancellation messaging at
+  `/account?status=cancel`, and no page or console errors.
+- **Learnings for future iterations:**
+  - Autumn checkout uses `POST https://api.useautumn.com/checkout` with the
+    secret key as a bearer token, `customer_id`, `product_id`, `success_url`,
+    and Stripe `cancel_url` passed through `checkout_session_params`.
+  - Keep billing provider calls in `netlify/lib/billing.ts`; function handlers
+    should only resolve auth, derive origin, and return JSON.
+  - The account route reads checkout return status from `location.search`
+    because app route state strips query strings.
 ---
