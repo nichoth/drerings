@@ -8,6 +8,7 @@ import { SettingsRoute } from './settings.js'
 import { DrawingsRoute } from './drawings.js'
 import { SendRoute } from './send.js'
 import { PostRoute } from './post.js'
+import { PricingRoute } from './pricing.js'
 
 export default function _Router (
     _state:AppState
@@ -46,12 +47,17 @@ export default function _Router (
         return PostRoute
     })
 
+    router.addRoute('/pricing', () => {
+        return PricingRoute
+    })
+
     return router
 }
 
 export const routes = [
     { href: '/', text: 'Home' },
     { href: '/drawings', text: 'Drawings' },
+    { href: '/pricing', text: 'Pricing' },
     { href: '/colophon', text: 'About' },
     { href: '/settings', text: 'Settings' }
 ]

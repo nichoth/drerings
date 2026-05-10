@@ -1,0 +1,59 @@
+.route.pricing {
+    --pricing-max-width: 58rem;
+
+    width: min(100%, var(--pricing-max-width));
+    margin-inline: auto;
+
+    & .pricing-intro {
+        margin-bottom: 2rem;
+
+        & p {
+            max-width: 42rem;
+        }
+    }
+
+    & .pricing-tiers {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    & .pricing-tier {
+        border-top: 2px solid var(--main-text);
+        padding-block: 1rem;
+
+        & h3 {
+            margin: 0 0 0.5rem;
+        }
+
+        & ul {
+            padding-left: 1.2rem;
+            margin-bottom: 0;
+        }
+
+        & li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+    }
+
+    & .pricing-rate {
+        font-size: 1.4rem;
+        line-height: 1.2;
+        margin: 0 0 1rem;
+    }
+
+    & .pricing-checkout {
+        border-top: 1px solid var(--input-border);
+        padding-top: 1rem;
+    }
+}
+
+@media (max-width: 42rem) {
+    .route.pricing {
+        & .pricing-tiers {
+            grid-template-columns: 1fr;
+        }
+    }
+}
