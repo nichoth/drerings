@@ -104,6 +104,10 @@ export const LoginRoute:FunctionComponent<{
     return html`<div class="route login">
         <h2>Sign In</h2>
 
+        <p class="login-help">
+            New here? <a href="/pricing">Subscribe to create an account</a>.
+        </p>
+
         ${isSent.value ?
             html`<p>
                 Check your email for a sign-in link.
