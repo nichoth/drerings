@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { State } from '../src/state'
 
 describe('state auth baseline', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
     it('starts unauthenticated', () => {
         const state = State()
 
@@ -19,10 +23,25 @@ describe('state auth baseline', () => {
             registered: true,
             authenticated: true
         }
+        state.currentUser.value = {
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
+        }
         state.profile.value = {
             id: 'user-1',
             email: 'user@example.com'
         }
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({ error: 'Sign in' }), {
+                status: 401,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
 
         const auth = await State.fetchAuthStatus(state)
 
@@ -30,8 +49,45 @@ describe('state auth baseline', () => {
             registered: false,
             authenticated: false
         })
+        expect(state.currentUser.value).toBeNull()
         expect(state.profile.value).toBeNull()
         expect(state.isAuthed.value).toBe(false)
+        expect(fetcher).toHaveBeenCalledWith('/api/whoami')
+    })
+
+    it('fetchAuthStatus populates the current user from whoami', async () => {
+        const state = State()
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({
+                id: 'user-1',
+                email: 'user@example.com',
+                subscription_status: 'active'
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
+
+        const auth = await State.fetchAuthStatus(state)
+
+        expect(auth).toEqual({
+            registered: false,
+            authenticated: true
+        })
+        expect(state.currentUser.value).toEqual({
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
+        })
+        expect(state.profile.value).toEqual({
+            id: 'user-1',
+            email: 'user@example.com'
+        })
+        expect(state.isAuthed.value).toBe(true)
     })
 
     it('logout clears local auth state', async () => {
@@ -39,6 +95,11 @@ describe('state auth baseline', () => {
         state.auth.value = {
             registered: true,
             authenticated: true
+        }
+        state.currentUser.value = {
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
         }
         state.profile.value = {
             id: 'user-1',
@@ -51,6 +112,7 @@ describe('state auth baseline', () => {
             registered: false,
             authenticated: false
         })
+        expect(state.currentUser.value).toBeNull()
         expect(state.profile.value).toBeNull()
     })
 })

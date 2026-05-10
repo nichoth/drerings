@@ -22,6 +22,11 @@
 - Passkey API handlers are nested under
   `netlify/functions/auth/passkey/<flow>/<step>.ts` to match paths like
   `/api/auth/passkey/register/options`.
+- Session-aware API handlers should use `getSession(event)` from
+  `netlify/lib/session.ts`; it validates the signed cookie and queries the
+  current `users` row so subscription state is not read from stale cookies.
+- Frontend auth state is hydrated by `State.fetchAuthStatus(state)`, which
+  calls `/api/whoami` and stores the result in `state.currentUser`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -189,4 +194,28 @@ Thread: https://ampcode.com/threads/
     on write and decode to `Uint8Array` before WebAuthn authentication checks.
   - Until US-006 adds `getSession`, passkey registration can authorize with
     `readSessionUserFromCookie(event)` from `netlify/lib/session.ts`.
+---
+## 2026-05-09 23:09 PDT - US-006
+Thread: https://ampcode.com/threads/
+- Added `getSession(event)` in `netlify/lib/session.ts` to validate the
+  signed session cookie, load the current `users` row, and return
+  `{ user } | null`.
+- Added `GET /api/whoami`, returning the current user's `id`, `email`, and
+  `subscription_status`, or a 401 JSON error when signed out.
+- Added `state.currentUser` and made `State.fetchAuthStatus(state)` hydrate
+  auth state from `/api/whoami`; app boot now calls it from `src/index.ts`.
+- Added US-006 regression coverage for session lookup, the whoami endpoint,
+  and frontend auth hydration.
+- Marked US-006 as passing in `specs/prd.json`.
+- Files changed: `netlify/lib/session.ts`, `netlify/functions/whoami.ts`,
+  `src/state.ts`, `src/index.ts`, `test/us006-session-whoami.test.ts`,
+  `test/state.flows.test.ts`, `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us006-session-whoami.test.ts
+  test/state.flows.test.ts`; `npx tsc --noEmit`; `npm run lint`;
+  `npm test`.
+- **Learnings for future iterations:**
+  - Do not authorize future paid APIs from the cookie payload alone; use
+    `getSession(event)` so user and subscription data come from the DB.
+  - `State.fetchAuthStatus(state)` is the frontend boot hydration point for
+    `state.currentUser`; keep auth mutations attached to `State`.
 ---

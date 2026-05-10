@@ -15,6 +15,10 @@ const state = State()
 const router = Router(state)
 const debug = Debug('drerings')
 
+State.fetchAuthStatus(state).catch(err => {
+    debug('auth status failed', err)
+})
+
 // set debug logging in local env
 if (isDev()) {
     localStorage.setItem('DEBUG', 'drerings:*,drerings')
@@ -138,7 +142,9 @@ function Nav ({
     return html`<nav aria-label="Main navigation">
         <ul>
             ${routes.map(r => {
-                return html`<li class="nav${route === r.href ? ' active' : ''}">
+                const className = `nav${route === r.href ? ' active' : ''}`
+
+                return html`<li class=${className}>
                     <a href="${r.href}">${r.text}</a>
                 </li>`
             })}

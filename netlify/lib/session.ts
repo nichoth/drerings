@@ -1,8 +1,15 @@
 import crypto from 'node:crypto'
 import type { HandlerEvent } from '@netlify/functions'
+import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
 
 const COOKIE_NAME = 'drerings_session'
+
+export interface Session {
+    user:SessionUser;
+}
+
+type SessionRequest = HandlerEvent|Request
 
 export function createSessionCookie (user:SessionUser):string {
     const payload = Buffer.from(JSON.stringify({
@@ -30,7 +37,33 @@ export function createSessionCookie (user:SessionUser):string {
 export function readSessionUserFromCookie (
     event:HandlerEvent
 ):SessionUser|null {
-    const cookies = parseCookies(event.headers.cookie || event.headers.Cookie)
+    return readSignedSessionUser(event)
+}
+
+export async function getSession (
+    request:SessionRequest
+):Promise<Session|null> {
+    const signedUser = readSignedSessionUser(request)
+
+    if (!signedUser) return null
+
+    const db = getDatabase()
+    const result = await db.pool.query<SessionUser>(`
+        SELECT id, email, subscription_status
+        FROM users
+        WHERE id = $1
+    `, [signedUser.id])
+    const user = result.rows[0]
+
+    if (!isSessionUser(user)) return null
+
+    return { user }
+}
+
+function readSignedSessionUser (
+    request:SessionRequest
+):SessionUser|null {
+    const cookies = parseCookies(getCookieHeader(request))
     const session = cookies[COOKIE_NAME]
 
     if (!session) return null
@@ -61,6 +94,14 @@ export function readSessionUserFromCookie (
     } catch {
         return null
     }
+}
+
+function getCookieHeader (request:SessionRequest):string|undefined {
+    if (request instanceof Request) {
+        return request.headers.get('cookie') || undefined
+    }
+
+    return request.headers.cookie || request.headers.Cookie
 }
 
 export function getSessionSecret ():string {

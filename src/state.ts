@@ -22,11 +22,18 @@ export interface UserState {
     email:string;
 }
 
+export type SubscriptionStatus = 'free'|'active'|'canceled'|'past_due'
+
+export interface CurrentUser extends UserState {
+    subscription_status:SubscriptionStatus;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
+    currentUser:Signal<CurrentUser|null>;
     profile:Signal<UserState|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
@@ -39,6 +46,7 @@ export function State (): {
             registered: false,
             authenticated: false
         }),
+        currentUser: signal<CurrentUser|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
@@ -69,19 +77,67 @@ export function State (): {
 export type AppState = ReturnType<typeof State>
 
 State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
-    state.authLoading.value = false
-    state.auth.value = {
-        registered: false,
-        authenticated: false
+    state.authLoading.value = true
+
+    try {
+        const response = await fetch('/api/whoami')
+
+        if (!response.ok) {
+            clearAuthState(state)
+            return state.auth.value
+        }
+
+        const user = await response.json() as CurrentUser
+
+        if (!isCurrentUser(user)) {
+            clearAuthState(state)
+            return state.auth.value
+        }
+
+        state.currentUser.value = user
+        state.profile.value = {
+            id: user.id,
+            email: user.email
+        }
+        state.auth.value = {
+            registered: false,
+            authenticated: true
+        }
+
+        return state.auth.value
+    } catch {
+        clearAuthState(state)
+        return state.auth.value
+    } finally {
+        state.authLoading.value = false
     }
-    state.profile.value = null
-    return state.auth.value
 }
 
 State.Logout = async function (state:AppState):Promise<void> {
+    clearAuthState(state)
+}
+
+function clearAuthState (state:AppState):void {
     state.auth.value = {
         registered: false,
         authenticated: false
     }
+    state.currentUser.value = null
     state.profile.value = null
+}
+
+function isCurrentUser (value:unknown):value is CurrentUser {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeUser = value as Partial<CurrentUser>
+    const statuses:SubscriptionStatus[] = [
+        'free',
+        'active',
+        'canceled',
+        'past_due'
+    ]
+
+    return typeof maybeUser.id === 'string' &&
+        typeof maybeUser.email === 'string' &&
+        statuses.includes(maybeUser.subscription_status as SubscriptionStatus)
 }
