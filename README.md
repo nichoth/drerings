@@ -34,11 +34,22 @@ Live checkout requires these Netlify environment variables:
 * `AUTUMN_SECRET_KEY`: Autumn secret key, sent as the bearer token.
 * `AUTUMN_PRODUCT_ID`: Autumn product ID for the paid plan. Defaults to
   `paid` for local testing.
+* `AUTUMN_WEBHOOK_SECRET`: Svix signing secret from the Autumn webhook
+  endpoint settings.
 * `AUTUMN_API_URL`: optional API base URL override. Defaults to
   `https://api.useautumn.com`.
 
 The checkout success return URL is `/account?status=ok`. The Stripe Checkout
 cancel URL is passed through Autumn as `/account?status=cancel`.
+
+Autumn webhooks should point at:
+
+```
+https://<your-netlify-site>/api/billing/webhook
+```
+
+The endpoint is served by the existing `/api/*` Netlify redirect and validates
+Autumn's Svix headers before updating `users.subscription_status`.
 
 ## OAuth Local Testing
 

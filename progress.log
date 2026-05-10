@@ -64,6 +64,10 @@
 - Checkout UI state follows the SPA state pattern through
   `State.StartCheckout`, `state.checkoutLoading`, and
   `state.checkoutError`.
+- Autumn webhooks are handled at
+  `netlify/functions/billing/webhook.ts`; verify Svix signatures against the
+  raw request body before parsing JSON, then keep subscription update logic in
+  `netlify/lib/billing.ts`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -533,4 +537,30 @@ Thread: https://ampcode.com/threads/
     should only resolve auth, derive origin, and return JSON.
   - The account route reads checkout return status from `location.search`
     because app route state strips query strings.
+---
+## 2026-05-10 01:52 PDT - US-015
+Thread: https://ampcode.com/threads/
+- Added `POST /api/billing/webhook` for Autumn subscription webhooks.
+- Added Svix signature verification against the raw request body using
+  `AUTUMN_WEBHOOK_SECRET`.
+- Added billing helper logic that maps created, activated, renewed, canceled,
+  and payment-failed events to local `users.subscription_status` values.
+- Documented the webhook endpoint URL and required webhook secret in
+  `README.md`.
+- Marked US-015 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/billing/webhook.ts`,
+  `netlify/lib/billing.ts`, `test/us015-billing-webhook-api.test.ts`,
+  `test/us015-billing-webhook-store.test.ts`, `README.md`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us015-billing-webhook-api.test.ts
+  test/us015-billing-webhook-store.test.ts`; `npx tsc --noEmit`;
+  `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Autumn currently signs webhooks with Svix headers:
+    `svix-id`, `svix-timestamp`, and `svix-signature`.
+  - Webhook verification must use the raw Netlify event body before JSON
+    parsing or re-stringifying.
+  - Store billing webhook mutations in `netlify/lib/billing.ts`; keep the
+    Netlify handler focused on method validation, signature verification, and
+    JSON responses.
 ---
