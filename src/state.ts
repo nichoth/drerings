@@ -28,6 +28,16 @@ export interface CurrentUser extends UserState {
     subscription_status:SubscriptionStatus;
 }
 
+export interface AccountPasskey {
+    id:string;
+    created_at:string;
+}
+
+export interface AccountDetails extends CurrentUser {
+    subscription_current_period_end:string|null;
+    passkeys:AccountPasskey[];
+}
+
 export interface SavedDrawing {
     id:string;
     image:string;
@@ -60,6 +70,9 @@ export function State (): {
     isAuthed:ReadonlySignal<boolean>;
     isPaid:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
+    account:Signal<AccountDetails|null>;
+    accountLoading:Signal<boolean>;
+    accountError:Signal<string|null>;
     currentDrawing:Signal<SavedDrawing|null>;
     checkoutLoading:Signal<boolean>;
     checkoutError:Signal<string|null>;
@@ -79,6 +92,9 @@ export function State (): {
             authenticated: false
         }),
         currentUser: signal<CurrentUser|null>(null),
+        account: signal<AccountDetails|null>(null),
+        accountLoading: signal<boolean>(false),
+        accountError: signal<string|null>(null),
         currentDrawing: signal<SavedDrawing|null>(null),
         checkoutLoading: signal<boolean>(false),
         checkoutError: signal<string|null>(null),
@@ -390,6 +406,148 @@ State.StartCheckout = async function (
     }
 }
 
+State.FetchAccount = async function (
+    state:AppState
+):Promise<AccountDetails> {
+    state.accountLoading.value = true
+    state.accountError.value = null
+
+    try {
+        const response = await fetch('/api/account')
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load account right now.'
+
+            throw new Error(message)
+        }
+
+        const account = await response.json() as AccountDetails
+
+        state.account.value = account
+        state.currentUser.value = {
+            id: account.id,
+            email: account.email,
+            subscription_status: account.subscription_status
+        }
+
+        return account
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load account right now.'
+
+        state.accountError.value = message
+
+        throw err
+    } finally {
+        state.accountLoading.value = false
+    }
+}
+
+State.RequestEmailUpdate = async function (
+    _state:AppState,
+    email:string
+):Promise<void> {
+    const response = await fetch('/api/account/email', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+    })
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to send the update link right now.'
+
+        throw new Error(message)
+    }
+}
+
+State.CancelSubscription = async function (
+    state:AppState
+):Promise<void> {
+    const response = await fetch('/api/billing/cancel', { method: 'POST' })
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to cancel subscription right now.'
+
+        throw new Error(message)
+    }
+
+    const body = await response.json() as Partial<AccountDetails>
+    const account = state.account.value
+
+    if (account) {
+        state.account.value = {
+            ...account,
+            subscription_status: 'canceled',
+            subscription_current_period_end:
+                body.subscription_current_period_end || null
+        }
+    }
+
+    if (state.currentUser.value) {
+        state.currentUser.value = {
+            ...state.currentUser.value,
+            subscription_status: 'canceled'
+        }
+    }
+}
+
+State.RemovePasskey = async function (
+    state:AppState,
+    passkeyId:string
+):Promise<void> {
+    const response = await fetch(
+        `/api/account/passkeys/${encodeURIComponent(passkeyId)}`,
+        { method: 'DELETE' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to remove passkey right now.'
+
+        throw new Error(message)
+    }
+
+    if (state.account.value) {
+        state.account.value = {
+            ...state.account.value,
+            passkeys: state.account.value.passkeys.filter((passkey) => {
+                return passkey.id !== passkeyId
+            })
+        }
+    }
+}
+
+State.DeleteAccount = async function (state:AppState):Promise<void> {
+    const response = await fetch('/api/account', { method: 'DELETE' })
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to delete account right now.'
+
+        throw new Error(message)
+    }
+
+    clearAuthState(state)
+    state._setRoute('/')
+    history.pushState(null, '', '/')
+}
+
 State.FetchPublicPost = async function (
     _state:AppState,
     postId:string
@@ -436,6 +594,8 @@ function clearAuthState (state:AppState):void {
     state.currentDrawing.value = null
     state.checkoutError.value = null
     state.savedDrawings.value = []
+    state.account.value = null
+    state.accountError.value = null
     state.profile.value = null
 }
 

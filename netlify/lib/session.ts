@@ -34,6 +34,17 @@ export function createSessionCookie (user:SessionUser):string {
     ].join('; ')
 }
 
+export function clearSessionCookie ():string {
+    return [
+        `${COOKIE_NAME}=`,
+        'Path=/',
+        'HttpOnly',
+        'Secure',
+        'SameSite=Lax',
+        'Max-Age=0'
+    ].join('; ')
+}
+
 export function readSessionUserFromCookie (
     event:HandlerEvent
 ):SessionUser|null {
@@ -49,7 +60,7 @@ export async function getSession (
 
     const db = getDatabase()
     const result = await db.pool.query<SessionUser>(`
-        SELECT id, email, subscription_status
+        SELECT id, email, subscription_status, autumn_customer_id
         FROM users
         WHERE id = $1
     `, [signedUser.id])

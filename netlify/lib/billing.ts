@@ -25,6 +25,11 @@ interface AutumnWebhookResult {
     subscription_status?:SubscriptionStatus;
 }
 
+export interface CancelSubscriptionResult {
+    subscription_status:'canceled';
+    subscription_current_period_end:string|null;
+}
+
 export async function createCheckoutSession (
     user:SessionUser,
     origin:string
@@ -79,6 +84,28 @@ export async function createCheckoutSession (
     return {
         url: checkoutUrl,
         customer_id: customerId
+    }
+}
+
+export async function cancelAutumnSubscription (
+    user:SessionUser
+):Promise<CancelSubscriptionResult|null> {
+    if (user.subscription_status !== 'active') return null
+
+    const currentPeriodEnd = await cancelAutumnAtPeriodEnd(user)
+    const db = getDatabase()
+
+    await db.pool.query(`
+        UPDATE users
+        SET
+            subscription_status = $1,
+            subscription_current_period_end = $2
+        WHERE id = $3
+    `, ['canceled', currentPeriodEnd, user.id])
+
+    return {
+        subscription_status: 'canceled',
+        subscription_current_period_end: currentPeriodEnd
     }
 }
 
@@ -153,6 +180,50 @@ async function updateAutumnCustomerId (
         SET autumn_customer_id = $1
         WHERE id = $2
     `, [customerId, userId])
+}
+
+async function cancelAutumnAtPeriodEnd (
+    user:SessionUser
+):Promise<string|null> {
+    if (shouldUseMockCheckout()) return nextMonthDate()
+
+    const customerId = user.autumn_customer_id || user.id
+    const response = await fetch(
+        `${getAutumnApiUrl()}/customers/${customerId}/cancel`,
+        {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${getAutumnSecretKey()}`,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({ cancel_at_period_end: true })
+        }
+    )
+
+    if (!response.ok) throw new Error('Autumn cancellation failed.')
+
+    const body = await response.json() as Record<string, unknown>
+
+    return getDateString(
+        body.current_period_end ||
+        body.ends_at ||
+        body.period_end ||
+        null
+    )
+}
+
+function nextMonthDate ():string {
+    const date = new Date()
+
+    date.setUTCMonth(date.getUTCMonth() + 1)
+
+    return date.toISOString().slice(0, 10)
+}
+
+function getDateString (value:unknown):string|null {
+    if (typeof value !== 'string' || value.trim() === '') return null
+
+    return value.slice(0, 10)
 }
 
 function shouldUseMockCheckout ():boolean {

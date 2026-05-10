@@ -70,6 +70,15 @@
   `netlify/lib/billing.ts`.
 - Paid API gates should use `isPaid(user)` from `netlify/lib/paid.ts`;
   frontend paid/free UI should use the derived `state.isPaid` signal.
+- Account management APIs keep account-specific SQL in
+  `netlify/lib/account.ts`; route components call account behaviors through
+  `State` methods.
+- Email-change confirmations reuse `magic_link_tokens` with
+  `purpose = 'email_update'` and `pending_email`, while login magic links
+  continue to require `purpose = 'login'`.
+- Canceled subscription display depends on
+  `users.subscription_current_period_end`, which is updated by the Autumn
+  cancel-at-period-end flow.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -588,4 +597,42 @@ Thread: https://ampcode.com/threads/
     duplicate subscription-status comparisons.
   - Use `state.isPaid` for frontend paid/free UI gates; it stays reactive as
     `/api/whoami` hydrates `state.currentUser`.
+---
+## 2026-05-10 02:10 PDT - US-017
+Thread: https://ampcode.com/threads/
+- Added account management storage in `netlify/lib/account.ts`, including
+  account details, passkey removal, email-update token confirmation, and
+  account data deletion with drawing blob cleanup.
+- Added the US-017 migration for `subscription_current_period_end` plus
+  purpose-scoped magic-link tokens with pending email addresses.
+- Added `GET/DELETE /api/account`, `POST /api/account/email`,
+  `GET /api/account/email/callback`, `DELETE /api/account/passkeys/:id`,
+  and `POST /api/billing/cancel`.
+- Expanded the `/account` route into the profile, subscription, passkeys, and
+  danger-zone management page, with state-owned account actions.
+- Marked US-017 as passing in `specs/prd.json`.
+- Files changed: `netlify/lib/account.ts`, `netlify/lib/auth-store.ts`,
+  `netlify/lib/billing.ts`, `netlify/lib/session.ts`,
+  `netlify/functions/account.ts`, `netlify/functions/account/*`,
+  `netlify/functions/billing/cancel.ts`,
+  `netlify/database/migrations/0002_account_management/migration.sql`,
+  `src/state.ts`, `src/routes/account.ts`, `src/routes/account.css`,
+  `test/us017-account-store.test.ts`, `test/us017-account-api.test.ts`,
+  `test/us017-billing-cancel.test.ts`, `test/us017-account-ui.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us017-account-store.test.ts
+  test/us017-account-api.test.ts test/us017-billing-cancel.test.ts
+  test/us017-account-ui.test.ts`; neighboring auth, passkey, billing, state,
+  and checkout Vitest tests; `npx tsc --noEmit`; `npm run lint`;
+  `npm test`; Playwright browser fallback against
+  `http://127.0.0.1:5173/account` confirmed account details, email-update
+  request, cancellation status update, delete confirmation, redirect after
+  delete, and no page or console errors.
+- **Learnings for future iterations:**
+  - Account management should stay behind `State` methods so the route
+    remains a renderer of shared account/auth state.
+  - Email-update magic links need a token purpose guard so sign-in callbacks
+    cannot consume account-management links.
+  - Account deletion should clear the session cookie in the API and clear
+    frontend auth/account state after the DELETE call succeeds.
 ---

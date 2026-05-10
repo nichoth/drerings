@@ -11,6 +11,7 @@ export interface SessionUser {
     id:string;
     email:string;
     subscription_status:'free'|'active'|'canceled'|'past_due';
+    autumn_customer_id?:string|null;
 }
 
 export async function createMagicLinkLogin (
@@ -27,8 +28,8 @@ export async function createMagicLinkLogin (
             DO UPDATE SET email = EXCLUDED.email
             RETURNING id
         )
-        INSERT INTO magic_link_tokens (token, user_id, expires_at)
-        SELECT $2, id, $3
+        INSERT INTO magic_link_tokens (token, user_id, expires_at, purpose)
+        SELECT $2, id, $3, 'login'
         FROM selected_user
         RETURNING user_id
     `, [email, token, expiresAt])
@@ -50,6 +51,7 @@ export async function consumeMagicLinkToken (
         FROM users
         WHERE magic_link.token = $1
             AND magic_link.user_id = users.id
+            AND magic_link.purpose = 'login'
             AND magic_link.used_at IS NULL
             AND magic_link.expires_at > now()
         RETURNING
