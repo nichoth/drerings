@@ -144,6 +144,21 @@
         & .create-account-link {
             text-align: right;
         }
+
+        & .drawing-save-status,
+        & .drawing-save-error {
+            margin-top: 0;
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        & .drawing-save-status {
+            color: var(--success);
+        }
+
+        & .drawing-save-error {
+            color: var(--danger);
+        }
     }
 
     & textarea {

@@ -28,12 +28,30 @@ export interface CurrentUser extends UserState {
     subscription_status:SubscriptionStatus;
 }
 
+export interface SavedDrawing {
+    id:string;
+    image:string;
+    text:string;
+    alt_text:string;
+    updated_at:string;
+}
+
+export interface DrawingSaveInput {
+    image:string;
+    text:string;
+    alt_text:string;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
+    currentDrawing:Signal<SavedDrawing|null>;
+    savedDrawings:Signal<SavedDrawing[]>;
+    savedDrawingsLoading:Signal<boolean>;
+    savedDrawingsError:Signal<string|null>;
     profile:Signal<UserState|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
@@ -47,6 +65,10 @@ export function State (): {
             authenticated: false
         }),
         currentUser: signal<CurrentUser|null>(null),
+        currentDrawing: signal<SavedDrawing|null>(null),
+        savedDrawings: signal<SavedDrawing[]>([]),
+        savedDrawingsLoading: signal<boolean>(false),
+        savedDrawingsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
@@ -75,6 +97,10 @@ export function State (): {
 }
 
 export type AppState = ReturnType<typeof State>
+
+export interface SavedDrawingResponse extends SavedDrawing {
+    created_at?:string;
+}
 
 State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
     state.authLoading.value = true
@@ -117,13 +143,135 @@ State.Logout = async function (state:AppState):Promise<void> {
     clearAuthState(state)
 }
 
+State.SaveDrawing = async function (
+    state:AppState,
+    input:DrawingSaveInput
+):Promise<SavedDrawingResponse> {
+    const current = state.currentDrawing.value
+    const url = current?.id ?
+        `/api/drawings/${encodeURIComponent(current.id)}` :
+        '/api/drawings'
+    const method = current?.id ? 'PUT' : 'POST'
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify(input)
+    })
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to save the drawing right now.'
+
+        throw new Error(message)
+    }
+
+    const body = await response.json() as {
+        id:string;
+        created_at?:string;
+        updated_at?:string;
+    }
+    const saved = {
+        id: body.id,
+        image: input.image,
+        text: input.text,
+        alt_text: input.alt_text,
+        updated_at: body.updated_at || body.created_at || ''
+    }
+
+    state.currentDrawing.value = saved
+
+    return {
+        ...saved,
+        created_at: body.created_at
+    }
+}
+
+State.FetchSavedDrawings = async function (
+    state:AppState
+):Promise<SavedDrawing[]> {
+    state.savedDrawingsLoading.value = true
+    state.savedDrawingsError.value = null
+
+    try {
+        const response = await fetch('/api/drawings')
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load drawings right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { drawings?:SavedDrawing[] }
+        const drawings = Array.isArray(body.drawings) ? body.drawings : []
+
+        state.savedDrawings.value = drawings
+
+        return drawings
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load drawings right now.'
+
+        state.savedDrawingsError.value = message
+
+        throw err
+    } finally {
+        state.savedDrawingsLoading.value = false
+    }
+}
+
+State.OpenSavedDrawing = async function (
+    state:AppState,
+    drawingId:string
+):Promise<SavedDrawing> {
+    const response = await fetch(
+        `/api/drawings/${encodeURIComponent(drawingId)}`
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to open the drawing right now.'
+
+        throw new Error(message)
+    }
+
+    const drawing = await response.json() as SavedDrawing
+
+    state.currentDrawing.value = drawing
+    state._setRoute('/')
+    history.pushState(null, '', '/')
+
+    return drawing
+}
+
 function clearAuthState (state:AppState):void {
     state.auth.value = {
         registered: false,
         authenticated: false
     }
     state.currentUser.value = null
+    state.currentDrawing.value = null
+    state.savedDrawings.value = []
     state.profile.value = null
+}
+
+async function maybeJson (
+    response:Response
+):Promise<Record<string, unknown>|null> {
+    try {
+        return await response.json() as Record<string, unknown>
+    } catch {
+        return null
+    }
 }
 
 function isCurrentUser (value:unknown):value is CurrentUser {

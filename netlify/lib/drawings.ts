@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import {
     deleteDrawingImage,
+    getDrawingImage,
     putDrawingImage
 } from './drawing-images.js'
 
@@ -21,6 +22,14 @@ export interface UpdatedDrawing {
     updated_at:string;
 }
 
+export interface SavedDrawing {
+    id:string;
+    image:string;
+    text:string;
+    alt_text:string;
+    updated_at:string;
+}
+
 interface DrawingInsertRow {
     id:string;
     created_at:string|Date;
@@ -33,6 +42,14 @@ interface DrawingUpdateRow {
 
 interface ExistingDrawingRow {
     blob_key:string;
+}
+
+interface SavedDrawingRow {
+    id:string;
+    blob_key:string;
+    text:string;
+    alt_text:string;
+    updated_at:string|Date;
 }
 
 export async function createSavedDrawing (
@@ -113,6 +130,38 @@ export async function updateSavedDrawing (
     }
 }
 
+export async function listSavedDrawings (
+    userId:string
+):Promise<SavedDrawing[]> {
+    const db = getDatabase()
+    const result = await db.pool.query<SavedDrawingRow>(`
+        SELECT id, blob_key, text, alt_text, updated_at
+        FROM drawings
+        WHERE user_id = $1
+        ORDER BY updated_at DESC
+    `, [userId])
+
+    return Promise.all(result.rows.map(drawingFromRow))
+}
+
+export async function getSavedDrawing (
+    userId:string,
+    drawingId:string
+):Promise<SavedDrawing|null> {
+    const db = getDatabase()
+    const result = await db.pool.query<SavedDrawingRow>(`
+        SELECT id, blob_key, text, alt_text, updated_at
+        FROM drawings
+        WHERE id = $1
+            AND user_id = $2
+    `, [drawingId, userId])
+    const row = result.rows[0]
+
+    if (!row) return null
+
+    return drawingFromRow(row)
+}
+
 function imageBlobFromBase64 (value:string):Blob {
     const dataUrl = value.match(/^data:([^;,]+);base64,(.+)$/)
     const type = dataUrl?.[1] || 'image/png'
@@ -124,6 +173,30 @@ function imageBlobFromBase64 (value:string):Blob {
     }
 
     return new Blob([bytes], { type })
+}
+
+async function drawingFromRow (row:SavedDrawingRow):Promise<SavedDrawing> {
+    const image = await getDrawingImage(row.blob_key)
+
+    return {
+        id: row.id,
+        image: await imageDataUrl(image),
+        text: row.text,
+        alt_text: row.alt_text,
+        updated_at: timestampString(row.updated_at)
+    }
+}
+
+async function imageDataUrl (image:ArrayBuffer|Blob|null):Promise<string> {
+    if (!image) return ''
+
+    if (image instanceof Blob) {
+        return 'data:image/png;base64,' +
+            Buffer.from(await image.arrayBuffer()).toString('base64')
+    }
+
+    return 'data:image/png;base64,' +
+        Buffer.from(image).toString('base64')
 }
 
 function timestampString (value:string|Date):string {

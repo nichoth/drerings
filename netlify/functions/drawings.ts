@@ -5,7 +5,7 @@ import { getSession } from '../lib/session.js'
 import type { SavedDrawingInput } from '../lib/drawings.js'
 
 export const handler:Handler = async function handler (event) {
-    if (event.httpMethod !== 'POST' && event.httpMethod !== 'PUT') {
+    if (!['GET', 'POST', 'PUT'].includes(event.httpMethod)) {
         return json(405, { error: 'Method not allowed' })
     }
 
@@ -17,6 +17,43 @@ export const handler:Handler = async function handler (event) {
         return json(402, {
             error: 'Upgrade to save drawings.'
         })
+    }
+
+    if (event.httpMethod === 'GET') {
+        const drawingId = drawingIdFromPath(event.path || event.rawUrl)
+
+        try {
+            if (drawingId) {
+                const drawing = await drawingStore.getSavedDrawing(
+                    session.user.id,
+                    drawingId
+                )
+
+                if (!drawing) {
+                    return json(404, { error: 'Drawing not found.' })
+                }
+
+                return json(200, {
+                    id: drawing.id,
+                    image: drawing.image,
+                    text: drawing.text,
+                    alt_text: drawing.alt_text,
+                    updated_at: drawing.updated_at
+                })
+            }
+
+            const drawings = await drawingStore.listSavedDrawings(
+                session.user.id
+            )
+
+            return json(200, { drawings })
+        } catch (err) {
+            console.error(err)
+
+            return json(500, {
+                error: 'Unable to load drawings right now.'
+            })
+        }
     }
 
     const input = parseDrawingInput(parseJsonBody(event))

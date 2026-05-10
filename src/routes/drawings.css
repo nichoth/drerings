@@ -1,0 +1,73 @@
+.route.drawings {
+    --drawings-max-width: 58rem;
+    --drawing-thumb-size: 9rem;
+
+    width: min(100%, var(--drawings-max-width));
+    margin-inline: auto;
+
+    & .drawings-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    & .saved-drawings-list {
+        display: grid;
+        gap: 1rem;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+    }
+
+    & .saved-drawing {
+        display: grid;
+        grid-template-columns: var(--drawing-thumb-size) minmax(0, 1fr);
+        gap: 1rem;
+        padding: 1rem 0;
+        border-top: 1px solid var(--input-border);
+
+        & img {
+            box-sizing: border-box;
+            display: block;
+            width: var(--drawing-thumb-size);
+            height: var(--drawing-thumb-size);
+            object-fit: contain;
+            border: 1px solid var(--input-border);
+            background-color: var(--middle-gray);
+        }
+    }
+
+    & .saved-drawing-body {
+        min-width: 0;
+    }
+
+    & .saved-drawing-text {
+        margin-top: 0;
+        overflow-wrap: anywhere;
+    }
+
+    & .saved-drawing-date {
+        margin-top: 0;
+        color: var(--muted-text);
+        line-height: 1.4;
+    }
+
+    & .saved-drawing-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 0.5rem;
+    }
+}
+
+@media (max-width: 36rem) {
+    .route.drawings {
+        --drawing-thumb-size: 7rem;
+
+        & .saved-drawing {
+            grid-template-columns: 1fr;
+        }
+    }
+}
