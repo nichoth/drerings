@@ -92,6 +92,18 @@ describe('state auth baseline', () => {
 
     it('logout clears local auth state', async () => {
         const state = State()
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({
+                logged_out: true
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
         state.auth.value = {
             registered: true,
             authenticated: true
@@ -114,5 +126,8 @@ describe('state auth baseline', () => {
         })
         expect(state.currentUser.value).toBeNull()
         expect(state.profile.value).toBeNull()
+        expect(fetcher).toHaveBeenCalledWith('/api/auth/logout', {
+            method: 'POST'
+        })
     })
 })

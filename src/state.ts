@@ -175,7 +175,18 @@ State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
 }
 
 State.Logout = async function (state:AppState):Promise<void> {
-    clearAuthState(state)
+    const shouldRedirect = isProtectedRoute(state.route.value)
+
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+        clearAuthState(state)
+    }
+
+    if (shouldRedirect) {
+        state._setRoute('/login')
+        history.pushState(null, '', '/login')
+    }
 }
 
 State.SaveDrawing = async function (
@@ -623,4 +634,11 @@ function isCurrentUser (value:unknown):value is CurrentUser {
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
         statuses.includes(maybeUser.subscription_status as SubscriptionStatus)
+}
+
+function isProtectedRoute (path:string):boolean {
+    return path === '/account' ||
+        path === '/drawings' ||
+        path === '/settings' ||
+        path.startsWith('/send/')
 }
