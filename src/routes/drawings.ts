@@ -11,6 +11,7 @@ export const DrawingsRoute:FunctionComponent<{
 }> = function DrawingsRoute ({ state }) {
     const currentUser = state.currentUser.value
     const openError = useSignal<string>('')
+    const deleteError = useSignal<string>('')
 
     useEffect(() => {
         if (!currentUser) return
@@ -27,6 +28,20 @@ export const DrawingsRoute:FunctionComponent<{
             openError.value = err instanceof Error ?
                 err.message :
                 'Unable to open the drawing right now.'
+        }
+    }, [])
+
+    const deleteDrawing = useCallback(async (drawing:SavedDrawing) => {
+        deleteError.value = ''
+
+        if (!window.confirm('Delete this saved drawing?')) return
+
+        try {
+            await State.DeleteSavedDrawing(state, drawing.id)
+        } catch (err) {
+            deleteError.value = err instanceof Error ?
+                err.message :
+                'Unable to delete the drawing right now.'
         }
     }, [])
 
@@ -53,6 +68,10 @@ export const DrawingsRoute:FunctionComponent<{
 
         ${openError.value ? html`
             <p role="alert">${openError.value}</p>
+        ` : null}
+
+        ${deleteError.value ? html`
+            <p role="alert">${deleteError.value}</p>
         ` : null}
 
         ${state.savedDrawings.value.length === 0 &&
@@ -85,8 +104,9 @@ export const DrawingsRoute:FunctionComponent<{
                                         <//>
                                         <${Button}
                                             type="button"
-                                            disabled=${true}
-                                            title="Delete arrives next."
+                                            onClick=${() => {
+                                                return deleteDrawing(drawing)
+                                            }}
                                         >
                                             Delete
                                         <//>

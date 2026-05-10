@@ -44,6 +44,12 @@
   components do not own cross-route drawing state.
 - `GET /api/drawings` and `GET /api/drawings/:id` return image data URLs
   assembled from Blob storage for thumbnails and reopening drawings.
+- Saved drawing deletion is routed through `State.DeleteSavedDrawing`, which
+  calls `DELETE /api/drawings/:id`, removes the item from
+  `state.savedDrawings`, and clears `state.currentDrawing` if needed.
+- Backend drawing deletion explicitly removes any `public_posts` row before
+  deleting the drawing row and Blob image, even though the schema also has
+  cascade behavior.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -335,4 +341,39 @@ Thread: https://ampcode.com/threads/
     signals, because `/drawings` needs to hand an opened drawing to `/`.
   - Auth-dependent route effects should key off the current user id so they
     run when `/api/whoami` resolves after the first render.
+---
+## 2026-05-10 01:14 PDT - US-010
+Thread: https://ampcode.com/threads/
+- Added saved drawing deletion for active subscribers through
+  `DELETE /api/drawings/:id`.
+- Added backend storage deletion that verifies ownership, deletes any public
+  post row, deletes the drawing row, and removes the drawing image blob.
+- Enabled the `/drawings` Delete button with a native confirm prompt, inline
+  error handling, immediate list removal, and current drawing cleanup.
+- Added US-010 regression coverage for the storage helper, API handler, and
+  Drawings route confirmation behavior.
+- Marked US-010 as passing in `specs/prd.json`.
+- Files changed: `netlify/lib/drawings.ts`,
+  `netlify/functions/drawings.ts`, `src/state.ts`,
+  `src/routes/drawings.ts`, `test/us010-delete-drawing-store.test.ts`,
+  `test/us010-delete-drawing-api.test.ts`,
+  `test/us010-delete-drawing-ui.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us010-delete-drawing-store.test.ts
+  test/us010-delete-drawing-api.test.ts
+  test/us010-delete-drawing-ui.test.ts`; neighboring drawing tests;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback against
+  `http://127.0.0.1:5173/drawings` confirmed the delete confirm prompt,
+  DELETE call, immediate list update, and no console or page errors.
+- Browser Use note: the required Node REPL browser tool was not exposed in
+  this session, so browser verification used Playwright against the local Vite
+  dev server.
+- **Learnings for future iterations:**
+  - Keep destructive saved-drawing actions on `State` so routes update shared
+    drawing signals consistently.
+  - `DELETE /api/drawings/:id` returns 403 when the drawing is not owned by
+    the current user.
+  - Delete tests can mock `/api/whoami`, `/api/drawings`, and
+    `/api/drawings/:id` in Playwright to exercise the authenticated
+    `/drawings` route without a live database.
 ---

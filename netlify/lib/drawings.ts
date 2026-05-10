@@ -162,6 +162,38 @@ export async function getSavedDrawing (
     return drawingFromRow(row)
 }
 
+export async function deleteSavedDrawing (
+    userId:string,
+    drawingId:string
+):Promise<boolean> {
+    const db = getDatabase()
+    const current = await db.pool.query<ExistingDrawingRow>(`
+        SELECT blob_key
+        FROM drawings
+        WHERE id = $1
+            AND user_id = $2
+    `, [drawingId, userId])
+    const blobKey = current.rows[0]?.blob_key
+
+    if (!blobKey) return false
+
+    await db.pool.query(`
+        DELETE FROM public_posts
+        WHERE drawing_id = $1
+    `, [drawingId])
+    const result = await db.pool.query(`
+        DELETE FROM drawings
+        WHERE id = $1
+            AND user_id = $2
+    `, [drawingId, userId])
+
+    if (result.rowCount === 0) return false
+
+    await deleteDrawingImage(blobKey)
+
+    return true
+}
+
 function imageBlobFromBase64 (value:string):Blob {
     const dataUrl = value.match(/^data:([^;,]+);base64,(.+)$/)
     const type = dataUrl?.[1] || 'image/png'

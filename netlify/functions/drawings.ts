@@ -5,7 +5,7 @@ import { getSession } from '../lib/session.js'
 import type { SavedDrawingInput } from '../lib/drawings.js'
 
 export const handler:Handler = async function handler (event) {
-    if (!['GET', 'POST', 'PUT'].includes(event.httpMethod)) {
+    if (!['DELETE', 'GET', 'POST', 'PUT'].includes(event.httpMethod)) {
         return json(405, { error: 'Method not allowed' })
     }
 
@@ -52,6 +52,35 @@ export const handler:Handler = async function handler (event) {
 
             return json(500, {
                 error: 'Unable to load drawings right now.'
+            })
+        }
+    }
+
+    if (event.httpMethod === 'DELETE') {
+        const drawingId = drawingIdFromPath(event.path || event.rawUrl)
+
+        if (!drawingId) {
+            return json(400, { error: 'Drawing id is required.' })
+        }
+
+        try {
+            const deleted = await drawingStore.deleteSavedDrawing(
+                session.user.id,
+                drawingId
+            )
+
+            if (!deleted) {
+                return json(403, {
+                    error: 'You cannot delete this drawing.'
+                })
+            }
+
+            return json(200, { deleted: true })
+        } catch (err) {
+            console.error(err)
+
+            return json(500, {
+                error: 'Unable to delete the drawing right now.'
             })
         }
     }

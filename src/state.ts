@@ -253,6 +253,33 @@ State.OpenSavedDrawing = async function (
     return drawing
 }
 
+State.DeleteSavedDrawing = async function (
+    state:AppState,
+    drawingId:string
+):Promise<void> {
+    const response = await fetch(
+        `/api/drawings/${encodeURIComponent(drawingId)}`,
+        { method: 'DELETE' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to delete the drawing right now.'
+
+        throw new Error(message)
+    }
+
+    state.savedDrawings.value = state.savedDrawings.value.filter((drawing) => {
+        return drawing.id !== drawingId
+    })
+
+    if (state.currentDrawing.value?.id === drawingId) {
+        state.currentDrawing.value = null
+    }
+}
+
 function clearAuthState (state:AppState):void {
     state.auth.value = {
         registered: false,
