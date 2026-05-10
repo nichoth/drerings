@@ -10,12 +10,14 @@ describe('upsertCheckoutUser', () => {
         vi.resetModules()
 
         const query = vi.fn<Query>(async () => {
-            return { rows: [{
-                id: 'user-2',
-                email: 'new@example.com',
-                subscription_status: 'free',
-                autumn_customer_id: null
-            }] }
+            return {
+                rows: [{
+                    id: 'user-2',
+                    email: 'new@example.com',
+                    subscription_status: 'free',
+                    autumn_customer_id: null
+                }]
+            }
         })
 
         vi.doMock('@netlify/database', () => ({

@@ -17,10 +17,12 @@ describe('US-004 auth helpers', () => {
 
         const query = vi.fn<Query>(async (sql) => {
             if (sql.includes('SELECT id, subscription_status FROM users')) {
-                return { rows: [{
-                    id: 'user-1',
-                    subscription_status: 'active'
-                }] }
+                return {
+                    rows: [{
+                        id: 'user-1',
+                        subscription_status: 'active'
+                    }]
+                }
             }
             return { rows: [{ user_id: 'user-1' }] }
         })
@@ -120,10 +122,12 @@ describe('createMagicLinkLogin paid-only gating', () => {
 
         const query = vi.fn<Query>(async (sql) => {
             if (sql.includes('SELECT id, subscription_status FROM users')) {
-                return { rows: [{
-                    id: 'user-1',
-                    subscription_status: 'free'
-                }] }
+                return {
+                    rows: [{
+                        id: 'user-1',
+                        subscription_status: 'free'
+                    }]
+                }
             }
             return { rows: [] }
         })
@@ -143,10 +147,12 @@ describe('createMagicLinkLogin paid-only gating', () => {
 
         const query = vi.fn<Query>(async (sql) => {
             if (sql.includes('SELECT id, subscription_status FROM users')) {
-                return { rows: [{
-                    id: 'user-1',
-                    subscription_status: 'active'
-                }] }
+                return {
+                    rows: [{
+                        id: 'user-1',
+                        subscription_status: 'active'
+                    }]
+                }
             }
             if (sql.includes('INSERT INTO magic_link_tokens')) {
                 return { rows: [{ user_id: 'user-1' }] }
