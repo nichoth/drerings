@@ -42,6 +42,10 @@ export interface DrawingSaveInput {
     alt_text:string;
 }
 
+export interface PublishedPost {
+    id:number;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
@@ -231,6 +235,18 @@ State.OpenSavedDrawing = async function (
     state:AppState,
     drawingId:string
 ):Promise<SavedDrawing> {
+    const drawing = await State.FetchSavedDrawing(state, drawingId)
+
+    state._setRoute('/')
+    history.pushState(null, '', '/')
+
+    return drawing
+}
+
+State.FetchSavedDrawing = async function (
+    state:AppState,
+    drawingId:string
+):Promise<SavedDrawing> {
     const response = await fetch(
         `/api/drawings/${encodeURIComponent(drawingId)}`
     )
@@ -247,8 +263,6 @@ State.OpenSavedDrawing = async function (
     const drawing = await response.json() as SavedDrawing
 
     state.currentDrawing.value = drawing
-    state._setRoute('/')
-    history.pushState(null, '', '/')
 
     return drawing
 }
@@ -278,6 +292,47 @@ State.DeleteSavedDrawing = async function (
     if (state.currentDrawing.value?.id === drawingId) {
         state.currentDrawing.value = null
     }
+}
+
+State.GoToSendDrawing = function (
+    state:AppState,
+    drawingId:string
+):void {
+    const path = `/send/${encodeURIComponent(drawingId)}`
+
+    state._setRoute(path)
+    history.pushState(null, '', path)
+}
+
+State.PublishDrawing = async function (
+    _state:AppState,
+    drawingId:string
+):Promise<PublishedPost> {
+    const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({ drawing_id: drawingId })
+    })
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to publish the drawing right now.'
+
+        throw new Error(message)
+    }
+
+    const body = await response.json() as { id?:number|string }
+    const id = Number(body.id)
+
+    if (!Number.isFinite(id)) {
+        throw new Error('Unable to publish the drawing right now.')
+    }
+
+    return { id }
 }
 
 function clearAuthState (state:AppState):void {

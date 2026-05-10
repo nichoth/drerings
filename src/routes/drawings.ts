@@ -45,6 +45,10 @@ export const DrawingsRoute:FunctionComponent<{
         }
     }, [])
 
+    const sendDrawing = useCallback((drawing:SavedDrawing) => {
+        State.GoToSendDrawing(state, drawing.id)
+    }, [])
+
     if (!currentUser) {
         return html`<div class="route drawings">
             <h2>Saved drawings</h2>
@@ -109,6 +113,14 @@ export const DrawingsRoute:FunctionComponent<{
                                             }}
                                         >
                                             Delete
+                                        <//>
+                                        <${Button}
+                                            type="button"
+                                            onClick=${() => {
+                                                return sendDrawing(drawing)
+                                            }}
+                                        >
+                                            Send It
                                         <//>
                                     </div>
                                 </div>

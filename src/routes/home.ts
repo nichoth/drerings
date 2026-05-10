@@ -163,6 +163,14 @@ export const HomeRoute:FunctionComponent<{
         }
     }, [])
 
+    const sendDrawing = useCallback(() => {
+        const drawingId = state.currentDrawing.value?.id
+
+        if (!drawingId || !canPersist.value) return
+
+        State.GoToSendDrawing(state, drawingId)
+    }, [])
+
     return html`<div class="route home">
         <p>
             Draw things, then show people the drawings.
@@ -290,6 +298,7 @@ export const HomeRoute:FunctionComponent<{
                         aria-describedby=${
                             canPersist.value ? undefined : paidControlsHintId
                         }
+                        onClick=${sendDrawing}
                     >
                         Send It
                     <//>

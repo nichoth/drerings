@@ -50,6 +50,9 @@
 - Backend drawing deletion explicitly removes any `public_posts` row before
   deleting the drawing row and Blob image, even though the schema also has
   cascade behavior.
+- Use `State.FetchSavedDrawing` when a route needs an owned drawing without
+  navigation; use `State.OpenSavedDrawing` only for the Drawings -> composer
+  flow because it intentionally routes back to `/`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -376,4 +379,44 @@ Thread: https://ampcode.com/threads/
   - Delete tests can mock `/api/whoami`, `/api/drawings`, and
     `/api/drawings/:id` in Playwright to exercise the authenticated
     `/drawings` route without a live database.
+---
+## 2026-05-10 01:23 PDT - US-011
+Thread: https://ampcode.com/threads/
+- Added the paid publish API at `POST /api/posts`, gated by
+  `getSession(event)` and `subscription_status === 'active'`.
+- Added `netlify/lib/posts.ts` with `publishDrawing`, which verifies drawing
+  ownership and upserts `public_posts` so republishing returns the existing
+  public post id.
+- Added `/send/:drawingId` with an owner-only preview, Publish action, and
+  redirect to `/post/:id` after a successful publish.
+- Wired Send It buttons from the home composer and saved drawings list through
+  `State.GoToSendDrawing`, and added `State.PublishDrawing` plus
+  `State.FetchSavedDrawing` for route-owned data loading.
+- Added US-011 regression coverage for the publish store helper, API handler,
+  dynamic route matching, Send It navigation, preview loading, and publish
+  redirect.
+- Marked US-011 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/posts.ts`, `netlify/lib/posts.ts`,
+  `src/state.ts`, `src/routes/home.ts`, `src/routes/drawings.ts`,
+  `src/routes/index.ts`, `src/routes/send.ts`, `src/routes/send.css`,
+  `test/us011-publish-post-api.test.ts`,
+  `test/us011-publish-post-store.test.ts`,
+  `test/us011-send-route-ui.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us011-publish-post-api.test.ts
+  test/us011-publish-post-store.test.ts test/us011-send-route-ui.test.ts`;
+  neighboring drawing/home/state Vitest tests; `npx tsc --noEmit`;
+  `npm run lint`; `npm test`; Playwright browser fallback against
+  `http://127.0.0.1:5173/send/drawing-1` confirmed the preview image,
+  Publish action, redirect to `/post/42`, and no page or console errors.
+- Browser Use note: the required Node REPL browser tool was not exposed in
+  this session, so browser verification used the established Playwright
+  fallback against the local Vite dev server.
+- **Learnings for future iterations:**
+  - `State.OpenSavedDrawing` is navigation-oriented; routes that only need
+    drawing data should call `State.FetchSavedDrawing`.
+  - `POST /api/posts` lives in a separate Netlify function from drawing CRUD,
+    with reusable publish storage in `netlify/lib/posts.ts`.
+  - Publishing can be idempotent with `INSERT ... ON CONFLICT (drawing_id)`
+    because `public_posts.drawing_id` is unique.
 ---

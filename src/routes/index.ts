@@ -6,6 +6,7 @@ import { ColophonRoute } from './colophon.js'
 import { LoginRoute } from './login.js'
 import { SettingsRoute } from './settings.js'
 import { DrawingsRoute } from './drawings.js'
+import { SendRoute } from './send.js'
 
 export default function _Router (
     _state:AppState
@@ -34,6 +35,10 @@ export default function _Router (
 
     router.addRoute('/drawings', () => {
         return DrawingsRoute
+    })
+
+    router.addRoute('/send/:drawingId', () => {
+        return SendRoute
     })
 
     return router
