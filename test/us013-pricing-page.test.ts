@@ -59,26 +59,29 @@ describe('US-013 pricing page and paid CTAs', () => {
         })).toBeTruthy()
     })
 
-    it('lets visitors enter email and start checkout without signing in', () => {
-        const state = State()
-        const Route = routeFor('/pricing', state)
+    it(
+        'lets visitors enter email and start checkout without signing in',
+        () => {
+            const state = State()
+            const Route = routeFor('/pricing', state)
 
-        render(h(Route, { state }))
+            render(h(Route, { state }))
 
-        const checkout = screen.getByRole('region', { name: 'Checkout' })
+            const checkout = screen.getByRole('region', { name: 'Checkout' })
 
-        expect(within(checkout).queryByText(/sign in before checkout/i))
-            .toBeNull()
+            expect(within(checkout).queryByText(/sign in before checkout/i))
+                .toBeNull()
 
-        const emailInput = within(checkout)
-            .getByLabelText(/email/i) as HTMLInputElement
-        const subscribe = within(checkout).getByRole('button', {
-            name: 'Subscribe - $5/month'
-        }) as HTMLButtonElement
+            const emailInput = within(checkout)
+                .getByLabelText(/email/i) as HTMLInputElement
+            const subscribe = within(checkout).getByRole('button', {
+                name: 'Subscribe - $5/month'
+            }) as HTMLButtonElement
 
-        expect(emailInput.type).toBe('email')
-        expect(subscribe.disabled).toBe(false)
-    })
+            expect(emailInput.type).toBe('email')
+            expect(subscribe.disabled).toBe(false)
+        }
+    )
 
     it('links disabled drawing controls to pricing', () => {
         const state = State()

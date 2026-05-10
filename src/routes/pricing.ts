@@ -6,8 +6,6 @@ import { Button } from '../components/button'
 import { State, type AppState } from '../state'
 import './pricing.css'
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 export const PricingRoute:FunctionComponent<{
     state:AppState;
 }> = function PricingRoute ({ state }) {
@@ -16,9 +14,7 @@ export const PricingRoute:FunctionComponent<{
 
     const startCheckout = useCallback(async (ev:Event) => {
         ev.preventDefault()
-        const trimmed = email.value.trim()
-        if (!EMAIL_RE.test(trimmed)) return
-        await State.StartCheckout(state, trimmed).catch(() => {})
+        await State.StartCheckout(state, email.value.trim()).catch(() => {})
     }, [state])
 
     return html`<div class="route pricing">
