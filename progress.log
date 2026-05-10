@@ -6,6 +6,8 @@
   the exported `State` function rather than scattered across components.
 - The home route owns the Atrament canvas lifecycle and keeps drawing controls
   in component-local signals.
+- Netlify Database migrations live under
+  `netlify/database/migrations/<prefix>_<slug>/migration.sql`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -40,4 +42,32 @@ Thread: https://ampcode.com/threads/
     need both `@types/node` and the `node` entry in `compilerOptions.types`.
   - `npm test` uses tapout's fixed browser-test port, so run it by itself
     instead of in parallel with other browser-oriented test commands.
+---
+## 2026-05-09 22:39 PDT - US-002
+Thread: https://ampcode.com/threads/
+- Added `@netlify/database` so the app has the official Netlify Database
+  package available for later function work.
+- Added the initial paid-accounts migration with `users`, `passkeys`,
+  `magic_link_tokens`, `drawings`, and `public_posts`.
+- Added a US-002 Vitest guard that checks the Netlify migration layout,
+  required package, table columns, key constraints, and URL-facing
+  `bigserial` public post id.
+- Marked US-002 as passing in `specs/prd.json`.
+- Files changed: `package.json`, `package-lock.json`,
+  `netlify/database/migrations/0001_paid_accounts_schema/migration.sql`,
+  `test/us002-netlify-db-schema.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us002-netlify-db-schema.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- Local migration apply note: `npx netlify db status` requires a linked
+  Netlify site, the installed CLI does not expose the current GA
+  `database migrations apply` command, and the local Docker daemon was not
+  running. The migration contract is covered by the static schema guard.
+- **Learnings for future iterations:**
+  - Current Netlify Database docs use migration directories named
+    `<prefix>_<slug>` with a nested `migration.sql` file.
+  - This repo is not linked to a Netlify site, so `netlify db status` cannot
+    verify database setup from a fresh checkout.
+  - Updating the Netlify CLI to the latest major currently conflicts with
+    Vitest's optional OpenTelemetry peer dependency.
 ---

@@ -22,6 +22,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@netlify/database": "^1.0.0",
     "@preact/signals": "^2.0.1",
     "@simplewebauthn/browser": "^13.2.2",
     "@substrate-system/a11y": "^0.0.17",
