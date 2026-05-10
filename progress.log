@@ -1,0 +1,43 @@
+## Codebase Patterns
+- `npm test` bundles and runs `test/index.ts` through `tapout`; Vitest tests
+  live beside it and should be run directly with `npx vitest run <file>` for
+  targeted checks.
+- SPA state follows the template pattern: mutable app behavior is attached to
+  the exported `State` function rather than scattered across components.
+- The home route owns the Atrament canvas lifecycle and keeps drawing controls
+  in component-local signals.
+
+## 2026-05-09 22:16 PDT - US-001
+Thread: https://ampcode.com/threads/
+- Removed all AT Proto package dependencies from `package.json` and
+  `package-lock.json`.
+- Deleted the old Netlify auth and constellation functions, plus the feed,
+  profile, and DID config modules that depended on the old backend.
+- Simplified app state, login, routing, home publishing controls, and about
+  copy so the app boots without AT Proto or Bluesky code paths.
+- Added a US-001 regression guard that scans package manifests and source for
+  removed backend references.
+- Files changed: `package.json`, `package-lock.json`, `src/state.ts`,
+  `src/util.ts`, `src/post-text.ts`, `src/index.ts`, `src/routes/home.ts`,
+  `src/routes/index.ts`, `src/routes/login.ts`, `src/routes/login.css`,
+  `src/routes/colophon.ts`, deleted old route/function/config files, and
+  updated tests.
+- Verification: `npx vitest run test/us001-no-atproto.test.ts
+  test/home-route.color-picker.test.ts test/login-route.flows.test.ts
+  test/state.flows.test.ts test/util.test.ts`; `npm run lint`; `npm test`;
+  `npx tsc --noEmit`; browser smoke check at `http://127.0.0.1:8888/`
+  confirmed the home route, canvas, and Save button render with no console or
+  page errors.
+- **Learnings for future iterations:**
+  - The checked-in `test/test-bundle.js` is generated output if present; the
+    tracked browser test entry point is `test/index.ts`.
+  - Removing source modules also requires deleting or rewriting old Vitest
+    tests because lint scans every `*.ts` file, not just test files that run.
+  - Browser-use's Node REPL bridge was not exposed in this session, so the
+    browser acceptance check used a Playwright fallback against the same local
+    dev server.
+  - `tsconfig.json` uses explicit `types` and `typeRoots`; Node-based tests
+    need both `@types/node` and the `node` entry in `compilerOptions.types`.
+  - `npm test` uses tapout's fixed browser-test port, so run it by itself
+    instead of in parallel with other browser-oriented test commands.
+---

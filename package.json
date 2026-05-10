@@ -22,11 +22,6 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@atproto/api": "^0.18.8",
-    "@atproto/identity": "^0.4.10",
-    "@atproto/oauth-client": "^0.6.0",
-    "@atproto/oauth-client-browser": "^0.3.41",
-    "@atproto/oauth-client-node": "^0.3.17",
     "@preact/signals": "^2.0.1",
     "@simplewebauthn/browser": "^13.2.2",
     "@substrate-system/a11y": "^0.0.17",
@@ -55,6 +50,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/preact": "^3.2.4",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.6.2",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",
     "auto-changelog": "^2.4.0",

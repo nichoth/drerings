@@ -1,27 +1,17 @@
 import Router from '@substrate-system/routes'
-import { State, type AppState } from '../state.js'
+import { type AppState } from '../state.js'
 import { HomeRoute } from './home.js'
 import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
 import { LoginRoute } from './login.js'
-import { WhoamiRoute } from './whoami.js'
-import { FeedRoute } from './feed.js'
 
 export default function _Router (
-    state:AppState
+    _state:AppState
 ):InstanceType<typeof Router> {
     const router = new Router()
 
     router.addRoute('/', () => {
         return HomeRoute
-    })
-
-    router.addRoute('/feed', () => {
-        const { pending, data, error } = state.feedReq.value
-        if (!pending && !data && !error) {
-            State.fetchFeed(state)
-        }
-        return FeedRoute
     })
 
     router.addRoute('/contact', () => {
@@ -34,10 +24,6 @@ export default function _Router (
 
     router.addRoute('/login', () => {
         return LoginRoute
-    })
-
-    router.addRoute('/whoami', () => {
-        return WhoamiRoute
     })
 
     return router

@@ -31,34 +31,17 @@ export const ColophonRoute:FunctionComponent<{
             <a href="https://github.com/jakubfiala/atrament">
                 open source library called <em>Atrament</em>
             </a> for help with rendering the HTML canvas.
-            We are using <a
-                href="https://nichoth.com/projects/dev-diary-bluesky/"
-            >Bluesky as a backend</a>.
         </p>
 
         <p>
-            Any drawing you submit here will be posted to Bluesky under the
-            username that you signed in with. I am using Bluesky as the backend
-            because that way I get a social graph and moderation for free.
-            The login screen redirects to Bluesky for OAuth, but
-            you should think of it as an account/profile
-            for <em>this app</em>.
+            The app is being moved to its own backend for accounts, saving,
+            and publishing.
         </p>
 
-        <h2>The Feed</h2>
+        <h2>Drawing</h2>
         <p>
-            The feed is just a chronological list of all posts that contain
-            the tag "drerings." It doesn't use you social graph in any way.
-            The better option would be to use a <a href="https://docs.bsky.app/docs/tutorials/custom-feeds">
-                custom feed</a> that filters for the tag.
-        </p>
-
-        <h2>Posts</h2>
-        <p>
-            In the post screen, you will notice there is a character limit
-            of <code>274</code>. That's because every post has a link back
-            to this website appended to it, so we subtract that length from
-            the 300 total character count that Bluesky gives you.
+            The canvas works locally in your browser. Saving and publishing
+            will be added back after the new backend is in place.
         </p>
     </div>`
 }

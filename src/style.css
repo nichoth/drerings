@@ -6,6 +6,8 @@
     --middle-gray: #d3d3d363;
     --main-text: black;
     --danger: #c00;
+    --success: #0c5c33;
+    --input-border: #bbb;
 }
 
 a {
@@ -19,7 +21,12 @@ a {
 }
 
 body {
-    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    font-family:
+        'Gill Sans',
+        'Gill Sans MT',
+        Calibri,
+        'Trebuchet MS',
+        sans-serif;
     margin-bottom: 4rem;
     
     & p {

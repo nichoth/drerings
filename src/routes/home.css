@@ -15,7 +15,8 @@
         max-width: var(--composer-max-width);
         margin: 0 auto;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(var(--composer-column-min), 1fr));
+        grid-template-columns:
+            repeat(auto-fit, minmax(var(--composer-column-min), 1fr));
         gap: var(--composer-gap);
         align-items: start;
     }

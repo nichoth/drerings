@@ -19,8 +19,7 @@
     & input[type="text"] {
         width: 100%;
         padding: 0.75rem;
-        border: 1px solid #bbb;
-        border-radius: 0.3rem;
+        border: 1px solid var(--input-border);
     }
 
     & .login-status {
@@ -37,10 +36,10 @@
     }
 
     & .error-banner {
-        color: #9f1d1d;
+        color: var(--danger);
     }
 
     & .success-message {
-        color: #0c5c33;
+        color: var(--success);
     }
 }

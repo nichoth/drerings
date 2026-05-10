@@ -34,6 +34,7 @@ vi.mock('@substrate-system/atrament', () => {
                 if (name === 'dirty') atramentTestState.emitDirty = cb
                 if (name === 'clean') atramentTestState.emitClean = cb
             })
+
             destroy = vi.fn()
 
             constructor (
@@ -84,7 +85,8 @@ describe('ColorPicker', () => {
         }))
 
         const swatchList = screen.getByRole('list', { name: 'Preset colors' })
-        expect(within(swatchList).getAllByRole('listitem').length).toBeGreaterThan(0)
+        expect(within(swatchList).getAllByRole('listitem').length)
+            .toBeGreaterThan(0)
     })
 })
 
@@ -176,11 +178,11 @@ describe('HomeRoute color picker integration', () => {
         expect(eraser).toBeTruthy()
         if (!eraser) return
 
-        ;(eraser as HTMLInputElement & { checked:boolean }).checked = true
+        ;(eraser as unknown as { checked:boolean }).checked = true
         fireEvent.change(eraser)
         expect(atramentTestState.readMode?.()).toBe('erase')
 
-        ;(eraser as HTMLInputElement & { checked:boolean }).checked = false
+        ;(eraser as unknown as { checked:boolean }).checked = false
         fireEvent.change(eraser)
         expect(atramentTestState.readMode?.()).toBe('draw')
     })
@@ -201,7 +203,7 @@ describe('HomeRoute color picker integration', () => {
         }
 
         await waitFor(() => {
-            expect(screen.queryByText(/Need a Bluesky account/i)).toBeNull()
+            expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
         })
         expect(atramentTestState.constructCount).toBe(1)
     })
@@ -242,7 +244,12 @@ describe('HomeRoute color picker integration', () => {
 
         const ctx = {
             fillStyle: '#000000',
-            fillRect: () => {
+            fillRect: (
+                _x:number,
+                _y:number,
+                _width:number,
+                _height:number
+            ) => {
                 alpha = 255
             },
             getImageData: () => ({
@@ -263,7 +270,7 @@ describe('HomeRoute color picker integration', () => {
         }
 
         await waitFor(() => {
-            expect(screen.queryByText(/Need a Bluesky account/i)).toBeNull()
+            expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
         })
 
         const after = ctx.getImageData().data[3]
@@ -272,7 +279,7 @@ describe('HomeRoute color picker integration', () => {
         getContextSpy.mockRestore()
     })
 
-    it('renders post and alt counters with Bluesky limits', async () => {
+    it('renders text and alt counters', async () => {
         const state = State()
         state.auth.value = {
             registered: true,
@@ -289,13 +296,14 @@ describe('HomeRoute color picker integration', () => {
 
         expect(textCounter).toBeTruthy()
         expect(altCounter).toBeTruthy()
-        expect(textCounter?.getAttribute('max')).toBe('274')
+        expect(textCounter?.getAttribute('max')).toBe('300')
         expect(altCounter?.getAttribute('max')).toBe('2000')
         expect(textCounter?.getAttribute('count')).toBe('0')
         expect(altCounter?.getAttribute('count')).toBe('0')
 
         const textInput = screen.getByLabelText('Text') as HTMLTextAreaElement
-        const altInput = screen.getByLabelText('Alt text') as HTMLTextAreaElement
+        const altInput = screen.getByLabelText('Alt text') as
+            HTMLTextAreaElement
 
         fireEvent.input(textInput, {
             target: { value: 'hello' }
@@ -310,7 +318,7 @@ describe('HomeRoute color picker integration', () => {
         expect(altCounter?.getAttribute('count')).toBe('11')
     })
 
-    it('disables Post It when text is over 274 and enables at 274', async () => {
+    it('disables Save when text is over 300 and enables at 300', async () => {
         const state = State()
         state.auth.value = {
             registered: true,
@@ -320,65 +328,59 @@ describe('HomeRoute color picker integration', () => {
         render(h(HomeRoute, { state }))
 
         const button = screen.getByRole('button', {
-            name: 'Post It'
+            name: 'Save'
         }) as HTMLButtonElement
         const textInput = screen.getByLabelText('Text') as HTMLTextAreaElement
 
-        expect(button.disabled).toBe(true)
-        atramentTestState.emitDirty?.()
-        await waitFor(() => {
-            expect(button.disabled).toBe(false)
-            expect(textInput.disabled).toBe(false)
-        })
+        expect(button.disabled).toBe(false)
+        expect(textInput.disabled).toBe(false)
 
         fireEvent.input(textInput, {
-            target: { value: 'a'.repeat(275) }
+            target: { value: 'a'.repeat(301) }
         })
         await waitFor(() => {
             expect(button.disabled).toBe(true)
         })
 
         fireEvent.input(textInput, {
-            target: { value: 'a'.repeat(274) }
+            target: { value: 'a'.repeat(300) }
         })
         await waitFor(() => {
             expect(button.disabled).toBe(false)
         })
     })
 
-    it('disables Post It when alt text is over 2000 and enables at 2000', async () => {
-        const state = State()
-        state.auth.value = {
-            registered: true,
-            authenticated: true
-        }
+    it('disables Save when alt text is over 2000 and enables at 2000',
+        async () => {
+            const state = State()
+            state.auth.value = {
+                registered: true,
+                authenticated: true
+            }
 
-        render(h(HomeRoute, { state }))
+            render(h(HomeRoute, { state }))
 
-        const button = screen.getByRole('button', {
-            name: 'Post It'
-        }) as HTMLButtonElement
-        const altInput = screen.getByLabelText('Alt text') as HTMLTextAreaElement
+            const button = screen.getByRole('button', {
+                name: 'Save'
+            }) as HTMLButtonElement
+            const altInput = screen.getByLabelText('Alt text') as
+                HTMLTextAreaElement
 
-        expect(button.disabled).toBe(true)
-        atramentTestState.emitDirty?.()
-        await waitFor(() => {
             expect(button.disabled).toBe(false)
             expect(altInput.disabled).toBe(false)
-        })
 
-        fireEvent.input(altInput, {
-            target: { value: 'a'.repeat(2001) }
-        })
-        await waitFor(() => {
-            expect(button.disabled).toBe(true)
-        })
+            fireEvent.input(altInput, {
+                target: { value: 'a'.repeat(2001) }
+            })
+            await waitFor(() => {
+                expect(button.disabled).toBe(true)
+            })
 
-        fireEvent.input(altInput, {
-            target: { value: 'a'.repeat(2000) }
+            fireEvent.input(altInput, {
+                target: { value: 'a'.repeat(2000) }
+            })
+            await waitFor(() => {
+                expect(button.disabled).toBe(false)
+            })
         })
-        await waitFor(() => {
-            expect(button.disabled).toBe(false)
-        })
-    })
 })
