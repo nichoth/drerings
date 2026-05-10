@@ -1,325 +1,133 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { State } from '../src/state'
 
-const POST_FOOTER = '\n\nposted with drerings.app'
-const POST_LINK_URL = 'https://drerings.app/'
-
-const {
-    mockClient,
-    mockGetOAuthClient,
-    mockOauthRedirectUri
-} = vi.hoisted(() => {
-    const mockClient = {
-        initRestore: vi.fn(),
-        signInRedirect: vi.fn(),
-        initCallback: vi.fn(),
-        restore: vi.fn(),
-        revoke: vi.fn()
-    }
-
-    const mockGetOAuthClient = vi.fn(async () => mockClient)
-    const mockOauthRedirectUri = vi.fn(() => 'http://127.0.0.1:8888/login')
-
-    return {
-        mockClient,
-        mockGetOAuthClient,
-        mockOauthRedirectUri
-    }
-})
-
-vi.mock('../src/util', () => ({
-    getOAuthClient: mockGetOAuthClient,
-    oauthRedirectUri: mockOauthRedirectUri
-}))
-
-let stateMod
-
-describe('state oauth flows', () => {
-    beforeEach(async () => {
-        stateMod = await import('../src/state')
-        vi.clearAllMocks()
-        mockClient.initRestore.mockResolvedValue(undefined)
-        mockClient.signInRedirect.mockResolvedValue(undefined)
-        mockClient.initCallback.mockResolvedValue({
-            session: { did: 'did:plc:callback-user' }
-        })
-        mockClient.restore.mockResolvedValue({
-            did: 'did:plc:restored-user'
-        })
-        mockClient.revoke.mockResolvedValue(undefined)
+describe('state auth baseline', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
     })
 
-    it('fetchAuthStatus marks state unauthenticated ' +
-        'when no session is restored', async () => {
-        const state = stateMod.State()
-        state.profile.value = {
-            did: 'did:plc:old',
-            handle: 'old.bsky.app',
-            avatar: 'old-avatar'
-        }
-        state.agent.value = { did: 'did:plc:old' } as any
+    it('starts unauthenticated', () => {
+        const state = State()
 
-        const auth = await stateMod.State.fetchAuthStatus(state)
-
-        expect(auth).toEqual({ registered: false, authenticated: false })
-        expect(state.profile.value).toBeNull()
-        expect(state.agent.value).toBeNull()
-        expect(mockClient.initRestore).toHaveBeenCalledTimes(1)
-    })
-
-    it('fetchAuthStatus restores authenticated state and agent', async () => {
-        const state = stateMod.State()
-        const session = { did: 'did:plc:alice' }
-        mockClient.initRestore.mockResolvedValue({ session })
-
-        const auth = await stateMod.State.fetchAuthStatus(state)
-
-        expect(auth).toEqual({ registered: true, authenticated: true })
-        expect(state.agent.value).toBeTruthy()
-        expect(state.profile.value?.did).toBe('did:plc:alice')
-    })
-
-    it('login trims handle and starts official oauth redirect', async () => {
-        const state = stateMod.State()
-
-        await stateMod.State.login(state, '  alice.bsky.app ')
-
-        expect(mockClient.signInRedirect).toHaveBeenCalledWith(
-            'alice.bsky.app',
-            {
-                scope: 'atproto transition:generic',
-                redirect_uri: 'http://127.0.0.1:8888/login'
-            }
-        )
-    })
-
-    it('login rejects empty handle before oauth call', async () => {
-        await expect(
-            stateMod.State.login(stateMod.State(), '   ')
-        ).rejects.toThrow('Bluesky handle is required')
-        expect(mockClient.signInRedirect).not.toHaveBeenCalled()
-    })
-
-    it('finishOAuth processes callback query, ' +
-        'hydrates agent, and updates auth', async () => {
-        const state = stateMod.State()
-        const callbackSession = { did: 'did:plc:callback-user' }
-        mockClient.initCallback.mockResolvedValue({ session: callbackSession })
-
-        await stateMod.State.finishOAuth(state, '?state=s123&code=c456')
-
-        const [params, redirectUri] = mockClient.initCallback.mock.calls[0]
-        expect(params).toBeInstanceOf(URLSearchParams)
-        expect(params.get('state')).toBe('s123')
-        expect(params.get('code')).toBe('c456')
-        expect(redirectUri).toBe('http://127.0.0.1:8888/login')
-        expect(state.agent.value).toBeTruthy()
-        expect(state.profile.value?.did).toBe('did:plc:callback-user')
         expect(state.auth.value).toEqual({
+            registered: false,
+            authenticated: false
+        })
+        expect(state.profile.value).toBeNull()
+        expect(state.isAuthed.value).toBe(false)
+    })
+
+    it('fetchAuthStatus keeps state unauthenticated', async () => {
+        const state = State()
+        state.auth.value = {
             registered: true,
             authenticated: true
-        })
-    })
-
-    it('createAgent restores oauth session by did ' +
-        'and hydrates agent', async () => {
-        const state = stateMod.State()
-        const session = { did: 'did:plc:create-agent' }
-        mockClient.restore.mockResolvedValue(session)
-
-        await stateMod.State.createAgent(state, 'did:plc:create-agent')
-
-        expect(mockClient.restore).toHaveBeenCalledWith('did:plc:create-agent')
-        expect(state.agent.value).toBeTruthy()
-        expect(state.profile.value?.did).toBe('did:plc:create-agent')
-    })
-
-    it('hydrateAgent returns null when no session is available', async () => {
-        const state = stateMod.State()
-        mockClient.initRestore.mockResolvedValue(undefined)
-
-        const agent = await stateMod.State.hydrateAgent(state)
-
-        expect(agent).toBeNull()
-    })
-
-    it('hydrateAgent restores session and marks authenticated',
-        async () => {
-            const state = stateMod.State()
-            const session = { did: 'did:plc:hydrate-user' }
-            mockClient.initRestore.mockResolvedValue({ session })
-
-            const agent = await stateMod.State.hydrateAgent(state)
-
-            expect(agent).toBeTruthy()
-            expect(state.profile.value?.did).toBe('did:plc:hydrate-user')
-            expect(state.auth.value).toEqual({
-                registered: true,
-                authenticated: true
-            })
-        })
-
-    it('post publishes with current agent ' +
-        'and records request success state', async () => {
-        const state = stateMod.State()
-        const postSpy = vi.fn(async () => ({
-            uri: 'at://did:plc:alice/app.bsky.feed.post/123',
-            cid: 'bafy-post-cid'
-        }))
-        state.agent.value = { post: postSpy } as any
-        state.profile.value = {
-            did: 'did:plc:alice',
-            handle: 'alice.bsky.app',
-            avatar: ''
         }
-
-        const res = await stateMod.State.post(state)
-
-        expect(postSpy).toHaveBeenCalledTimes(1)
-        expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
-            text: `New drering from @alice.bsky.app${POST_FOOTER}`,
-            tags: ['drering']
-        }))
-        const postCall = (postSpy.mock.calls as any[][])[0]?.[0]
-        const text = postCall?.text as string
-        const linkLabel = 'posted with drerings.app'
-        const linkStart = text.length - linkLabel.length
-        const encoder = new TextEncoder()
-        const expectedByteStart = encoder.encode(text.slice(0, linkStart)).length
-        const expectedByteEnd = expectedByteStart + encoder.encode(linkLabel).length
-        expect(postCall.facets).toEqual([expect.objectContaining({
-            index: expect.objectContaining({
-                byteStart: expectedByteStart,
-                byteEnd: expectedByteEnd
-            }),
-            features: [expect.objectContaining({
-                uri: POST_LINK_URL
-            })]
-        })])
-        const call = (postSpy.mock.calls as any[][])[0]
-        expect(call && call.length && typeof call[0].createdAt).toBe('string')
-        expect(res).toEqual({
-            uri: 'at://did:plc:alice/app.bsky.feed.post/123',
-            cid: 'bafy-post-cid'
-        })
-        expect(state.postReq.value).toEqual({
-            pending: false,
-            data: {
-                uri: 'at://did:plc:alice/app.bsky.feed.post/123',
-                cid: 'bafy-post-cid'
-            },
-            error: null
-        })
-    })
-
-    it('post uploads image blob and includes images embed', async () => {
-        const state = stateMod.State()
-        const uploadBlobSpy = vi.fn(async () => ({
-            data: {
-                blob: {
-                    $type: 'blob',
-                    ref: { $link: 'bafk-image-ref' },
-                    mimeType: 'image/png',
-                    size: 1234
+        state.currentUser.value = {
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
+        }
+        state.profile.value = {
+            id: 'user-1',
+            email: 'user@example.com'
+        }
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({ error: 'Sign in' }), {
+                status: 401,
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-            }
-        }))
-        const postSpy = vi.fn(async () => ({
-            uri: 'at://did:plc:alice/app.bsky.feed.post/456',
-            cid: 'bafy-post-cid-2'
-        }))
-        state.agent.value = {
-            post: postSpy,
-            uploadBlob: uploadBlobSpy
-        } as any
-        state.profile.value = {
-            did: 'did:plc:alice',
-            handle: 'alice.bsky.app',
-            avatar: ''
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
+
+        const auth = await State.fetchAuthStatus(state)
+
+        expect(auth).toEqual({
+            registered: false,
+            authenticated: false
+        })
+        expect(state.currentUser.value).toBeNull()
+        expect(state.profile.value).toBeNull()
+        expect(state.isAuthed.value).toBe(false)
+        expect(fetcher).toHaveBeenCalledWith('/api/whoami')
+    })
+
+    it('fetchAuthStatus populates the current user from whoami', async () => {
+        const state = State()
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({
+                id: 'user-1',
+                email: 'user@example.com',
+                subscription_status: 'active'
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
+
+        const auth = await State.fetchAuthStatus(state)
+
+        expect(auth).toEqual({
+            registered: false,
+            authenticated: true
+        })
+        expect(state.currentUser.value).toEqual({
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
+        })
+        expect(state.profile.value).toEqual({
+            id: 'user-1',
+            email: 'user@example.com'
+        })
+        expect(state.isAuthed.value).toBe(true)
+    })
+
+    it('logout clears local auth state', async () => {
+        const state = State()
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({
+                logged_out: true
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        })
+
+        vi.stubGlobal('fetch', fetcher)
+        state.auth.value = {
+            registered: true,
+            authenticated: true
         }
-        const imageBlob = new Blob(['png-binary'], { type: 'image/png' })
+        state.currentUser.value = {
+            id: 'user-1',
+            email: 'user@example.com',
+            subscription_status: 'active'
+        }
+        state.profile.value = {
+            id: 'user-1',
+            email: 'user@example.com'
+        }
 
-        await stateMod.State.post(state, 'caption text', imageBlob)
+        await State.Logout(state)
 
-        expect(uploadBlobSpy).toHaveBeenCalledTimes(1)
-        expect((uploadBlobSpy.mock.calls as any[][])[0][1])
-            .toEqual({ encoding: 'image/png' })
-        expect(postSpy).toHaveBeenCalledWith(expect.objectContaining({
-            text: `caption text${POST_FOOTER}`,
-            tags: ['drering'],
-            embed: {
-                $type: 'app.bsky.embed.images',
-                images: [{
-                    alt: 'caption text',
-                    image: expect.any(Object)
-                }]
-            },
-            facets: [expect.objectContaining({
-                features: [expect.objectContaining({
-                    uri: POST_LINK_URL
-                })]
-            })]
-        }))
-    })
-
-    it('post fails and stores request error ' +
-        'when no session can be restored', async () => {
-        const state = stateMod.State()
-        const hydrateSpy = vi.spyOn(stateMod.State, 'hydrateAgent')
-            .mockResolvedValue(null)
-
-        await expect(stateMod.State.post(state)).rejects.toThrow(
-            'You need to log in before posting.'
-        )
-        expect(hydrateSpy).toHaveBeenCalledWith(state)
-        expect(state.postReq.value.pending).toBe(false)
-        expect(state.postReq.value.error?.message).toBe(
-            'You need to log in before posting.'
-        )
-    })
-
-    it('logout revokes current did session and clears in-memory auth state',
-        async () => {
-            const state = stateMod.State()
-            state.profile.value = {
-                did: 'did:plc:logout-user',
-                handle: 'logout.bsky.app',
-                avatar: ''
-            }
-            state.auth.value = { registered: true, authenticated: true }
-            state.agent.value = { did: 'did:plc:logout-user' } as any
-            state.postReq.value = {
-                pending: false,
-                data: {
-                    uri: 'at://did:plc:logout-user/app.bsky.feed.post/old',
-                    cid: 'old-cid'
-                },
-                error: null
-            }
-
-            await stateMod.State.Logout(state)
-
-            expect(mockClient.revoke).toHaveBeenCalledWith('did:plc:logout-user')
-            expect(state.auth.value).toEqual({
-                registered: false,
-                authenticated: false
-            })
-            expect(state.profile.value).toBeNull()
-            expect(state.agent.value).toBeNull()
-            expect(state.postReq.value.data).toBeNull()
+        expect(state.auth.value).toEqual({
+            registered: false,
+            authenticated: false
         })
-
-    it('logout falls back to restored session signOut when did is missing',
-        async () => {
-            const state = stateMod.State()
-            const signOut = vi.fn(async () => {})
-            mockClient.initRestore.mockResolvedValue({
-                session: { signOut }
-            })
-
-            await stateMod.State.Logout(state)
-
-            expect(mockClient.revoke).not.toHaveBeenCalled()
-            expect(mockClient.initRestore).toHaveBeenCalledWith(false)
-            expect(signOut).toHaveBeenCalledTimes(1)
+        expect(state.currentUser.value).toBeNull()
+        expect(state.profile.value).toBeNull()
+        expect(fetcher).toHaveBeenCalledWith('/api/auth/logout', {
+            method: 'POST'
         })
+    })
 })

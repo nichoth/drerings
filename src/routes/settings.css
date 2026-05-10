@@ -1,0 +1,19 @@
+.route.settings {
+    max-width: 40rem;
+    margin: 0 auto;
+    margin-top: 2rem;
+
+    & h3 {
+        margin: 1rem 0;
+    }
+
+    & .settings-success {
+        color: var(--success);
+        margin-top: 1rem;
+    }
+
+    & .settings-error {
+        color: var(--danger);
+        margin-top: 1rem;
+    }
+}

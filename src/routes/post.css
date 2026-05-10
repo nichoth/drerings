@@ -1,0 +1,25 @@
+.route.post {
+    --post-max-width: 44rem;
+
+    width: min(100%, var(--post-max-width));
+    margin-inline: auto;
+
+    & .public-post {
+        display: grid;
+        gap: 1rem;
+
+        & img {
+            box-sizing: border-box;
+            display: block;
+            width: 100%;
+            max-height: 72vh;
+            object-fit: contain;
+            border: 1px solid var(--input-border);
+            background-color: var(--middle-gray);
+        }
+
+        & p {
+            overflow-wrap: anywhere;
+        }
+    }
+}

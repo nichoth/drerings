@@ -1,7 +1,7 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent, render } from 'preact'
 import { useCallback, useMemo } from 'preact/hooks'
-import { type Signal, useComputed, useSignal } from '@preact/signals'
+import { useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
 import { Button } from './components/button.js'
@@ -14,6 +14,10 @@ import './style.css'
 const state = State()
 const router = Router(state)
 const debug = Debug('drerings')
+
+State.fetchAuthStatus(state).catch(err => {
+    debug('auth status failed', err)
+})
 
 // set debug logging in local env
 if (isDev()) {
@@ -68,7 +72,7 @@ export const Drerings:FunctionComponent = function Drerings () {
     return html`
     <header>
         <h1><a href="/">Drerings</a></h1>
-        <${Nav} route=${state.route.value} isAuthed=${isAuthed} />
+        <${Nav} route=${state.route.value} />
 
         <ul>
             ${state.authLoading.value ?
@@ -95,16 +99,6 @@ export const Drerings:FunctionComponent = function Drerings () {
                                 Logout
                             <//>
                         </li>
-                        <li>
-                            <div class="avatar">
-                                <a href="/whoami">
-                                    <img
-                                        class="avatar"
-                                        src="${state.profile.value?.avatar}"
-                                    />
-                                </a>
-                            </div>
-                        </li>
                     ` :
                     html`<li><a href="/login">Login</a></li>`
             }
@@ -117,15 +111,19 @@ export const Drerings:FunctionComponent = function Drerings () {
 
     <footer>
         <div>
-            ${COPYRIGHT} 2026, <a href="https://bsky.app/profile/nichoth.com">
-                @nichoth
-            </a>
+            ${COPYRIGHT} 2026, nichoth
         </div>
 
         <div>
             <a href="https://github.com/nichoth/drerings">
                 See the source code
             </a>
+        </div>
+
+        <div>
+            <a href="/privacy">Privacy</a>
+            ${' '}
+            <a href="/terms">Terms</a>
         </div>
 
         <iframe src="https://github.com/sponsors/nichoth/button" 
@@ -145,28 +143,19 @@ function isDev ():boolean {
 }
 
 function Nav ({
-    route,
-    isAuthed
-}:{ route:string, isAuthed:Signal<boolean> }):ReturnType<typeof html> {
+    route
+}:{ route:string }):ReturnType<typeof html> {
     return html`<nav aria-label="Main navigation">
         <ul>
             ${routes.map(r => {
-                return html`<li class="nav${route === r.href ? ' active' : ''}">
+                const className = `nav${route === r.href ? ' active' : ''}`
+
+                return html`<li class=${className}>
                     <a href="${r.href}">${r.text}</a>
                 </li>`
-            }).concat(isAuthed.value ?
-                [html`
-                    <li><a href="/feed">Feed</a></li>
-                    <li><a href="/whoami">Who Am I?</a></li>
-                `] :
-                []
-            )}
+            })}
         </ul>
     </nav>`
 
     // <li><a href="/contact">contact</a></li> -->
 }
-
-// <li><a href="/feed">Feed</a></li>
-// <li><a href="/new">New Post</a></li>
-// <li><a href="/whoami">Who Am I?</a></li>
