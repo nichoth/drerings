@@ -27,6 +27,10 @@
   current `users` row so subscription state is not read from stale cookies.
 - Frontend auth state is hydrated by `State.fetchAuthStatus(state)`, which
   calls `/api/whoami` and stores the result in `state.currentUser`.
+- Frontend paid/free checks should read
+  `state.currentUser.value?.subscription_status`; tests that expect paid
+  controls to be enabled must populate `state.currentUser`, not only
+  `state.auth`.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -218,4 +222,35 @@ Thread: https://ampcode.com/threads/
     `getSession(event)` so user and subscription data come from the DB.
   - `State.fetchAuthStatus(state)` is the frontend boot hydration point for
     `state.currentUser`; keep auth mutations attached to `State`.
+---
+## 2026-05-09 23:16 PDT - US-007
+Thread: https://ampcode.com/threads/
+- Added the free-account home warning with a `/pricing` upgrade link while
+  keeping the drawing canvas available to anonymous visitors.
+- Gated Save and Send It behind an active subscription, with accessible
+  explanatory tooltip copy and a `/pricing` link for free/anonymous users.
+- Added US-007 Vitest coverage for anonymous canvas loading, no
+  localStorage/backend persistence, disabled paid controls, and pricing links.
+- Updated existing home-route validation tests to model a paid user through
+  `state.currentUser.subscription_status === 'active'`.
+- Marked US-007 as passing in `specs/prd.json`.
+- Files changed: `src/routes/home.ts`, `src/routes/home.css`,
+  `src/components/button.ts`, `test/us007-free-user-drawing.test.ts`,
+  `test/home-route.color-picker.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us007-free-user-drawing.test.ts`;
+  `npx vitest run test/us007-free-user-drawing.test.ts
+  test/home-route.color-picker.test.ts`; `npx tsc --noEmit`;
+  `npm run lint`; `npm test`; browser fallback against
+  `http://localhost:8889/` confirmed the canvas, warning, disabled Save,
+  disabled Send It, pricing links, and no page JS errors or 5xx responses.
+- Browser Use note: the required Node REPL browser tool was not exposed in
+  this session, so browser verification used Playwright against `npm start`.
+- **Learnings for future iterations:**
+  - The Vite-only dev server proxies `/api/*` to the Netlify functions port,
+    so browser checks that exercise auth hydration should use `npm start`.
+  - Anonymous app boot intentionally receives a 401 from `/api/whoami`; treat
+    that as signed-out state, not as a failed page render.
+  - Home paid-control tests need `state.currentUser` populated with an
+    `active` subscription when they expect Save to be enabled.
 ---

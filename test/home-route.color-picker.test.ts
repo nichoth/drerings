@@ -320,9 +320,10 @@ describe('HomeRoute color picker integration', () => {
 
     it('disables Save when text is over 300 and enables at 300', async () => {
         const state = State()
-        state.auth.value = {
-            registered: true,
-            authenticated: true
+        state.currentUser.value = {
+            id: 'user-1',
+            email: 'paid@example.com',
+            subscription_status: 'active'
         }
 
         render(h(HomeRoute, { state }))
@@ -353,9 +354,10 @@ describe('HomeRoute color picker integration', () => {
     it('disables Save when alt text is over 2000 and enables at 2000',
         async () => {
             const state = State()
-            state.auth.value = {
-                registered: true,
-                authenticated: true
+            state.currentUser.value = {
+                id: 'user-1',
+                email: 'paid@example.com',
+                subscription_status: 'active'
             }
 
             render(h(HomeRoute, { state }))

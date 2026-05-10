@@ -27,13 +27,14 @@ const ALT_TEXT_MAX = 2000
 
 export const HomeRoute:FunctionComponent<{
     state:AppState
-}> = function HomeRoute () {
+}> = function HomeRoute ({ state }) {
     const sketchpad = useRef<HTMLCanvasElement>(null)
     const brushColor = useSignal<string>(DEFAULT_BRUSH_COLOR)
     const brushSize = useSignal<number>(DEFAULT_BRUSH_SIZE)
     const isEraserEnabled = useSignal<boolean>(false)
     const text = useSignal<string>('')
     const altText = useSignal<string>('')
+    const paidControlsHintId = 'paid-drawing-controls'
 
     useEffect(() => {
         if (!sketchpad.current) return
@@ -103,13 +104,20 @@ export const HomeRoute:FunctionComponent<{
     const altTextCount = useComputed<number>(() => {
         return countGraphemes(altText.value)
     })
-    const disabled = useComputed<boolean>(() => {
+    const canPersist = useComputed<boolean>(() => {
+        return state.currentUser.value?.subscription_status === 'active'
+    })
+    const hasInvalidText = useComputed<boolean>(() => {
         return textCount.value > TEXT_INPUT_MAX ||
             altTextCount.value > ALT_TEXT_MAX
+    })
+    const paidActionsDisabled = useComputed<boolean>(() => {
+        return !canPersist.value || hasInvalidText.value
     })
 
     const submitDrawing = useCallback((ev:SubmitEvent) => {
         ev.preventDefault()
+        if (!canPersist.value || hasInvalidText.value) return
         debug('saving is not wired yet')
     }, [])
 
@@ -117,6 +125,17 @@ export const HomeRoute:FunctionComponent<{
         <p>
             Draw things, then show people the drawings.
         </p>
+
+        ${canPersist.value ? null : html`
+            <aside
+                class="free-account-warning"
+                role="status"
+                aria-label="Free account save warning"
+            >
+                Drawings aren't saved on free accounts.${' '}
+                <a href="/pricing">upgrade to keep them</a>.
+            </aside>
+        `}
 
         <div class="composer-layout">
             <div class="canvas-column">
@@ -202,11 +221,34 @@ export const HomeRoute:FunctionComponent<{
                 </div>
 
                 <div class="controls">
+                    ${canPersist.value ? null : html`
+                        <p
+                            id=${paidControlsHintId}
+                            class="paid-controls-note"
+                            role="tooltip"
+                            aria-label="Paid drawing controls"
+                        >
+                            Upgrade to keep drawings and publish them.
+                            See <a href="/pricing">pricing</a>.
+                        </p>
+                    `}
                     <${Button}
                         type="submit"
-                        disabled=${disabled.value}
+                        disabled=${paidActionsDisabled.value}
+                        aria-describedby=${
+                            canPersist.value ? undefined : paidControlsHintId
+                        }
                     >
                         Save
+                    <//>
+                    <${Button}
+                        type="button"
+                        disabled=${!canPersist.value}
+                        aria-describedby=${
+                            canPersist.value ? undefined : paidControlsHintId
+                        }
+                    >
+                        Send It
                     <//>
                 </div>
             </form>
