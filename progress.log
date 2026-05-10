@@ -8,6 +8,8 @@
   in component-local signals.
 - Netlify Database migrations live under
   `netlify/database/migrations/<prefix>_<slug>/migration.sql`.
+- Netlify Blobs helpers should call `getStore(...)` lazily inside exported
+  operations, not at module load, so Netlify runtime context is available.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -70,4 +72,26 @@ Thread: https://ampcode.com/threads/
     verify database setup from a fresh checkout.
   - Updating the Netlify CLI to the latest major currently conflicts with
     Vitest's optional OpenTelemetry peer dependency.
+---
+## 2026-05-09 22:44 PDT - US-003
+Thread: https://ampcode.com/threads/
+- Added `@netlify/blobs` as an app dependency.
+- Added `netlify/lib/drawing-images.ts` with the named `drawings` blob store
+  helper functions: `putDrawingImage`, `getDrawingImage`, and
+  `deleteDrawingImage`.
+- Added a US-003 Vitest contract covering stable blob keys, store selection,
+  image reads, missing images, and deletion.
+- Marked US-003 as passing in `specs/prd.json`.
+- Files changed: `package.json`, `package-lock.json`,
+  `netlify/lib/drawing-images.ts`, `test/us003-drawing-blobs.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us003-drawing-blobs.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Use `@netlify/blobs` from `netlify/lib/*` modules for backend storage
+    helpers.
+  - Call `getStore('drawings')` inside each helper operation so the store is
+    created after Netlify has populated its runtime context.
+  - Drawing image blob keys use
+    `users/<userId>/drawings/<drawingId>.png`.
 ---
