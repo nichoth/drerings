@@ -46,6 +46,13 @@ export interface PublishedPost {
     id:number;
 }
 
+export interface PublicPost extends PublishedPost {
+    image:string;
+    text:string;
+    alt_text:string;
+    published_at:string;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
@@ -333,6 +340,43 @@ State.PublishDrawing = async function (
     }
 
     return { id }
+}
+
+State.FetchPublicPost = async function (
+    _state:AppState,
+    postId:string
+):Promise<PublicPost> {
+    const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`)
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Post not found.'
+
+        throw new Error(message)
+    }
+
+    const body = await response.json() as PublicPost
+    const id = Number(body.id)
+
+    if (
+        !Number.isFinite(id) ||
+        typeof body.image !== 'string' ||
+        typeof body.text !== 'string' ||
+        typeof body.alt_text !== 'string' ||
+        typeof body.published_at !== 'string'
+    ) {
+        throw new Error('Unable to load the post right now.')
+    }
+
+    return {
+        id,
+        image: body.image,
+        text: body.text,
+        alt_text: body.alt_text,
+        published_at: body.published_at
+    }
 }
 
 function clearAuthState (state:AppState):void {

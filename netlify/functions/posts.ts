@@ -4,8 +4,34 @@ import { getSession } from '../lib/session.js'
 import * as postStore from '../lib/posts.js'
 
 export const handler:Handler = async function handler (event) {
-    if (event.httpMethod !== 'POST') {
+    if (!['GET', 'POST'].includes(event.httpMethod)) {
         return json(405, { error: 'Method not allowed' })
+    }
+
+    if (event.httpMethod === 'GET') {
+        const postId = postIdFromPath(event.path || event.rawUrl)
+
+        if (!postId) return json(404, { error: 'Post not found.' })
+
+        try {
+            const post = await postStore.getPublishedPost(postId)
+
+            if (!post) return json(404, { error: 'Post not found.' })
+
+            return json(200, {
+                id: post.id,
+                image: post.image,
+                text: post.text,
+                alt_text: post.alt_text,
+                published_at: post.published_at
+            })
+        } catch (err) {
+            console.error(err)
+
+            return json(500, {
+                error: 'Unable to load the post right now.'
+            })
+        }
     }
 
     const session = await getSession(event)
@@ -53,4 +79,12 @@ function parsePublishInput (
     if (body.drawing_id.trim() === '') return null
 
     return { drawing_id: body.drawing_id }
+}
+
+function postIdFromPath (path:string):number|null {
+    const parts = path.split('/').filter(Boolean)
+    const postIndex = parts.lastIndexOf('posts')
+    const id = Number(parts[postIndex + 1])
+
+    return Number.isInteger(id) && id > 0 ? id : null
 }

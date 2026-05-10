@@ -7,6 +7,7 @@ import { LoginRoute } from './login.js'
 import { SettingsRoute } from './settings.js'
 import { DrawingsRoute } from './drawings.js'
 import { SendRoute } from './send.js'
+import { PostRoute } from './post.js'
 
 export default function _Router (
     _state:AppState
@@ -39,6 +40,10 @@ export default function _Router (
 
     router.addRoute('/send/:drawingId', () => {
         return SendRoute
+    })
+
+    router.addRoute('/post/:id', () => {
+        return PostRoute
     })
 
     return router

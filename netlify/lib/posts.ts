@@ -1,11 +1,27 @@
 import { getDatabase } from '@netlify/database'
+import { getDrawingImage } from './drawing-images.js'
 
 export interface PublicPost {
     id:number;
 }
 
+export interface PublicPostDetails extends PublicPost {
+    image:string;
+    text:string;
+    alt_text:string;
+    published_at:string;
+}
+
 interface PublicPostRow {
     id:number|string;
+}
+
+interface PublicPostDetailsRow {
+    id:number|string;
+    blob_key:string;
+    text:string;
+    alt_text:string;
+    published_at:string|Date;
 }
 
 export async function publishDrawing (
@@ -36,4 +52,53 @@ export async function publishDrawing (
     if (!row) return null
 
     return { id: Number(row.id) }
+}
+
+export async function getPublishedPost (
+    postId:number
+):Promise<PublicPostDetails|null> {
+    const db = getDatabase()
+    const result = await db.pool.query<PublicPostDetailsRow>(`
+        SELECT
+            public_posts.id,
+            drawings.blob_key,
+            drawings.text,
+            drawings.alt_text,
+            public_posts.published_at
+        FROM public_posts
+        JOIN drawings
+            ON drawings.id = public_posts.drawing_id
+        WHERE public_posts.id = $1
+    `, [postId])
+    const row = result.rows[0]
+
+    if (!row) return null
+
+    const image = await getDrawingImage(row.blob_key)
+
+    return {
+        id: Number(row.id),
+        image: await imageDataUrl(image),
+        text: row.text,
+        alt_text: row.alt_text,
+        published_at: timestampString(row.published_at)
+    }
+}
+
+async function imageDataUrl (image:ArrayBuffer|Blob|null):Promise<string> {
+    if (!image) return ''
+
+    if (image instanceof Blob) {
+        return 'data:image/png;base64,' +
+            Buffer.from(await image.arrayBuffer()).toString('base64')
+    }
+
+    return 'data:image/png;base64,' +
+        Buffer.from(image).toString('base64')
+}
+
+function timestampString (value:string|Date):string {
+    if (value instanceof Date) return value.toISOString()
+
+    return value
 }

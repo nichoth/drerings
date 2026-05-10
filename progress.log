@@ -53,6 +53,9 @@
 - Use `State.FetchSavedDrawing` when a route needs an owned drawing without
   navigation; use `State.OpenSavedDrawing` only for the Drawings -> composer
   flow because it intentionally routes back to `/`.
+- Public posts are readable without a session through `GET /api/posts/:id`;
+  frontend public-post loading goes through `State.FetchPublicPost`, and the
+  `/post/:id` route owns document title and Open Graph metadata updates.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -419,4 +422,38 @@ Thread: https://ampcode.com/threads/
     with reusable publish storage in `netlify/lib/posts.ts`.
   - Publishing can be idempotent with `INSERT ... ON CONFLICT (drawing_id)`
     because `public_posts.drawing_id` is unique.
+---
+## 2026-05-10 01:29 PDT - US-012
+Thread: https://ampcode.com/threads/
+- Added public post read support to `GET /api/posts/:id`, with no session
+  requirement and 404 JSON for unknown IDs.
+- Added `getPublishedPost(postId)` to join `public_posts` to `drawings` and
+  return image data URLs from Blob storage.
+- Added `State.FetchPublicPost` and the `/post/:id` route to render the
+  published image, text, alt text, and share metadata.
+- Marked US-012 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/posts.ts`, `netlify/lib/posts.ts`,
+  `src/state.ts`, `src/routes/index.ts`, `src/routes/post.ts`,
+  `src/routes/post.css`, `test/us012-public-post-api.test.ts`,
+  `test/us012-public-post-store.test.ts`,
+  `test/us012-public-post-ui.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us012-public-post-store.test.ts
+  test/us012-public-post-api.test.ts test/us012-public-post-ui.test.ts`;
+  `npx vitest run test/us011-publish-post-store.test.ts
+  test/us011-publish-post-api.test.ts test/us011-send-route-ui.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
+  fallback against `http://127.0.0.1:5173/post/42` confirmed the public post
+  image, text, page title, Open Graph title/image, and no unexpected page or
+  console errors.
+- Browser Use note: the required Node REPL browser tool was not exposed in
+  this session, so browser verification used the established Playwright
+  fallback against the local Vite dev server.
+- **Learnings for future iterations:**
+  - Public post reads should not call `getSession`; the published URL is
+    intentionally visitor-readable.
+  - Public post image responses follow the saved-drawing pattern: read the
+    drawing blob and return a `data:image/png;base64,...` URL.
+  - Route-level metadata updates can live in the route component when the
+    metadata depends on client-fetched content.
 ---
