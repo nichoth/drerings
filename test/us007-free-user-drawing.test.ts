@@ -53,14 +53,14 @@ describe('US-007 free-user drawing experience', () => {
 
         render(h(HomeRoute, { state }))
 
-        expect(screen.getByText(/drawings aren't saved on free accounts/i))
+        expect(screen.getByText(/without a subscription/i))
             .toBeTruthy()
 
         const banner = screen.getByRole('status', {
-            name: 'Free account save warning'
+            name: /save warning/i
         })
         const link = within(banner).getByRole('link', {
-            name: /upgrade to keep them/i
+            name: /subscribe to keep them/i
         }) as HTMLAnchorElement
 
         expect(link.getAttribute('href')).toBe('/pricing')

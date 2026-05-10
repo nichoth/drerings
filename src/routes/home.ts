@@ -177,11 +177,11 @@ export const HomeRoute:FunctionComponent<{
             <aside
                 class="free-account-warning"
                 role="status"
-                aria-label="Free account save warning"
+                aria-label="Save warning"
             >
-                Drawings aren't saved on free accounts.${' '}
+                Drawings aren't saved without a subscription.${' '}
                 <a href="/pricing">
-                    Upgrade to keep them and share them with the world
+                    Subscribe to keep them and share them with the world
                 </a>.
             </aside>
         `}
