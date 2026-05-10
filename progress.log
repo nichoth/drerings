@@ -31,6 +31,12 @@
   `state.currentUser.value?.subscription_status`; tests that expect paid
   controls to be enabled must populate `state.currentUser`, not only
   `state.auth`.
+- Drawing save/update requests are handled by
+  `netlify/functions/drawings.ts`; item routes like `/api/drawings/:id`
+  are parsed from `event.path` in the same function.
+- Saved drawing persistence lives in `netlify/lib/drawings.ts`; API callers
+  send JSON with a base64 `image`, `text`, and `alt_text`, and the helper
+  converts the image to a `Blob` before writing Blob storage and DB rows.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -253,4 +259,33 @@ Thread: https://ampcode.com/threads/
     that as signed-out state, not as a failed page render.
   - Home paid-control tests need `state.currentUser` populated with an
     `active` subscription when they expect Save to be enabled.
+---
+## 2026-05-09 23:25 PDT - US-008
+Thread: https://ampcode.com/threads/
+- Added the paid drawing API for `POST /api/drawings` and
+  `PUT /api/drawings/:id`.
+- Added drawing persistence helpers that decode base64 PNG data, write the
+  image to Netlify Blobs, insert or update the `drawings` row, and delete the
+  replaced blob when the blob key changes.
+- Gated drawing save/update behind a current session with
+  `subscription_status === 'active'`, returning 401 for anonymous users and
+  402 for free users.
+- Added US-008 Vitest coverage for session gating, paid saves, paid updates,
+  Blob writes, DB writes, ownership-qualified updates, and replaced blob
+  deletion.
+- Marked US-008 as passing in `specs/prd.json`.
+- Files changed: `netlify/functions/drawings.ts`,
+  `netlify/lib/drawings.ts`, `test/us008-save-drawing-api.test.ts`,
+  `test/us008-drawing-store.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us008-save-drawing-api.test.ts
+  test/us008-drawing-store.test.ts`; `npx tsc --noEmit`; `npm run lint`;
+  `npm test`.
+- **Learnings for future iterations:**
+  - One `drawings.ts` Netlify function can cover both collection and item
+    writes by parsing the drawing id from `event.path`.
+  - Save/update API tests can mock `netlify/lib/drawings` while lower-level
+    persistence tests mock `@netlify/database` and `drawing-images`.
+  - `json(...)` currently accepts `Record<string, unknown>`, so typed result
+    interfaces should be converted to plain object literals in handlers.
 ---
