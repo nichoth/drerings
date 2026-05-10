@@ -17,7 +17,7 @@ export const PricingRoute:FunctionComponent<{
         <section class="pricing-intro">
             <h2>Pricing</h2>
             <p>
-                Draw for free. Subscribe when you want saved work and public
+                Draw for free. Subscribe when you want to share them with the world.
                 sharing.
             </p>
         </section>

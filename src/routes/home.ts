@@ -180,7 +180,9 @@ export const HomeRoute:FunctionComponent<{
                 aria-label="Free account save warning"
             >
                 Drawings aren't saved on free accounts.${' '}
-                <a href="/pricing">upgrade to keep them</a>.
+                <a href="/pricing">
+                    Upgrade to keep them and share them with the world
+                </a>.
             </aside>
         `}
 
