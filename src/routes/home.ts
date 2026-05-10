@@ -127,20 +127,17 @@ export const HomeRoute:FunctionComponent<{
     const altTextCount = useComputed<number>(() => {
         return countGraphemes(altText.value)
     })
-    const canPersist = useComputed<boolean>(() => {
-        return state.currentUser.value?.subscription_status === 'active'
-    })
     const hasInvalidText = useComputed<boolean>(() => {
         return textCount.value > TEXT_INPUT_MAX ||
             altTextCount.value > ALT_TEXT_MAX
     })
     const paidActionsDisabled = useComputed<boolean>(() => {
-        return !canPersist.value || hasInvalidText.value
+        return !state.isPaid.value || hasInvalidText.value
     })
 
     const submitDrawing = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        if (!canPersist.value || hasInvalidText.value) return
+        if (!state.isPaid.value || hasInvalidText.value) return
         const canvas = sketchpad.current
         if (!canvas) return
 
@@ -166,7 +163,7 @@ export const HomeRoute:FunctionComponent<{
     const sendDrawing = useCallback(() => {
         const drawingId = state.currentDrawing.value?.id
 
-        if (!drawingId || !canPersist.value) return
+        if (!drawingId || !state.isPaid.value) return
 
         State.GoToSendDrawing(state, drawingId)
     }, [])
@@ -176,7 +173,7 @@ export const HomeRoute:FunctionComponent<{
             Draw things, then show people the drawings.
         </p>
 
-        ${canPersist.value ? null : html`
+        ${state.isPaid.value ? null : html`
             <aside
                 class="free-account-warning"
                 role="status"
@@ -271,7 +268,7 @@ export const HomeRoute:FunctionComponent<{
                 </div>
 
                 <div class="controls">
-                    ${canPersist.value ? null : html`
+                    ${state.isPaid.value ? null : html`
                         <p
                             id=${paidControlsHintId}
                             class="paid-controls-note"
@@ -287,16 +284,20 @@ export const HomeRoute:FunctionComponent<{
                         disabled=${paidActionsDisabled.value}
                         isSpinning=${isSaving}
                         aria-describedby=${
-                            canPersist.value ? undefined : paidControlsHintId
+                            state.isPaid.value ?
+                                undefined :
+                                paidControlsHintId
                         }
                     >
                         Save
                     <//>
                     <${Button}
                         type="button"
-                        disabled=${!canPersist.value}
+                        disabled=${!state.isPaid.value}
                         aria-describedby=${
-                            canPersist.value ? undefined : paidControlsHintId
+                            state.isPaid.value ?
+                                undefined :
+                                paidControlsHintId
                         }
                         onClick=${sendDrawing}
                     >

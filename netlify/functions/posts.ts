@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions'
 import { json, parseJsonBody } from '../lib/http.js'
 import { getSession } from '../lib/session.js'
+import { isPaid } from '../lib/paid.js'
 import * as postStore from '../lib/posts.js'
 
 export const handler:Handler = async function handler (event) {
@@ -38,7 +39,7 @@ export const handler:Handler = async function handler (event) {
 
     if (!session) return json(401, { error: 'Please sign in.' })
 
-    if (session.user.subscription_status !== 'active') {
+    if (!isPaid(session.user)) {
         return json(402, {
             error: 'Upgrade to publish drawings.'
         })

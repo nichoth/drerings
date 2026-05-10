@@ -68,6 +68,8 @@
   `netlify/functions/billing/webhook.ts`; verify Svix signatures against the
   raw request body before parsing JSON, then keep subscription update logic in
   `netlify/lib/billing.ts`.
+- Paid API gates should use `isPaid(user)` from `netlify/lib/paid.ts`;
+  frontend paid/free UI should use the derived `state.isPaid` signal.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -563,4 +565,27 @@ Thread: https://ampcode.com/threads/
   - Store billing webhook mutations in `netlify/lib/billing.ts`; keep the
     Netlify handler focused on method validation, signature verification, and
     JSON responses.
+---
+## 2026-05-10 01:59 PDT - US-016
+Thread: https://ampcode.com/threads/
+- Added the shared `isPaid(user)` helper for paid-feature checks.
+- Updated drawing save/read/delete and publish APIs to use `isPaid(user)` and
+  keep returning 402 when the current user is not paid.
+- Added a frontend `state.isPaid` derived signal and changed the home route
+  paid controls to read that signal instead of checking subscription status
+  inline.
+- Added US-016 regression coverage for the helper, frontend signal, and API
+  helper usage.
+- Marked US-016 as passing in `specs/prd.json`.
+- Files changed: `netlify/lib/paid.ts`, `netlify/functions/drawings.ts`,
+  `netlify/functions/posts.ts`, `src/state.ts`, `src/routes/home.ts`,
+  `test/us016-paid-gating.test.ts`, `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us016-paid-gating.test.ts`; related
+  targeted Vitest checks for drawing APIs, publish API, home route, and state;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Keep backend paid checks in `netlify/lib/paid.ts` so API handlers do not
+    duplicate subscription-status comparisons.
+  - Use `state.isPaid` for frontend paid/free UI gates; it stays reactive as
+    `/api/whoami` hydrates `state.currentUser`.
 ---

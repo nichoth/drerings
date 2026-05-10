@@ -58,6 +58,7 @@ export function State (): {
     auth:Signal<AuthStatus>;
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
+    isPaid:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
     currentDrawing:Signal<SavedDrawing|null>;
     checkoutLoading:Signal<boolean>;
@@ -88,6 +89,9 @@ export function State (): {
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
+        }),
+        isPaid: computed<boolean>(() => {
+            return state.currentUser.value?.subscription_status === 'active'
         })
     }
 
