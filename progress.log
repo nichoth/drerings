@@ -695,3 +695,23 @@ Thread: https://ampcode.com/threads/
   - The Browser plugin Node REPL surface was not exposed in this session, so
     the required browser check used the established Playwright fallback.
 ---
+## 2026-05-10 02:30 PDT - US-020
+Thread: https://ampcode.com/threads/
+- Replaced stale OAuth-era README guidance with Netlify-only deployment
+  notes for Functions, Netlify Database, Netlify Blobs, Resend, and Autumn.
+- Documented production environment variables, Autumn dashboard webhook
+  configuration, app-base-url behavior, and local provider behavior.
+- Added a US-020 README contract test covering deployment notes, webhook
+  setup, and local provider notes.
+- Marked US-020 as passing in `specs/prd.json`.
+- Files changed: `README.md`, `test/us020-readme-deployment-notes.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us020-readme-deployment-notes.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - The app does not currently read an `APP_BASE_URL` env var; backend links
+    and checkout URLs are derived from the request origin.
+  - Local Autumn checkout is mocked when `NETLIFY_LOCAL=true` and
+    `AUTUMN_SECRET_KEY` is unset, but Resend email delivery is not mocked in
+    the Netlify Function.
+---
