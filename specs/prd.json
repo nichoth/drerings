@@ -1,0 +1,323 @@
+{
+  "project": "drerings.app",
+  "branchName": "ralph/paid-accounts-redesign",
+  "description": "Paid Accounts + Netlify Backend Redesign — replace the Bluesky/AT Proto backend with a Netlify-only stack (Functions, Blobs, DB), add a $5/month paid tier via Autumn that unlocks save + publish, switch auth to passkey + magic link via Resend, and ship the legal/account pages required to take payment.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Remove Bluesky / AT Proto dependencies",
+      "description": "As a developer, I want all Bluesky/AT Proto code and dependencies removed so the app has a single clean backend story.",
+      "acceptanceCriteria": [
+        "@atproto/api, @atproto/identity, @atproto/oauth-client, @atproto/oauth-client-browser, @atproto/oauth-client-node removed from package.json",
+        "All AT Proto imports and call sites removed from src/ and netlify/functions/",
+        "Old Bluesky-specific routes (e.g. AT-Proto login/callback) and components deleted",
+        "App boots and renders the home route with no console errors",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Provision Netlify DB schema (users, drawings, public_posts)",
+      "description": "As a developer, I need persistent tables for users, saved drawings, and public posts so the rest of the feature can be built on stable storage.",
+      "acceptanceCriteria": [
+        "users table: id (PK), email (unique), created_at, subscription_status ('free' | 'active' | 'canceled' | 'past_due'), autumn_customer_id (nullable)",
+        "passkeys table: id, user_id (FK), credential_id, public_key, counter, created_at",
+        "magic_link_tokens table: token (PK), user_id (FK), expires_at, used_at",
+        "drawings table: id (PK, uuid), user_id (FK), blob_key (string), text (string), alt_text (string), created_at, updated_at",
+        "public_posts table: id (BIGSERIAL autoincrementing integer PK — appears in the URL), drawing_id (FK, unique), published_at",
+        "Migration runs cleanly against a fresh DB",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Configure Netlify Blobs store for drawing images",
+      "description": "As a developer, I need a configured blob store and helper functions to put/get/delete drawing images so the API can persist images outside the DB.",
+      "acceptanceCriteria": [
+        "A named blob store ('drawings') is configured",
+        "putDrawingImage(userId, drawingId, blob) writes the image and returns a stable blob_key",
+        "getDrawingImage(blob_key) returns the image bytes (or 404)",
+        "deleteDrawingImage(blob_key) removes it",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Magic-link auth via Resend",
+      "description": "As a user, I want to sign in with a one-time link emailed to me so I don't need a password.",
+      "acceptanceCriteria": [
+        "POST /api/auth/magic-link accepts an email, creates a single-use token (15-minute expiry), and sends the link via Resend",
+        "GET /api/auth/magic-link/callback?token=… validates the token, marks it used_at, creates the user if needed, and issues a session cookie (httpOnly, Secure, SameSite=Lax)",
+        "Login route in the SPA has a single email input, a 'Send link' button, and a 'check your email' success state",
+        "Reused/expired tokens return a clear error page",
+        "Resend API key is read from a Netlify env var; no key in the repo",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Passkey registration and sign-in",
+      "description": "As a logged-in user, I want to register a passkey and use it on subsequent visits so I don't have to wait for an email.",
+      "acceptanceCriteria": [
+        "POST /api/auth/passkey/register/options and /register/verify implement WebAuthn registration using @simplewebauthn/server + @simplewebauthn/browser",
+        "POST /api/auth/passkey/login/options and /login/verify implement WebAuthn authentication and issue a session cookie on success",
+        "Settings page has a 'Register a passkey' button (visible only when logged in)",
+        "Login page has a 'Sign in with passkey' affordance in addition to the magic-link form",
+        "Browsers without passkey support fall back gracefully to magic link only (no broken UI)",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Session middleware + whoami endpoint",
+      "description": "As a developer, I need a single helper that resolves the current user from the session cookie so every API function can authorize requests consistently.",
+      "acceptanceCriteria": [
+        "getSession(request) returns { user } | null",
+        "GET /api/whoami returns { id, email, subscription_status } or 401",
+        "Frontend has a currentUser signal populated on app boot from /api/whoami",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Free-user drawing experience (in-memory only)",
+      "description": "As a free or anonymous user, I want to open the app and draw, but I should be clearly told that my work won't be saved.",
+      "acceptanceCriteria": [
+        "Home route loads the canvas without requiring login",
+        "No localStorage or backend persistence of the drawing",
+        "A small persistent banner or hint reads roughly: 'Drawings aren't saved on free accounts — upgrade to keep them,' with a link to the pricing page",
+        "'Save' and 'Send It' controls are disabled with a tooltip explaining why and a link to the pricing page",
+        "Refreshing the page clears the canvas (expected behavior)",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Save drawing API (paid)",
+      "description": "As a paid user, I want to save my current drawing (image + text + alt text) so I can come back to it later.",
+      "acceptanceCriteria": [
+        "POST /api/drawings accepts { image (binary or base64), text, alt_text }, requires an active subscription, writes the image to Netlify Blobs, and inserts a drawings row",
+        "Returns { id, created_at } on success",
+        "Returns 401 for unauthenticated, 402 for free accounts",
+        "PUT /api/drawings/:id updates an existing drawing (image replace allowed; previous blob deleted)",
+        "Typecheck and lint pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Save / load drawing UI (paid)",
+      "description": "As a paid user, I want a Save button on the canvas and a list of my saved drawings I can reopen.",
+      "acceptanceCriteria": [
+        "'Save' button on the canvas page is enabled for paid users and POSTs to /api/drawings",
+        "A /drawings route lists the user's saved drawings (thumbnail, text excerpt, updated_at, 'Open' + 'Delete' actions)",
+        "Opening a drawing loads its image and text back into the canvas for further editing",
+        "Save shows a clear success state; failure shows an inline error",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Delete a saved drawing (paid)",
+      "description": "As a paid user, I want to delete a saved drawing (and its blob) from my list.",
+      "acceptanceCriteria": [
+        "DELETE /api/drawings/:id removes the row, deletes the blob, and (if the drawing has a public_posts row) also deletes the public post",
+        "Delete button on /drawings shows a confirm dialog before acting",
+        "List updates immediately on success",
+        "Returns 401/403 if not the owner",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "'Send It' confirmation route + publish API (paid)",
+      "description": "As a paid user, I want a 'Send It' button that takes me to a confirmation screen, then publishes my drawing to a public URL.",
+      "acceptanceCriteria": [
+        "'Send It' button on the canvas (and on each drawing in /drawings) navigates to /send/:drawingId (client-side route)",
+        "/send/:drawingId shows a preview (image, text, alt text) and a 'Publish' button. Owner-only",
+        "Clicking 'Publish' calls POST /api/posts with { drawing_id }, which inserts a public_posts row (autoincrementing id) and returns { id }",
+        "On success, redirect to /post/:id",
+        "If the drawing already has a public_posts row, the publish action is a no-op and just redirects to the existing post URL",
+        "Returns 401 / 402 / 403 as appropriate",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Public post page /post/:id",
+      "description": "As any visitor (logged in or not), I want to view a published drawing at a stable URL.",
+      "acceptanceCriteria": [
+        "Client-side route /post/:id fetches GET /api/posts/:id and renders the image, text, and alt text. No author display, no reactions, no comments",
+        "<img> uses the drawing's alt text as its alt attribute",
+        "Page sets appropriate <title> and meta tags (Open Graph image + title) for link previews",
+        "Unknown ID returns a 404 view",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Pricing page + paywall CTA",
+      "description": "As a visitor, I want a pricing page that explains the $5/month plan and lets me start checkout.",
+      "acceptanceCriteria": [
+        "/pricing route describes the free vs. paid tiers and shows 'Subscribe — $5/month'",
+        "Disabled 'Save' / 'Send It' buttons across the app link to /pricing",
+        "If the user is logged out, the pricing page prompts sign-in before checkout",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Autumn checkout integration",
+      "description": "As a logged-in free user, I want to subscribe via Autumn so I can unlock paid features.",
+      "acceptanceCriteria": [
+        "POST /api/billing/checkout creates an Autumn checkout session for the current user and returns the checkout URL",
+        "'Subscribe' button on /pricing calls that endpoint and redirects the browser to the returned URL",
+        "On return from Autumn, the user lands on /account?status=ok (or ?status=cancel on cancel)",
+        "Autumn customer id is persisted on the users row",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill (mocked Autumn in dev is acceptable; document the env vars needed for the live flow)"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Autumn webhook → subscription status",
+      "description": "As a developer, I want subscription state in our DB to stay in sync with Autumn so gating decisions are correct.",
+      "acceptanceCriteria": [
+        "POST /api/billing/webhook validates Autumn's signature header",
+        "Handles at minimum: subscription created/activated → 'active'; canceled → 'canceled'; payment failed → 'past_due'; renewed → 'active'",
+        "Updates users.subscription_status and (if needed) stored Autumn ids",
+        "Returns 200 for handled events, 400 for invalid signature",
+        "Webhook endpoint is reachable from Autumn (configured in netlify.toml / Autumn dashboard — documented in README)",
+        "Typecheck and lint pass"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Paid-feature gating helper",
+      "description": "As a developer, I need one place that decides whether a user is 'paid' so the UI and the API stay consistent.",
+      "acceptanceCriteria": [
+        "isPaid(user) returns true only for subscription_status === 'active' (canceled users keep access until period end — see open question OQ-2)",
+        "All API endpoints that require payment use this helper and return 402 Payment Required on failure",
+        "Frontend has an isPaid derived signal used to gate UI",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Account / settings page",
+      "description": "As a user, I want one page where I can manage my email, passkey, subscription, and account.",
+      "acceptanceCriteria": [
+        "/account route shows: current email, subscription status ('Free' / 'Active — renews YYYY-MM-DD' / 'Canceled — ends YYYY-MM-DD' / 'Past due'), passkey list with 'Register new passkey' and 'Remove' actions",
+        "'Update email' flow: enter new email → magic link sent to new address → on confirm, update users.email",
+        "'Cancel subscription' button hits POST /api/billing/cancel which calls Autumn's cancel-at-period-end API. UI updates to show 'Canceled — ends YYYY-MM-DD'",
+        "'Delete account' button shows a confirm dialog ('Type DELETE to confirm'). On confirm, hits DELETE /api/account which cancels Autumn subscription, deletes all the user's drawings + blobs + public_posts, then deletes the user row, then logs out",
+        "All destructive actions require an active session",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Logout",
+      "description": "As a logged-in user, I want a logout control that clears my session.",
+      "acceptanceCriteria": [
+        "POST /api/auth/logout clears the session cookie",
+        "Logout link is visible in the app header when logged in",
+        "After logout, protected routes redirect to /login",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Legal pages (/privacy, /terms)",
+      "description": "As a paying customer, I want to read the privacy policy and terms of service before subscribing.",
+      "acceptanceCriteria": [
+        "/privacy and /terms are real client-side routes with readable, plain-language content covering the data we collect (email, drawings, payment metadata via Autumn), how it's used, retention, deletion, and contact info",
+        "Footer (or pricing/checkout flow) links to both pages",
+        "Both pages are crawlable (server-rendered or pre-rendered HTML acceptable; at minimum a meaningful <title> and meta description)",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "README / deployment notes",
+      "description": "As a developer (or future me), I need to know which env vars and dashboards to configure to run this in production.",
+      "acceptanceCriteria": [
+        "README documents required env vars: RESEND_API_KEY, AUTUMN_API_KEY, AUTUMN_WEBHOOK_SECRET, session secret, Netlify DB connection, Netlify Blobs store name, app base URL",
+        "README documents how to point Autumn webhooks at the deployed function URL",
+        "README documents the local dev story (mock Autumn / Resend if keys are absent)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

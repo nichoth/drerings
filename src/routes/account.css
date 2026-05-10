@@ -1,0 +1,66 @@
+.route.account {
+    max-width: 42rem;
+    margin-inline: auto;
+
+    & .account-section {
+        border-top: 1px solid var(--input-border);
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+    }
+
+    & .account-success {
+        color: var(--success);
+    }
+
+    & .account-note {
+        color: var(--main-text);
+    }
+
+    & .account-error {
+        color: var(--danger);
+    }
+
+    & dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.5rem 1rem;
+    }
+
+    & dt {
+        color: var(--muted-text);
+    }
+
+    & dd {
+        margin: 0;
+    }
+
+    & label {
+        display: grid;
+        gap: 0.35rem;
+        margin-block: 1rem;
+    }
+
+    & input {
+        border: 1px solid var(--input-border);
+        color: var(--main-text);
+        padding: 0.5rem;
+    }
+
+    & .account-passkeys {
+        list-style: none;
+        padding: 0;
+    }
+
+    & .account-passkeys li {
+        align-items: center;
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+        padding-block: 0.5rem;
+    }
+
+    & .account-delete-confirm {
+        border-left: 4px solid var(--danger);
+        padding-left: 1rem;
+    }
+}

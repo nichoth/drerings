@@ -7,9 +7,12 @@ Drawings for friends.
 <!-- toc -->
 
 - [Develop](#develop)
-- [OAuth Local Testing](#oauth-local-testing)
-  * [Troubleshooting](#troubleshooting)
-  * [Optional env vars](#optional-env-vars)
+- [Deployment](#deployment)
+  * [Required Services](#required-services)
+  * [Environment Variables](#environment-variables)
+  * [Autumn Dashboard](#autumn-dashboard)
+  * [Local Provider Behavior](#local-provider-behavior)
+- [Test](#test)
 
 <!-- tocstop -->
 
@@ -21,75 +24,101 @@ Drawings for friends.
 npm start
 ```
 
-## OAuth Local Testing
+## Deployment
 
-Bluesky OAuth local callbacks should use `127.0.0.1` (not `localhost`).
+Deploy the app as a Netlify site with Functions, Netlify Database, and
+Netlify Blobs enabled. The SPA talks to the backend through the `/api/*`
+redirects that Netlify serves from `netlify/functions`.
 
-1. Start the app with functions:
+### Required Services
+
+- Netlify Database stores users, passkeys, magic-link tokens, saved
+  drawings, and public post records. Apply the migrations in
+  `netlify/database/migrations` before taking traffic.
+- Netlify Blobs stores drawing PNGs in the `drawings` store. Blob keys use
+  `users/<userId>/drawings/<drawingId>.png`.
+- Resend sends magic-link login and email-change confirmation messages.
+- Autumn handles checkout, cancellation, and subscription webhooks.
+
+### Environment Variables
+
+Set these values in the Netlify site environment for production:
+
+- `RESEND_API_KEY`: Resend API key used by magic-link email delivery.
+- `RESEND_FROM_EMAIL`: optional sender address. Defaults to
+  `Drerings <login@drerings.app>`.
+- `AUTUMN_SECRET_KEY`: Autumn API key, sent to Autumn as the bearer token.
+- `AUTUMN_PRODUCT_ID`: Autumn product ID for the paid plan. Defaults to
+  `paid` only in local/test paths.
+- `AUTUMN_WEBHOOK_SECRET`: Svix signing secret from the Autumn webhook
+  endpoint settings.
+- `AUTUMN_API_URL`: optional Autumn API base URL override. Defaults to
+  `https://api.useautumn.com`.
+- `SESSION_SECRET`: long random string used to sign session cookies. Local
+  Netlify development and tests fall back to `dev-session-secret`.
+
+The app base URL is the deployed Netlify site URL. The current code derives it
+from each request origin for login links, checkout success URLs, and checkout
+cancel URLs. No `APP_BASE_URL` variable is read by the app today.
+
+### Autumn Dashboard
+
+Configure the paid product in Autumn with the product id from
+`AUTUMN_PRODUCT_ID`. Checkout returns users to:
+
+```txt
+https://<your-netlify-site>/account?status=ok
+```
+
+The Stripe Checkout cancel URL is passed through Autumn as:
+
+```txt
+https://<your-netlify-site>/account?status=cancel
+```
+
+Create an Autumn webhook endpoint in the Autumn dashboard that points at:
+
+```txt
+https://<your-netlify-site>/api/billing/webhook
+```
+
+Copy that endpoint's Svix signing secret into `AUTUMN_WEBHOOK_SECRET`. The
+Netlify Function validates `svix-id`, `svix-timestamp`, and `svix-signature`
+before updating `users.subscription_status`.
+
+### Local Provider Behavior
+
+Run the Netlify Functions and Vite dev server together:
 
 ```sh
 npm start
 ```
 
-2. Open the app at:
+Open the app at:
 
-```
+```txt
 http://127.0.0.1:8888/login
 ```
 
-3. Start login from the `/login` page. The app now:
-- Starts OAuth at `/api/auth/oauth/start`
-- Uses PKCE (`code_verifier` + `S256` `code_challenge`)
-- Uses OAuth server discovery + PAR (`request_uri`)
-- Finishes callback exchange at `/api/auth/oauth/finish`
+When `NETLIFY_LOCAL=true` and `AUTUMN_SECRET_KEY` is unset, checkout uses a
+mocked checkout URL and redirects back to `/account?status=ok`. This lets the
+pricing and account UI run without a live Autumn account.
 
-### Troubleshooting
-
-- `Cannot GET /oauth/authorize` on a `*.host.bsky.network` URL:
-  this means an old/non-discovered authorize endpoint is being used. The current
-  flow should redirect to `https://bsky.social/oauth/authorize?...&request_uri=...`.
-  Restart local dev server and retry from `http://127.0.0.1:8888/login`.
-
-### Optional env vars
-
-* `BSKY_OAUTH_SCOPE`: override OAuth scope (default: `atproto transition:generic`)
-* `BSKY_OAUTH_CLIENT_NAME`: client metadata `client_name`
-* `BSKY_OAUTH_CLIENT_ORIGIN`: override client metadata origin
-  (useful with ngrok/tunnel)
-
-If Bluesky cannot reach your local client metadata URL, set
-`BSKY_OAUTH_CLIENT_ORIGIN` to your HTTPS tunnel origin and retry.
+Resend is not mocked inside the Netlify Function. Magic-link delivery needs
+`RESEND_API_KEY` for real local email. UI tests and browser smoke checks mock
+auth endpoints when they need a signed-in user without sending email.
 
 ## Test
 
-### Unit tests (faster)
+Run the focused Vitest file while developing a story:
 
 ```sh
+npx vitest run test/us020-readme-deployment-notes.test.ts
+```
+
+Run lint and the full browser test bundle before committing:
+
+```sh
+npm run lint
 npm test
 ```
-
-### E2E tests
-
-```sh
-npm run test:e2e
-```
-
-### Test the block & report buttons
-
-```sh
-npm run test:e2e -- test/feed-route.actions.test.tsx
-```
-
-### the blocked-feed filtering test file
-
-```sh
-npm run test:e2e -- test/state.feed.test.ts
-```
-
-### test the color picker
-
-```sh
-npm run test:e2e -- test/home-route.color-picker.test.ts
-```
-
----

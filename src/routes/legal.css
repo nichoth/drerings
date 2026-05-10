@@ -1,0 +1,25 @@
+.route.legal {
+    max-width: 44rem;
+    margin-inline: auto;
+
+    & article {
+        display: grid;
+        gap: 1.25rem;
+    }
+
+    & .legal-header {
+        border-bottom: 1px solid var(--input-border);
+        padding-bottom: 1rem;
+    }
+
+    & .legal-kicker {
+        color: var(--muted-text);
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+    }
+
+    & h3 {
+        margin-bottom: 0.4rem;
+    }
+}

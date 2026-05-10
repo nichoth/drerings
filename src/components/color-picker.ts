@@ -48,23 +48,25 @@ export const ColorPicker:FunctionComponent<ColorPickerProps> = function (
                 aria-label=${label}
             />
 
-            <div class="color-swatches" role="list" aria-label="Preset colors">
+            <ul class="color-swatches" aria-label="Preset colors">
                 ${SWATCHES.map((color) => html`
-                    <button
-                        type="button"
-                        class=${[
-                            'swatch',
-                            props.value === color ? 'active' : ''
-                        ].filter(Boolean).join(' ')}
-                        style=${`--swatch-color:${color}`}
-                        disabled=${props.disabled}
-                        aria-label=${`Set color ${color}`}
-                        onClick=${() => {
-                            props.onChange(color)
-                        }}
-                    ></button>
+                    <li class="swatch-item">
+                        <button
+                            type="button"
+                            class=${[
+                                'swatch',
+                                props.value === color ? 'active' : ''
+                            ].filter(Boolean).join(' ')}
+                            style=${`--swatch-color:${color}`}
+                            disabled=${props.disabled}
+                            aria-label=${`Set color to ${color}`}
+                            onClick=${() => {
+                                props.onChange(color)
+                            }}
+                        ></button>
+                    </li>
                 `)}
-            </div>
+            </ul>
         </div>
     </div>`
 }

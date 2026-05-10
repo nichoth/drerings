@@ -10,12 +10,24 @@
         margin: 1rem auto;
     }
 
+    & .free-account-warning {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: var(--composer-max-width);
+        margin: 0 auto 1rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid;
+        background-color: var(--middle-gray);
+        line-height: 1.6;
+    }
+
     & .composer-layout {
         width: 100%;
         max-width: var(--composer-max-width);
         margin: 0 auto;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(var(--composer-column-min), 1fr));
+        grid-template-columns:
+            repeat(auto-fit, minmax(var(--composer-column-min), 1fr));
         gap: var(--composer-gap);
         align-items: start;
     }
@@ -33,6 +45,28 @@
         flex-direction: column;
         gap: 0.75rem;
 
+        & .post-text {
+            &.disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+
+                & textarea {
+                    cursor: not-allowed;
+                }
+            }
+        }
+
+        & check-box.eraser {
+            & label {
+                display: flex;
+                align-items: center;
+
+                & span {
+                    margin-bottom: 0;
+                }
+            }
+        }
+
         & label {
             display: block;
             text-align: left;
@@ -41,10 +75,46 @@
         & .controls {
             margin-top: 0.25rem;
             text-align: right;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.5rem;
+
+            & .paid-controls-note {
+                flex-basis: 100%;
+                margin: 0 0 0.25rem;
+                line-height: 1.5;
+            }
         }
 
         & .alt-text-field {
             margin-top: 0.25rem;
+
+            &.disabled {
+                cursor: not-allowed;
+                opacity: 0.4;
+
+                & textarea {
+                    cursor: not-allowed;
+                }
+            }
+        }
+
+        & .textarea-with-counter {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 0.5rem;
+
+            & character-counter {
+                margin-bottom: 0.35rem;
+                justify-self: end;
+
+                & .counter-wrapper {
+                    flex-direction: row-reverse;
+                    gap: 0.2rem;
+                }
+            }
         }
 
         & .brush-size-wrap {
@@ -74,6 +144,21 @@
         & .create-account-link {
             text-align: right;
         }
+
+        & .drawing-save-status,
+        & .drawing-save-error {
+            margin-top: 0;
+            text-align: right;
+            line-height: 1.5;
+        }
+
+        & .drawing-save-status {
+            color: var(--success);
+        }
+
+        & .drawing-save-error {
+            color: var(--danger);
+        }
     }
 
     & textarea {
@@ -100,6 +185,20 @@
 
     & .alt-text {
         min-height: 6.5rem;
+    }
+}
+
+@media (max-width: 42rem) {
+    .route.home {
+        & form {
+            & .textarea-with-counter {
+                grid-template-columns: 1fr;
+
+                & character-counter {
+                    margin-bottom: 0;
+                }
+            }
+        }
     }
 }
 

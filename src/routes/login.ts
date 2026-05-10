@@ -1,186 +1,164 @@
 import { html } from 'htm/preact'
-import { useCallback, useEffect, useRef } from 'preact/hooks'
 import type { FunctionComponent } from 'preact'
-import { useComputed, useSignal } from '@preact/signals'
-import Debug from '@substrate-system/debug'
-import { SubstrateInput } from '@substrate-system/input'
-import '@substrate-system/input/css'
+import { useCallback } from 'preact/hooks'
+import { useSignal } from '@preact/signals'
+import {
+    browserSupportsWebAuthn,
+    startAuthentication
+} from '@simplewebauthn/browser'
+import { type AppState } from '../state.js'
 import { Button } from '../components/button.js'
-import {
-    RequestState,
-    State,
-    type AppState,
-    type RequestFor
-} from '../state.js'
 import './login.css'
-import {
-    BSKY_WEB_ORIGIN,
-    hasOAuthCallback,
-    readOAuthParamsFromLocation
-} from '../util.js'
 
-const debug = Debug('drerings:login')
+export const LoginRoute:FunctionComponent<{
+    state:AppState;
+}> = function ({ state }) {
+    const email = useSignal<string>('')
+    const error = useSignal<string>('')
+    const isSent = useSignal<boolean>(false)
+    const isSending = useSignal<boolean>(false)
+    const passkeyError = useSignal<string>('')
+    const passkeySending = useSignal<boolean>(false)
+    const supportsPasskeys = browserSupportsWebAuthn()
 
-export const LoginRoute:FunctionComponent<{ state:AppState }> = function ({
-    state
-}) {
-    const handle = useSignal('')
-    const request = useSignal<RequestFor<string|null, Error>>(
-        RequestState<string|null>(null)
-    )
-    const isSubmitting = useComputed<boolean>(() => request.value.pending)
-    const errorMessage = useComputed<string|null>(() => {
-        return request.value.error?.message || null
-    })
-    const successMessage = useComputed<string|null>(() => request.value.data)
-    const callbackHandled = useRef(false)
-
-    useEffect(() => {
-        // Keep host consistent with Bluesky local OAuth callback requirements.
-        if (window.location.hostname === 'localhost') {
-            const redirectUrl = new URL(window.location.href)
-            redirectUrl.hostname = '127.0.0.1'
-            window.location.replace(redirectUrl.toString())
-            return
-        }
-
-        const query = readOAuthParamsFromLocation()
-        if (!hasOAuthCallback(query) || callbackHandled.current) return
-
-        callbackHandled.current = true
-
-        const oauthError = State.readOAuthError(query)
-        if (oauthError) {
-            RequestState.error(request, new Error(oauthError))
-            State.clearOAuthQuery()
-            return
-        }
-
-        RequestState.start(request)
-
-        const finishOAuth = async ():Promise<void> => {
-            try {
-                await State.finishOAuth(state, query)
-                RequestState.set(request, 'Signed in with Bluesky')
-                State.clearOAuthQuery()
-
-                setTimeout(() => {
-                    state._setRoute('/')
-                }, 350)
-            } catch (err) {
-                debug('oauth callback error', err)
-                const message = await getErrorMessage(err, 'OAuth login failed')
-                RequestState.error(request, new Error(message))
-            }
-        }
-
-        finishOAuth()
-    }, [state.route.value])
-
-    const startOAuth = useCallback(async (ev:SubmitEvent) => {
+    const submit = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        if (request.value.pending) return
-
-        const normalizedHandle = handle.value.trim()
-        if (!normalizedHandle) {
-            RequestState.error(request, new Error('Enter your Bluesky handle'))
-            return
-        }
-
-        RequestState.start(request)
+        error.value = ''
+        isSending.value = true
 
         try {
-            await State.login(state, normalizedHandle)
-            RequestState.set(request, null)
+            const response = await fetch('/api/auth/magic-link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email.value })
+            })
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}))
+                throw new Error(body.error || 'Unable to send link.')
+            }
+
+            isSent.value = true
         } catch (err) {
-            debug('oauth start error', err)
-            const message = await getErrorMessage(
-                err,
-                'Unable to start OAuth login'
-            )
-            RequestState.error(request, new Error(message))
+            error.value = err instanceof Error ?
+                err.message :
+                'Unable to send link.'
+        } finally {
+            isSending.value = false
         }
     }, [])
 
-    const auth = state.auth.value
-    const callbackQuery = readOAuthParamsFromLocation()
-    const isOAuthCallback = hasOAuthCallback(callbackQuery)
+    const signInWithPasskey = useCallback(async () => {
+        passkeyError.value = ''
+        passkeySending.value = true
 
-    if (auth?.authenticated) {
-        return html`<div class="route login">
-            <h2>Sign In</h2>
-            <p class="already-authenticated">
-                You are already logged in. <a href="/">Go to Dashboard</a>
-            </p>
-        </div>`
-    }
+        try {
+            const optionsResponse = await fetch(
+                '/api/auth/passkey/login/options',
+                { method: 'POST' }
+            )
+
+            if (!optionsResponse.ok) {
+                const body = await optionsResponse.json().catch(() => ({}))
+                throw new Error(body.error || 'Unable to start passkey.')
+            }
+
+            const optionsBody = await optionsResponse.json()
+            const response = await startAuthentication({
+                optionsJSON: optionsBody.options
+            })
+            const verifyResponse = await fetch(
+                '/api/auth/passkey/login/verify',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        challenge_token: optionsBody.challenge_token,
+                        response
+                    })
+                }
+            )
+
+            if (!verifyResponse.ok) {
+                const body = await verifyResponse.json().catch(() => ({}))
+                throw new Error(body.error || 'Passkey sign-in failed.')
+            }
+
+            state.auth.value = {
+                registered: true,
+                authenticated: true
+            }
+        } catch (err) {
+            passkeyError.value = err instanceof Error ?
+                err.message :
+                'Passkey sign-in failed.'
+        } finally {
+            passkeySending.value = false
+        }
+    }, [state])
 
     return html`<div class="route login">
         <h2>Sign In</h2>
-        <p class="login-intro">
-            Login with your Bluesky account using OAuth.
-        </p>
-        <p>
-            Any drawing you post will be visible in bluesky on the account
-            that you signed in with.
-        </p>
 
-        ${errorMessage.value &&
-            html`<p class="error-banner">${errorMessage.value}</p>`}
-        ${successMessage.value &&
-            html`<p class="success-message">${successMessage.value}</p>`}
-
-        ${isOAuthCallback && isSubmitting.value ? html`
-            <p class="login-status">Completing Bluesky login...</p>
-        ` : html`
-            <form class="login-form" onSubmit=${startOAuth}>
-                <${SubstrateInput.TAG}
-                    label="Bluesky Handle"
-                    name="handle"
-                    id="bsky-handle"
-                    placeholder="alice.bsky.app"
-                    value=${handle.value}
-                    onInput=${(ev:Event) => {
-                        handle.value = (ev.target as HTMLInputElement).value
-                    }}
-                    disabled=${isSubmitting.value}
-                    autocomplete="handle"
-                ><//>
-
-                <div class="controls">
-                    <${Button}
-                        type="submit"
-                        isSpinning=${isSubmitting}
-                        disabled=${!handle.value.trim()}
-                    >
-                        Continue with Bluesky
-                    <//>
+        ${isSent.value ?
+            html`<p>
+                Check your email for a sign-in link.
+            </p>` :
+            html`<form onSubmit=${submit}>
+                <div class="input">
+                    <label for="email">Email</label>
+                    <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autocomplete="email"
+                        required
+                        value=${email.value}
+                        onInput=${(ev:InputEvent) => {
+                            const input = ev.currentTarget as HTMLInputElement
+                            email.value = input.value
+                        }}
+                    />
                 </div>
 
-                <p class="create-account-link">
-                    Need a Bluesky account? <a
-                        href="${BSKY_WEB_ORIGIN}/signup"
-                        target="_blank"
-                        rel="noreferrer"
-                    >
-                        Create one
-                    </a>.
-                </p>
-            </form>
-        `}
+                ${error.value ?
+                    html`<p role="alert" class="login-error">
+                        ${error.value}
+                    </p>` :
+                    null
+                }
+
+                <${Button}
+                    type="submit"
+                    isSpinning=${isSending}
+                >
+                    Send link
+                <//>
+            </form>`
+        }
+
+        ${supportsPasskeys ?
+            html`<div class="login-passkey">
+                <${Button}
+                    type="button"
+                    onClick=${signInWithPasskey}
+                    isSpinning=${passkeySending}
+                >
+                    Sign in with passkey
+                <//>
+
+                ${passkeyError.value ?
+                    html`<p role="alert" class="login-error">
+                        ${passkeyError.value}
+                    </p>` :
+                    null
+                }
+            </div>` :
+            null
+        }
     </div>`
-}
-
-async function getErrorMessage (err:unknown, fallback:string):Promise<string> {
-    if (!(err instanceof Error)) {
-        return fallback
-    }
-
-    try {
-        const body = await (err as { response?:Response })
-            .response?.json() as { error?:string }
-        return body?.error || err.message || fallback
-    } catch {
-        return err.message || fallback
-    }
 }
