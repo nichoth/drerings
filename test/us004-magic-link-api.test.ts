@@ -76,6 +76,33 @@ describe('US-004 magic-link API', () => {
         })
     })
 
+    it('does not send mail when the email has no paid account', async () => {
+        vi.resetModules()
+
+        const createMagicLinkLogin = vi.fn(async () => null)
+        const sendMagicLinkEmail = vi.fn(async () => {})
+
+        vi.doMock('../netlify/lib/auth-store', () => {
+            return { createMagicLinkLogin }
+        })
+        vi.doMock('../netlify/lib/resend', () => {
+            return { sendMagicLinkEmail }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/auth/magic-link'
+        )
+        const response = await callHandler(handler, {
+            ...baseEvent,
+            body: JSON.stringify({ email: 'unknown@example.com' })
+        })
+
+        expect(response.statusCode).toBe(200)
+        expect(JSON.parse(response.body || '{}')).toEqual({ ok: true })
+        expect(createMagicLinkLogin).toHaveBeenCalledWith('unknown@example.com')
+        expect(sendMagicLinkEmail).not.toHaveBeenCalled()
+    })
+
     it('rejects invalid magic-link request emails', async () => {
         vi.resetModules()
 

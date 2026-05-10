@@ -17,17 +17,20 @@ export const handler:Handler = async function handler (event) {
 
     try {
         const login = await createMagicLinkLogin(email)
-        const loginUrl = new URL(
-            '/api/auth/magic-link/callback',
-            getRequestOrigin(event)
-        )
 
-        loginUrl.searchParams.set('token', login.token)
+        if (login) {
+            const loginUrl = new URL(
+                '/api/auth/magic-link/callback',
+                getRequestOrigin(event)
+            )
 
-        await sendMagicLinkEmail({
-            email,
-            loginUrl: loginUrl.toString()
-        })
+            loginUrl.searchParams.set('token', login.token)
+
+            await sendMagicLinkEmail({
+                email,
+                loginUrl: loginUrl.toString()
+            })
+        }
 
         return json(200, { ok: true })
     } catch (err) {
