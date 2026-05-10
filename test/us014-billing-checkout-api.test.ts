@@ -35,16 +35,15 @@ async function callHandler (
 }
 
 describe('US-014 billing checkout API', () => {
-    it('creates a checkout session for the current user', async () => {
+    it('creates a checkout session for the submitted email', async () => {
         vi.resetModules()
 
-        const session = {
-            user: {
-                id: 'user-1',
-                email: 'free@example.com',
-                subscription_status: 'free'
-            }
-        }
+        const upsertCheckoutUser = vi.fn(async () => ({
+            id: 'user-1',
+            email: 'buyer@example.com',
+            subscription_status: 'free',
+            autumn_customer_id: null
+        }))
         const createCheckoutSession = vi.fn(async () => {
             return {
                 url: 'https://checkout.stripe.com/pay/cs_test_123',
@@ -52,8 +51,8 @@ describe('US-014 billing checkout API', () => {
             }
         })
 
-        vi.doMock('../netlify/lib/session', () => {
-            return { getSession: async () => session }
+        vi.doMock('../netlify/lib/auth-store', () => {
+            return { upsertCheckoutUser }
         })
         vi.doMock('../netlify/lib/billing', () => {
             return { createCheckoutSession }
@@ -62,25 +61,35 @@ describe('US-014 billing checkout API', () => {
         const { handler } = await import(
             '../netlify/functions/billing/checkout'
         )
-        const response = await callHandler(handler, baseEvent)
+        const response = await callHandler(handler, {
+            ...baseEvent,
+            body: JSON.stringify({ email: ' Buyer@Example.COM ' })
+        })
 
         expect(response.statusCode).toBe(200)
         expect(JSON.parse(response.body || '{}')).toEqual({
             url: 'https://checkout.stripe.com/pay/cs_test_123'
         })
+        expect(upsertCheckoutUser).toHaveBeenCalledWith('buyer@example.com')
         expect(createCheckoutSession).toHaveBeenCalledWith(
-            session.user,
+            {
+                id: 'user-1',
+                email: 'buyer@example.com',
+                subscription_status: 'free',
+                autumn_customer_id: null
+            },
             'https://drerings.app'
         )
     })
 
-    it('returns unauthorized before creating a checkout', async () => {
+    it('rejects requests with no email', async () => {
         vi.resetModules()
 
+        const upsertCheckoutUser = vi.fn()
         const createCheckoutSession = vi.fn()
 
-        vi.doMock('../netlify/lib/session', () => {
-            return { getSession: async () => null }
+        vi.doMock('../netlify/lib/auth-store', () => {
+            return { upsertCheckoutUser }
         })
         vi.doMock('../netlify/lib/billing', () => {
             return { createCheckoutSession }
@@ -89,18 +98,22 @@ describe('US-014 billing checkout API', () => {
         const { handler } = await import(
             '../netlify/functions/billing/checkout'
         )
-        const response = await callHandler(handler, baseEvent)
+        const response = await callHandler(handler, {
+            ...baseEvent,
+            body: JSON.stringify({})
+        })
 
-        expect(response.statusCode).toBe(401)
-        expect(JSON.parse(response.body || '{}').error).toMatch(/sign in/i)
+        expect(response.statusCode).toBe(400)
+        expect(JSON.parse(response.body || '{}').error).toMatch(/email/i)
+        expect(upsertCheckoutUser).not.toHaveBeenCalled()
         expect(createCheckoutSession).not.toHaveBeenCalled()
     })
 
     it('rejects methods other than POST', async () => {
         vi.resetModules()
 
-        vi.doMock('../netlify/lib/session', () => {
-            return { getSession: async () => null }
+        vi.doMock('../netlify/lib/auth-store', () => {
+            return { upsertCheckoutUser: vi.fn() }
         })
         vi.doMock('../netlify/lib/billing', () => {
             return { createCheckoutSession: vi.fn() }
