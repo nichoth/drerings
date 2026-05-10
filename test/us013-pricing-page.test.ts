@@ -59,25 +59,25 @@ describe('US-013 pricing page and paid CTAs', () => {
         })).toBeTruthy()
     })
 
-    it('prompts logged-out visitors to sign in before checkout', () => {
+    it('lets visitors enter email and start checkout without signing in', () => {
         const state = State()
         const Route = routeFor('/pricing', state)
 
         render(h(Route, { state }))
 
-        const checkout = screen.getByRole('region', {
-            name: 'Checkout'
-        })
-        const signIn = within(checkout).getByRole('link', {
-            name: /sign in/i
-        }) as HTMLAnchorElement
+        const checkout = screen.getByRole('region', { name: 'Checkout' })
+
+        expect(within(checkout).queryByText(/sign in before checkout/i))
+            .toBeNull()
+
+        const emailInput = within(checkout)
+            .getByLabelText(/email/i) as HTMLInputElement
         const subscribe = within(checkout).getByRole('button', {
             name: 'Subscribe - $5/month'
         }) as HTMLButtonElement
 
-        expect(signIn.getAttribute('href')).toBe('/login')
-        expect(subscribe.disabled).toBe(true)
-        expect(checkout.textContent).toMatch(/sign in before checkout/i)
+        expect(emailInput.type).toBe('email')
+        expect(subscribe.disabled).toBe(false)
     })
 
     it('links disabled drawing controls to pricing', () => {

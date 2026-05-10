@@ -15,8 +15,8 @@ describe('US-014 checkout UI', () => {
         vi.unstubAllGlobals()
     })
 
-    it('starts checkout from the signed-in pricing CTA', async () => {
-        const state = signedInState()
+    it('starts checkout from the pricing CTA after email entry', async () => {
+        const state = State()
         const assign = vi.fn()
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({
@@ -37,13 +37,20 @@ describe('US-014 checkout UI', () => {
 
         render(h(Route, { state }))
 
+        const emailInput = screen.getByLabelText(/email/i) as HTMLInputElement
+        fireEvent.input(emailInput, {
+            target: { value: 'buyer@example.com' }
+        })
+
         await fireEvent.click(screen.getByRole('button', {
             name: 'Subscribe - $5/month'
         }))
 
         await waitFor(() => {
             expect(fetcher).toHaveBeenCalledWith('/api/billing/checkout', {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: 'buyer@example.com' })
             })
             expect(assign).toHaveBeenCalledWith(
                 'https://checkout.stripe.com/pay/cs_test_123'
@@ -52,7 +59,7 @@ describe('US-014 checkout UI', () => {
     })
 
     it('shows checkout errors inline', async () => {
-        const state = signedInState()
+        const state = State()
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({
                 error: 'Checkout is not configured.'
@@ -67,6 +74,11 @@ describe('US-014 checkout UI', () => {
         const Route = routeFor('/pricing', state)
 
         render(h(Route, { state }))
+
+        fireEvent.input(
+            screen.getByLabelText(/email/i),
+            { target: { value: 'buyer@example.com' } }
+        )
 
         await fireEvent.click(screen.getByRole('button', {
             name: 'Subscribe - $5/month'

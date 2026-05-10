@@ -1,24 +1,32 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
 import { useCallback } from 'preact/hooks'
+import { useSignal } from '@preact/signals'
 import { Button } from '../components/button'
 import { State, type AppState } from '../state'
 import './pricing.css'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const PricingRoute:FunctionComponent<{
     state:AppState;
 }> = function PricingRoute ({ state }) {
     const currentUser = state.currentUser.value
-    const startCheckout = useCallback(async () => {
-        await State.StartCheckout(state).catch(() => {})
+    const email = useSignal<string>(currentUser?.email || '')
+
+    const startCheckout = useCallback(async (ev:Event) => {
+        ev.preventDefault()
+        const trimmed = email.value.trim()
+        if (!EMAIL_RE.test(trimmed)) return
+        await State.StartCheckout(state, trimmed).catch(() => {})
     }, [state])
 
     return html`<div class="route pricing">
         <section class="pricing-intro">
             <h2>Pricing</h2>
             <p>
-                Draw for free. Subscribe when you want to share them with the world.
-                sharing.
+                Draw for free. Subscribe when you want to share them with the
+                world.
             </p>
         </section>
 
@@ -48,24 +56,28 @@ export const PricingRoute:FunctionComponent<{
             class="pricing-checkout"
             aria-label="Checkout"
         >
-            ${currentUser ? html`
-                <p>
-                    You are signed in as ${currentUser.email}.
-                </p>
-            ` : html`
-                <p>
-                    Please <a href="/login">sign in</a> before checkout.
-                </p>
-            `}
+            <form onSubmit=${startCheckout} class="pricing-checkout-form">
+                <label for="checkout-email">Email</label>
+                <input
+                    id="checkout-email"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    value=${email.value}
+                    onInput=${(ev:InputEvent) => {
+                        const input = ev.currentTarget as HTMLInputElement
+                        email.value = input.value
+                    }}
+                />
 
-            <${Button}
-                type="button"
-                disabled=${!currentUser}
-                isSpinning=${state.checkoutLoading}
-                onClick=${currentUser ? startCheckout : undefined}
-            >
-                Subscribe - $5/month
-            <//>
+                <${Button}
+                    type="submit"
+                    isSpinning=${state.checkoutLoading}
+                >
+                    Subscribe - $5/month
+                <//>
+            </form>
 
             ${state.checkoutError.value ?
                 html`<p role="alert" class="pricing-error">
