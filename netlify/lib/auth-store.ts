@@ -44,6 +44,25 @@ export async function createMagicLinkLogin (
     }
 }
 
+export async function upsertCheckoutUser (
+    email:string
+):Promise<SessionUser> {
+    const db = getDatabase()
+    const result = await db.pool.query<SessionUser>(`
+        INSERT INTO users (email)
+        VALUES ($1)
+        ON CONFLICT (email)
+        DO UPDATE SET email = EXCLUDED.email
+        RETURNING
+            id,
+            email,
+            subscription_status,
+            autumn_customer_id
+    `, [email])
+
+    return result.rows[0]
+}
+
 export async function consumeMagicLinkToken (
     token:string
 ):Promise<SessionUser|null> {
