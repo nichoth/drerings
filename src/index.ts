@@ -120,6 +120,12 @@ export const Drerings:FunctionComponent = function Drerings () {
             </a>
         </div>
 
+        <div>
+            <a href="/privacy">Privacy</a>
+            ${' '}
+            <a href="/terms">Terms</a>
+        </div>
+
         <iframe src="https://github.com/sponsors/nichoth/button" 
             title="Sponsor nichoth" 
             height="32" 

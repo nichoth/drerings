@@ -10,6 +10,7 @@ import { SendRoute } from './send.js'
 import { PostRoute } from './post.js'
 import { PricingRoute } from './pricing.js'
 import { AccountRoute } from './account.js'
+import { PrivacyRoute, TermsRoute } from './legal.js'
 
 export default function _Router (
     _state:AppState
@@ -54,6 +55,14 @@ export default function _Router (
 
     router.addRoute('/account', () => {
         return AccountRoute
+    })
+
+    router.addRoute('/privacy', () => {
+        return PrivacyRoute
+    })
+
+    router.addRoute('/terms', () => {
+        return TermsRoute
     })
 
     return router

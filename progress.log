@@ -82,6 +82,8 @@
 - Logout is server-backed through `POST /api/auth/logout`; frontend callers
   should use `State.Logout` so shared auth/account state is cleared and
   protected routes redirect to `/login`.
+- Static informational routes can set document title and meta description in
+  the route component with `useEffect` when the SPA route owns page metadata.
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
@@ -661,6 +663,35 @@ Thread: https://ampcode.com/threads/
     leave the httpOnly session cookie active.
   - Protected-route logout redirects should be decided before clearing state,
     because `clearAuthState` also removes account and drawing context.
+  - The Browser plugin Node REPL surface was not exposed in this session, so
+    the required browser check used the established Playwright fallback.
+---
+## 2026-05-10 02:24 PDT - US-019
+Thread: https://ampcode.com/threads/
+- Added `/privacy` and `/terms` client routes with readable plain-language
+  policy and terms content covering email, drawings, Autumn payment metadata,
+  retention, deletion, and contact details.
+- Added route-owned document title and meta description updates for both
+  legal pages.
+- Added Privacy and Terms links to the app footer.
+- Added US-019 regression coverage for route registration, required legal
+  topics, title/meta updates, and footer links.
+- Marked US-019 as passing in `specs/prd.json`.
+- Files changed: `src/routes/legal.ts`, `src/routes/legal.css`,
+  `src/routes/index.ts`, `src/index.ts`,
+  `test/us019-legal-pages.test.ts`, `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us019-legal-pages.test.ts`;
+  `npx vitest run test/us019-legal-pages.test.ts
+  test/us013-pricing-page.test.ts`; `npx tsc --noEmit`;
+  `npm run lint`; `npm test`; Playwright browser fallback against
+  `http://127.0.0.1:8888/privacy` and `/terms` confirmed headings, policy
+  content, footer links, title/meta updates, and no page or console errors
+  with `/api/whoami` mocked as an authenticated free user.
+- **Learnings for future iterations:**
+  - Static client routes can own their document title and meta description
+    updates with a small route-level `useEffect`.
+  - Footer links currently live directly in `src/index.ts`, not in
+    `src/routes/index.ts`.
   - The Browser plugin Node REPL surface was not exposed in this session, so
     the required browser check used the established Playwright fallback.
 ---
