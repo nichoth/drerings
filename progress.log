@@ -89,6 +89,8 @@
 - Vite uses `_public` as `publicDir` and writes builds to `public`; static
   assets that must survive builds should exist in `_public`, with generated
   `public` copies committed when required by a story.
+- Static HTML metadata belongs in source `index.html`; update
+  `public/index.html` too when a story validates the current built output.
 
 ## 2026-05-11 13:58 PDT - US-022
 Thread: https://ampcode.com/threads/
@@ -761,4 +763,24 @@ Thread: https://ampcode.com/threads/
   - Local Autumn checkout is mocked when `NETLIFY_LOCAL=true` and
     `AUTUMN_SECRET_KEY` is unset, but Resend email delivery is not mocked in
     the Netlify Function.
+---
+## 2026-05-11 14:11 PDT - US-023
+Thread: https://ampcode.com/threads/
+- Added a US-023 Vitest contract that parses `public/index.html` and checks
+  for the manifest link, Apple touch icon, and a theme-color value matching
+  `public/manifest.webmanifest`.
+- Added the PWA metadata tags to source `index.html` and current built
+  `public/index.html`.
+- Marked US-023 as passing in `specs/prd.json`.
+- Files changed: `index.html`, `public/index.html`,
+  `test/us023-pwa-html-tags.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us023-pwa-html-tags.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright CDP
+  fallback against `http://127.0.0.1:8888/` confirmed the manifest URL,
+  zero manifest parse errors, matching theme color, and zero installability
+  errors.
+- **Learnings for future iterations:**
+  - Source HTML metadata lives in root `index.html`, while some PWA stories
+    validate the checked-in `public/index.html` built output directly.
 ---

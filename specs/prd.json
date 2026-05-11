@@ -359,7 +359,7 @@
         "Verify in browser using dev-browser skill: Chrome DevTools Application > Manifest panel shows the manifest parsed with no errors and reports the app as installable"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
