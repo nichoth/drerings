@@ -91,6 +91,25 @@
   `public` copies committed when required by a story.
 - Static HTML metadata belongs in source `index.html`; update
   `public/index.html` too when a story validates the current built output.
+- Share UI should read the derived `state.canShare` signal; do not add
+  route-local subscription-status checks for share gates.
+
+## 2026-05-11 14:20 PDT - US-024
+Thread: https://ampcode.com/threads/
+- Added `state.canShare` as a derived `@preact/signals` value in
+  `src/state.ts`, true only for active subscribers.
+- Added state-flow coverage for logged-out, free, active, canceled, and
+  past-due share eligibility.
+- Marked US-024 as passing in `specs/prd.json`.
+- Files changed: `src/state.ts`, `test/state.flows.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/state.flows.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Share gating now has its own frontend source of truth:
+    `state.canShare`. Use it for share UI instead of checking
+    `state.currentUser.value?.subscription_status` in routes.
+---
 
 ## 2026-05-11 13:58 PDT - US-022
 Thread: https://ampcode.com/threads/

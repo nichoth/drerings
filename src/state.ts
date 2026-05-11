@@ -69,6 +69,7 @@ export function State (): {
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
     isPaid:ReadonlySignal<boolean>;
+    canShare:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
     account:Signal<AccountDetails|null>;
     accountLoading:Signal<boolean>;
@@ -107,6 +108,9 @@ export function State (): {
             return !!state.auth.value?.authenticated
         }),
         isPaid: computed<boolean>(() => {
+            return state.currentUser.value?.subscription_status === 'active'
+        }),
+        canShare: computed<boolean>(() => {
             return state.currentUser.value?.subscription_status === 'active'
         })
     }
