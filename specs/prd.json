@@ -408,7 +408,7 @@
         "Verify in browser using dev-browser skill: on a Chromium browser, clicking Share invokes navigator.share with the correct payload (capture the call via a spy or console log)"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

@@ -96,6 +96,9 @@
 - Published-post share affordances belong on the `/post/:id` route and
   should require both `state.canShare.value` and a loaded `PublicPost.id`;
   `/send/:drawingId` is the unpublished confirmation flow.
+- Native share fallback handoff uses the `drerings:share-fallback` browser
+  event with `{ url }` detail; future fallback UI should listen for that
+  event instead of duplicating Web Share feature checks.
 
 ## 2026-05-11 14:24 PDT - US-025
 Thread: https://ampcode.com/threads/
@@ -125,7 +128,6 @@ Thread: https://ampcode.com/threads/
     accessible names on shared button controls without bypassing the
     component.
 ---
-
 ## 2026-05-11 14:20 PDT - US-024
 Thread: https://ampcode.com/threads/
 - Added `state.canShare` as a derived `@preact/signals` value in
@@ -834,4 +836,35 @@ Thread: https://ampcode.com/threads/
 - **Learnings for future iterations:**
   - Source HTML metadata lives in root `index.html`, while some PWA stories
     validate the checked-in `public/index.html` built output directly.
+---
+## 2026-05-11 14:47 PDT - US-026
+Thread: https://ampcode.com/threads/
+- Wired the paid public-post Share button to native Web Share.
+- Built the absolute public-post URL from `window.location.origin` and the
+  loaded `PublicPost.id`.
+- Added shared route-level share copy: title `A drering for you` and text
+  `Check out this drering:`.
+- Added a fallback handoff event for unsupported native share cases.
+- Swallowed native-share `AbortError` dismissals and logged unexpected share
+  errors.
+- Added focused US-026 route coverage for payloads, click-only invocation,
+  fallback handoff, and error handling.
+- Marked US-026 as passing in `specs/prd.json`.
+- Files changed: `src/routes/post.ts`, `test/us026-native-share.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us026-native-share.test.ts`;
+  `npx vitest run test/us026-native-share.test.ts
+  test/us025-share-button-ui.test.ts test/us012-public-post-ui.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
+  fallback against `http://127.0.0.1:5173/post/42` confirmed a real click
+  called
+  `navigator.canShare({ url })` and `navigator.share({ url, title, text })`
+  with the expected `http://127.0.0.1:5173/post/42` URL.
+- Browser verification used a Playwright fallback because the Browser
+  plugin's Node REPL control tool was unavailable in this session.
+- **Learnings for future iterations:**
+  - Keep native share copy in one route-level constant so future copy changes
+    do not drift between tests and UI behavior.
+  - US-027 can attach fallback UI to the `drerings:share-fallback` event,
+    which already carries the absolute public-post URL.
 ---

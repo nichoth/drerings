@@ -10,6 +10,13 @@ import {
 } from '../state'
 import './post.css'
 
+const SHARE_COPY = {
+    title: 'A drering for you',
+    text: 'Check out this drering:'
+} as const
+
+const SHARE_FALLBACK_EVENT = 'drerings:share-fallback'
+
 export const PostRoute:FunctionComponent<{
     state:AppState
 }> = function PostRoute ({ state }) {
@@ -49,7 +56,11 @@ export const PostRoute:FunctionComponent<{
         })
     }, [postId])
 
-    const share = useCallback(() => {}, [])
+    const share = useCallback(async () => {
+        if (!post.value) return
+
+        await sharePublicPost(post.value)
+    }, [])
 
     if (error.value && !isLoading.value) {
         return html`<div class="route post">
@@ -119,4 +130,38 @@ function setMeta (property:string, content:string):void {
     }
 
     tag.setAttribute('content', content)
+}
+
+async function sharePublicPost (post:PublicPost):Promise<void> {
+    const url = publicPostUrl(post.id)
+
+    if (!navigator.share || navigator.canShare?.({ url }) !== true) {
+        openShareFallback(url)
+        return
+    }
+
+    try {
+        await navigator.share({
+            url,
+            ...SHARE_COPY
+        })
+    } catch (err) {
+        if (isAbortError(err)) return
+
+        console.error('Unable to share drawing.', err)
+    }
+}
+
+function publicPostUrl (id:number):string {
+    return `${window.location.origin}/post/${id}`
+}
+
+function openShareFallback (url:string):void {
+    window.dispatchEvent(new CustomEvent(SHARE_FALLBACK_EVENT, {
+        detail: { url }
+    }))
+}
+
+function isAbortError (err:unknown):boolean {
+    return err instanceof DOMException && err.name === 'AbortError'
 }
