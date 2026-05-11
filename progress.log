@@ -86,6 +86,30 @@
   protected routes redirect to `/login`.
 - Static informational routes can set document title and meta description in
   the route component with `useEffect` when the SPA route owns page metadata.
+- Vite uses `_public` as `publicDir` and writes builds to `public`; static
+  assets that must survive builds should exist in `_public`, with generated
+  `public` copies committed when required by a story.
+
+## 2026-05-11 13:58 PDT - US-022
+Thread: https://ampcode.com/threads/
+- Added `public/manifest.webmanifest` with the Drerings PWA identity,
+  standalone display mode, existing global color-token values, and generated
+  icon references.
+- Added `_public/manifest.webmanifest` so the manifest is preserved by the
+  Vite build path that copies `_public` into `public`.
+- Added a US-022 Vitest contract covering manifest identity, color reuse, and
+  the icon list.
+- Marked US-022 as passing in `specs/prd.json`.
+- Files changed: `public/manifest.webmanifest`,
+  `_public/manifest.webmanifest`, `test/us022-web-manifest.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us022-web-manifest.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Vite is configured with `publicDir: '_public'` and
+    `build.outDir: './public'`, so source static assets belong in `_public`
+    even when a story explicitly validates the built `public` copy.
+---
 
 ## 2026-05-11 13:48 PDT - US-021
 Thread: https://ampcode.com/threads/
