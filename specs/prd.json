@@ -390,7 +390,7 @@
         "Verify in browser using dev-browser skill: button appears for mocked paid + published state and is absent for free or unpublished states"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

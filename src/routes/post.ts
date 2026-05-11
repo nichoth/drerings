@@ -1,7 +1,8 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
-import { useEffect } from 'preact/hooks'
+import { useCallback, useEffect } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
+import { Button } from '../components/button'
 import {
     State,
     type AppState,
@@ -19,6 +20,9 @@ export const PostRoute:FunctionComponent<{
         state.route.value :
         location.pathname
     const postId = postIdFromPath(routePath)
+    const canShowShare = !!post.value &&
+        state.canShare.value &&
+        typeof post.value.id === 'number'
 
     useEffect(() => {
         if (!postId) {
@@ -45,6 +49,8 @@ export const PostRoute:FunctionComponent<{
         })
     }, [postId])
 
+    const share = useCallback(() => {}, [])
+
     if (error.value && !isLoading.value) {
         return html`<div class="route post">
             <h2>Post not found</h2>
@@ -64,6 +70,15 @@ export const PostRoute:FunctionComponent<{
                     alt=${post.value.alt_text}
                 />
                 <p>${post.value.text}</p>
+                ${canShowShare ? html`
+                    <${Button}
+                        type="button"
+                        aria-label="Share drawing"
+                        onClick=${share}
+                    >
+                        Share
+                    <//>
+                ` : null}
             </article>
         ` : null}
     </div>`

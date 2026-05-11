@@ -93,6 +93,38 @@
   `public/index.html` too when a story validates the current built output.
 - Share UI should read the derived `state.canShare` signal; do not add
   route-local subscription-status checks for share gates.
+- Published-post share affordances belong on the `/post/:id` route and
+  should require both `state.canShare.value` and a loaded `PublicPost.id`;
+  `/send/:drawingId` is the unpublished confirmation flow.
+
+## 2026-05-11 14:24 PDT - US-025
+Thread: https://ampcode.com/threads/
+- Added a gated Share button to `src/routes/post.ts` for paid users viewing
+  a loaded public post.
+- Reused `src/components/button.ts` so the Share control is a real styled
+  `<button>` with `aria-label="Share drawing"` and the existing focus state.
+- Added route coverage for paid + published, free + published, and paid +
+  unpublished send-view states.
+- Marked US-025 as passing in `specs/prd.json`.
+- Files changed: `src/routes/post.ts`, `src/components/button.ts`,
+  `test/us025-share-button-ui.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us025-share-button-ui.test.ts`;
+  `npx vitest run test/us025-share-button-ui.test.ts
+  test/us012-public-post-ui.test.ts test/us011-send-route-ui.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- Browser verification used a Playwright fallback because the Browser
+  plugin's Node REPL control tool was unavailable; mocked checks found 1
+  Share button for paid + published, 0 for free + published, and 0 for
+  paid + unpublished.
+- **Learnings for future iterations:**
+  - The public share button should live on the public post route after a
+    post id exists; the send route remains pre-publish and should not expose
+    share UI.
+  - `ButtonProps` now accepts `aria-label`, so route components can keep
+    accessible names on shared button controls without bypassing the
+    component.
+---
 
 ## 2026-05-11 14:20 PDT - US-024
 Thread: https://ampcode.com/threads/
