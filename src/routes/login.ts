@@ -105,7 +105,7 @@ export const LoginRoute:FunctionComponent<{
         <h2>Sign In</h2>
 
         <p class="login-help">
-            New here? <a href="/pricing">Subscribe to create an account</a>.
+            New here? <a href="/pricing">Create an account to share your work</a>.
         </p>
 
         ${isSent.value ?

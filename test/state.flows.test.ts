@@ -17,6 +17,40 @@ describe('state auth baseline', () => {
         expect(state.isAuthed.value).toBe(false)
     })
 
+    it('canShare only allows active paid users', () => {
+        const state = State()
+
+        expect(state.canShare.value).toBe(false)
+
+        state.currentUser.value = {
+            id: 'user-free',
+            email: 'free@example.com',
+            subscription_status: 'free'
+        }
+        expect(state.canShare.value).toBe(false)
+
+        state.currentUser.value = {
+            id: 'user-active',
+            email: 'active@example.com',
+            subscription_status: 'active'
+        }
+        expect(state.canShare.value).toBe(true)
+
+        state.currentUser.value = {
+            id: 'user-canceled',
+            email: 'canceled@example.com',
+            subscription_status: 'canceled'
+        }
+        expect(state.canShare.value).toBe(false)
+
+        state.currentUser.value = {
+            id: 'user-past-due',
+            email: 'past-due@example.com',
+            subscription_status: 'past_due'
+        }
+        expect(state.canShare.value).toBe(false)
+    })
+
     it('fetchAuthStatus keeps state unauthenticated', async () => {
         const state = State()
         state.auth.value = {

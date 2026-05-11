@@ -7,6 +7,7 @@ Drawings for friends.
 <!-- toc -->
 
 - [Develop](#develop)
+- [Installability And Share Gate](#installability-and-share-gate)
 - [Deployment](#deployment)
   * [Required Services](#required-services)
   * [Environment Variables](#environment-variables)
@@ -23,6 +24,21 @@ Drawings for friends.
 ```sh
 npm start
 ```
+
+## Installability And Share Gate
+
+Drerings is installable as a PWA. The app manifest lives at
+`public/manifest.webmanifest` and declares the standalone display mode,
+theme colors, and the icon set used by install prompts.
+
+Sharing is a paid feature. The frontend derives share eligibility from
+`state.canShare`, which is true only when the current user's
+`subscription_status` is `active`. Public-post share UI should use that
+signal instead of duplicating subscription checks in route components.
+
+The share flow uses the Web Share API when the browser supports it, then
+falls back to copy-link and PNG download actions. See `docs/SMS.md` for the
+underlying browser and SMS/Messages API rationale.
 
 ## Deployment
 

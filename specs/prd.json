@@ -318,6 +318,131 @@
       "priority": 20,
       "passes": true,
       "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Generate PWA icon PNGs from existing icon source",
+      "description": "As a developer, I need PWA icon assets at the standard sizes so the manifest can reference them.",
+      "acceptanceCriteria": [
+        "public/icon-192.png exists at 192x192, sourced from existing public/icon.png",
+        "public/icon-512.png exists at 512x512, sourced from existing public/icon.png",
+        "public/icon-512-maskable.png exists at 512x512 with a maskable safe-zone crop of public/icon.png",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Add web app manifest at public/manifest.webmanifest",
+      "description": "As a mobile user, I want a PWA manifest so the browser knows how to install Drerings to my home screen.",
+      "acceptanceCriteria": [
+        "public/manifest.webmanifest exists with name 'Drerings', short_name 'Drerings', start_url '/', scope '/', display 'standalone'",
+        "background_color and theme_color reuse existing color variables defined in _variables.css / _vars.css — no new color variables introduced",
+        "icons array references public/icon-192.png (192x192, purpose 'any'), public/icon-512.png (512x512, purpose 'any'), and public/icon-512-maskable.png (512x512, purpose 'maskable')",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Wire manifest and PWA meta tags into public/index.html",
+      "description": "As a mobile user, I want the page to advertise the manifest and PWA metadata so the browser shows the correct install prompt and icon.",
+      "acceptanceCriteria": [
+        "public/index.html includes <link rel=\"manifest\" href=\"/manifest.webmanifest\" />",
+        "public/index.html includes <meta name=\"theme-color\" content=\"...\" /> matching the theme_color in the manifest",
+        "public/index.html includes <link rel=\"apple-touch-icon\" href=\"/icon-192.png\" />",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill: Chrome DevTools Application > Manifest panel shows the manifest parsed with no errors and reports the app as installable"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Add canShare derived signal in src/state.ts",
+      "description": "As a developer, I want a single source of truth for 'can this user share?' so every share UI uses the same paid-gate.",
+      "acceptanceCriteria": [
+        "src/state.ts exposes a canShare derived signal following existing @preact/signals patterns in that file",
+        "canShare is true only when the current user's subscription_status === 'active'; false in all other cases (logged out, free, canceled, past_due)",
+        "No new color variables, no inline subscription checks introduced elsewhere",
+        "Typecheck and lint pass"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Render Share button on published-drawing view (paid + published only)",
+      "description": "As a paid user viewing my published drawing, I want a Share button so I can send the link to a friend.",
+      "acceptanceCriteria": [
+        "Share button rendered on the published-drawing UI; placement confirmed against src/routes/post.ts and src/routes/send.ts during implementation",
+        "Button is only rendered when canShare is true AND the drawing has a public_posts.id (is published); free users and unpublished states render no button at all in the DOM",
+        "Button is a real <button> element with aria-label 'Share drawing' and a visible focus state",
+        "Reuses existing src/components/button.ts styles and CSS variables; no new color variables introduced",
+        "Click handler is a stub at this stage (full wiring lands in US-026)",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill: button appears for mocked paid + published state and is absent for free or unpublished states"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Wire Share button to navigator.share with public-post URL",
+      "description": "As a paid user tapping Share, I want the OS share sheet to open with a link to my public post pre-filled.",
+      "acceptanceCriteria": [
+        "Click handler builds an absolute public-post URL as window.location.origin + '/post/' + public_posts.id",
+        "Handler calls navigator.share({ url, title, text }) only when navigator.canShare?.({ url }) is truthy",
+        "title is 'A drering for you' and text is a short human line (e.g. 'Check out this drering:'); copy is defined in one place for easy change and does not duplicate the URL inside text",
+        "AbortError (user dismissed the sheet) is swallowed silently; other errors are logged to the console",
+        "Handler runs only on user click (no programmatic invocation on load)",
+        "If navigator.canShare is falsy or navigator.share is undefined, the handler delegates to the fallback UI from US-027 (a stub call here is acceptable; full UI lands in US-027)",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill: on a Chromium browser, clicking Share invokes navigator.share with the correct payload (capture the call via a spy or console log)"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Add fallback share panel: copy link + download PNG",
+      "description": "As a paid user on a desktop browser without navigator.share, I still want a useful way to send my drawing.",
+      "acceptanceCriteria": [
+        "When navigator.share is unavailable or canShare({ url }) is falsy, clicking Share opens a popover or inline panel with two actions: 'Copy link' and 'Download PNG'",
+        "'Copy link' calls navigator.clipboard.writeText with the public-post URL and shows a transient 'Copied' confirmation near the button",
+        "'Download PNG' triggers a download of the drawing image named 'drering-<id>.png' (reuse any existing PNG export/fetch helper if one exists before adding new code)",
+        "If navigator.clipboard is also unavailable, the URL is shown in a selectable read-only text input as a last-resort fallback",
+        "Both actions are keyboard accessible; the panel dismisses on Escape or when focus leaves",
+        "Panel is rendered inside the same canShare gate; free users never see this UI",
+        "Reuses existing button styles and color variables; no new color variables introduced",
+        "Typecheck and lint pass",
+        "Verify in browser using dev-browser skill: simulate navigator.share = undefined and confirm Copy link writes to the clipboard and Download PNG initiates a download"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Document PWA installability and share gate in README",
+      "description": "As a future contributor, I want to know the app is a PWA and how the share gate works without reading every file.",
+      "acceptanceCriteria": [
+        "README.md mentions the app is installable as a PWA and points to public/manifest.webmanifest",
+        "README (or a short doc under docs/) explains that share is gated to subscription_status === 'active' and links to docs/SMS.md for the underlying API rationale",
+        "No test file added for docs (per project rule: don't write tests for docs)",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
     }
   ]
 }

@@ -5,6 +5,7 @@ import { type Signal, useSignal } from '@preact/signals'
 import './button.css'
 
 interface ButtonProps {
+    'aria-label'?:string;
     'aria-describedby'?:string;
     onClick?:(ev:MouseEvent)=>void|Promise<void>;
     isSpinning?:Signal<boolean>;
