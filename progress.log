@@ -99,6 +99,9 @@
 - Native share fallback handoff uses the `drerings:share-fallback` browser
   event with `{ url }` detail; future fallback UI should listen for that
   event instead of duplicating Web Share feature checks.
+- The published-post fallback share panel lives in `src/routes/post.ts`; it
+  listens for `drerings:share-fallback` so native share detection stays
+  isolated in the share click handler.
 
 ## 2026-05-11 14:24 PDT - US-025
 Thread: https://ampcode.com/threads/
@@ -127,6 +130,38 @@ Thread: https://ampcode.com/threads/
   - `ButtonProps` now accepts `aria-label`, so route components can keep
     accessible names on shared button controls without bypassing the
     component.
+---
+## 2026-05-11 15:16 PDT - US-027
+Thread: https://ampcode.com/threads/
+- Added a paid-only fallback share panel on the published post route with
+  Copy link and Download PNG actions.
+- Wired Copy link through `navigator.clipboard.writeText`, showing a
+  transient Copied status, with a readonly URL input when clipboard support
+  is unavailable.
+- Wired Download PNG to create a `drering-<id>.png` download from the loaded
+  public post image.
+- Added Escape and external-focus dismissal for the fallback panel while
+  preserving the `drerings:share-fallback` handoff from US-026.
+- Marked US-027 as passing in `specs/prd.json`.
+- Files changed: `src/routes/post.ts`, `src/routes/post.css`,
+  `test/us027-share-fallback.test.ts`, `specs/prd.json`, and
+  `progress.log`.
+- Verification: `npx vitest run test/us027-share-fallback.test.ts`;
+  `npx vitest run test/us027-share-fallback.test.ts
+  test/us026-native-share.test.ts test/us025-share-button-ui.test.ts
+  test/us012-public-post-ui.test.ts`; `npx tsc --noEmit`;
+  `npm run lint`; `npm test`.
+- Browser verification used a Playwright fallback because the Browser
+  plugin's Node REPL control tool was unavailable; with `navigator.share`
+  disabled on `/post/42`, Copy link wrote the absolute post URL, Download
+  PNG prepared `drering-42.png`, and no page console errors were observed.
+- **Learnings for future iterations:**
+  - Keep the Web Share API detection in the share click handler; fallback UI
+    should react to the `drerings:share-fallback` event so native and desktop
+    fallback paths do not duplicate URL construction.
+  - The public post route already has the loaded `PublicPost.image`, so
+    fallback download can use that data URL directly without adding another
+    API or Blob helper.
 ---
 ## 2026-05-11 14:20 PDT - US-024
 Thread: https://ampcode.com/threads/

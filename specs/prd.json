@@ -427,7 +427,7 @@
         "Verify in browser using dev-browser skill: simulate navigator.share = undefined and confirm Copy link writes to the clipboard and Download PNG initiates a download"
       ],
       "priority": 27,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
