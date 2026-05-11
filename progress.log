@@ -102,6 +102,9 @@
 - The published-post fallback share panel lives in `src/routes/post.ts`; it
   listens for `drerings:share-fallback` so native share detection stays
   isolated in the share click handler.
+- Contributor-facing project behavior belongs in README sections near the
+  top-level setup/deployment material; keep route-level implementation
+  details in docs only when the README needs a deeper supporting link.
 
 ## 2026-05-11 14:24 PDT - US-025
 Thread: https://ampcode.com/threads/
@@ -130,6 +133,21 @@ Thread: https://ampcode.com/threads/
   - `ButtonProps` now accepts `aria-label`, so route components can keep
     accessible names on shared button controls without bypassing the
     component.
+---
+## 2026-05-11 15:20 PDT - US-028
+Thread: https://ampcode.com/threads/
+- Documented Drerings as an installable PWA and pointed contributors to
+  `public/manifest.webmanifest`.
+- Documented that share eligibility is gated through `state.canShare`, which
+  is true only when `subscription_status` is `active`.
+- Linked the README share notes to `docs/SMS.md` for the Web Share API and
+  SMS/Messages rationale.
+- Marked US-028 as passing in `specs/prd.json`.
+- Files changed: `README.md`, `specs/prd.json`, and `progress.log`.
+- Verification: `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Use the README for project-level PWA and share-gate contributor context;
+    link to focused docs like `docs/SMS.md` for supporting API rationale.
 ---
 ## 2026-05-11 15:16 PDT - US-027
 Thread: https://ampcode.com/threads/
