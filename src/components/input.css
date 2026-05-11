@@ -6,6 +6,8 @@ div.input {
     & input {
         transition: all 0.2s;
         outline: 1px solid transparent;
+        width: 100%;
+        padding: 0.5rem 1rem;
 
         &:focus {
             border-color: var(--focus-color);

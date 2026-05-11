@@ -3,6 +3,10 @@
     margin: 0 auto;
     margin-top: 2rem;
 
+    & div {
+        margin-bottom: 1rem;
+    }
+
     & p {
         margin-bottom: 0;
     }

@@ -136,17 +136,14 @@ export const LoginRoute:FunctionComponent<{
                     null
                 }
 
-                <${Button}
-                    type="submit"
-                    isSpinning=${isSending}
-                >
-                    Send link
-                <//>
+                <div class="controls">
+                    <${Button} type="submit" isSpinning=${isSending}>Send link<//>
+                </div>
             </form>`
         }
 
         ${supportsPasskeys ?
-            html`<div class="login-passkey">
+            html`<div class="login-passkey controls">
                 <${Button}
                     type="button"
                     onClick=${signInWithPasskey}

@@ -12,6 +12,12 @@
         }
     }
 
+    & form.pricing-checkout-form {
+        & div {
+            margin-bottom: 1rem;
+        }
+    }
+
     & .pricing-tiers {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));

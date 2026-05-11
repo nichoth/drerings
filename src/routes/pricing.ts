@@ -3,6 +3,7 @@ import { type FunctionComponent } from 'preact'
 import { useCallback } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
 import { Button } from '../components/button'
+import { Input } from '../components/input'
 import { State, type AppState } from '../state'
 import './pricing.css'
 
@@ -21,8 +22,8 @@ export const PricingRoute:FunctionComponent<{
         <section class="pricing-intro">
             <h2>Pricing</h2>
             <p>
-                Draw for free. Subscribe when you want to share them with the
-                world.
+                Draw for free. Subscribe when you want to share your drawings
+                with the world.
             </p>
         </section>
 
@@ -44,23 +45,19 @@ export const PricingRoute:FunctionComponent<{
                     <li>Save drawings to your account.</li>
                     <li>Reopen and edit saved drawings.</li>
                     <li>Publish drawings to stable public URLs.</li>
+                    <li>Share your drawings via SMS, email, or Bluesky</li>
                 </ul>
             </article>
         </section>
 
-        <section
-            class="pricing-checkout"
-            aria-label="Checkout"
-        >
+        <section class="pricing-checkout" aria-label="Checkout">
             <form onSubmit=${startCheckout} class="pricing-checkout-form">
-                <label for="checkout-email">Email</label>
-                <input
-                    id="checkout-email"
+                <${Input}
+                    label="Email"
                     name="email"
-                    type="email"
-                    autocomplete="email"
-                    required
+                    required=${true}
                     value=${email.value}
+                    id="checkout-email"
                     onInput=${(ev:InputEvent) => {
                         const input = ev.currentTarget as HTMLInputElement
                         email.value = input.value
