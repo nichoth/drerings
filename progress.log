@@ -2,6 +2,8 @@
 - `npm test` bundles and runs `test/index.ts` through `tapout`; Vitest tests
   live beside it and should be run directly with `npx vitest run <file>` for
   targeted checks.
+- Generated public assets under `public/` may be ignored by `.gitignore`; use
+  `git add -f` when a story needs committed static assets from that directory.
 - SPA state follows the template pattern: mutable app behavior is attached to
   the exported `State` function rather than scattered across components.
 - The home route owns the Atrament canvas lifecycle and keeps drawing controls
@@ -84,6 +86,27 @@
   protected routes redirect to `/login`.
 - Static informational routes can set document title and meta description in
   the route component with `useEffect` when the SPA route owns page metadata.
+
+## 2026-05-11 13:48 PDT - US-021
+Thread: https://ampcode.com/threads/
+- Added a regression test that validates the source icon and generated PWA
+  icon PNG dimensions by reading the PNG IHDR fields.
+- Generated `public/icon-192.png`, `public/icon-512.png`, and
+  `public/icon-512-maskable.png` from `public/icon.png`.
+- Kept the maskable 512px asset centered inside an 80% safe zone on a
+  transparent square canvas.
+- Marked US-021 as passing in `specs/prd.json`.
+- Files changed: `public/icon-192.png`, `public/icon-512.png`,
+  `public/icon-512-maskable.png`, `test/us021-pwa-icons.test.ts`,
+  `specs/prd.json`, and `progress.log`.
+- Verification: `npx vitest run test/us021-pwa-icons.test.ts`;
+  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+- **Learnings for future iterations:**
+  - Generated assets in `public/` are ignored by default and must be staged
+    with `git add -f` when they are intentional deliverables.
+  - PNG dimension checks can read bytes 16 and 20 from the IHDR chunk, which
+    avoids adding another test dependency for simple asset contracts.
+---
 
 ## 2026-05-09 22:16 PDT - US-001
 Thread: https://ampcode.com/threads/
