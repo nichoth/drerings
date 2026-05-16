@@ -45,6 +45,10 @@
 - Stamp refund previews should use `calculateStampLotRefundCents`; it floors
   the multiply-first prorated purchase refund and returns zero for grants,
   gifts, missing prices, and fully used lots.
+- User-initiated stamp refunds run through `refundPurchasedStampLot`, which
+  locks the caller-owned lot, writes local refund state in one transaction,
+  and receives an injected Autumn refund function so API tests can verify
+  rollback behavior without calling Autumn.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -471,5 +475,38 @@ Thread: https://ampcode.com/threads/unknown
     result, so packs with fractional per-stamp prices do not lose cents early.
   - Non-purchase stamp lots are not refundable by this helper; grants, gifts,
     missing purchase prices, and empty lots all return zero.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 21:32 PDT - US-015
+Thread: https://ampcode.com/threads/unknown
+- Implemented the user-initiated stamp refund API endpoint.
+- Added `POST /api/stamps/refund/:lotId`, which authenticates the caller,
+  validates and locks the caller-owned purchase lot, calculates the prorated
+  refund, zeroes the lot, decrements the cached balance, records a `refund`
+  transaction, and calls Autumn before committing the local transaction.
+- Added rollback handling so an Autumn refund failure reverses the local
+  stamp state changes and logs the failed refund path for reconciliation.
+- Files changed:
+  - `netlify/functions/stamps/refund.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us015-stamp-refund-api.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us015-stamp-refund-api.test.ts`
+  - `npx vitest run test/us015-stamp-refund-api.test.ts
+    test/us014-refund-calculation.test.ts
+    test/us004-refund-failed-send.test.ts test/us014-billing-store.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Refund endpoints can live under nested Netlify function paths such as
+    `netlify/functions/stamps/refund.ts`; the `/api/*` redirect leaves the
+    lot id available in `event.path`.
+  - Keep Autumn refund calls injectable into stamp refund services so the DB
+    transaction can be tested with realistic rollback behavior.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

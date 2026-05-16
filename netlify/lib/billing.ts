@@ -43,6 +43,11 @@ export interface CancelSubscriptionResult {
     subscription_current_period_end:string|null;
 }
 
+export interface AutumnStampRefundOptions {
+    checkoutId:string;
+    amountCents:number;
+}
+
 interface StampCheckoutEvent {
     userId:string;
     checkoutId:string;
@@ -127,6 +132,26 @@ export async function cancelAutumnSubscription (
         subscription_status: 'canceled',
         subscription_current_period_end: currentPeriodEnd
     }
+}
+
+export async function issueAutumnStampRefund (
+    options:AutumnStampRefundOptions
+):Promise<void> {
+    if (shouldUseMockCheckout()) return
+
+    const response = await fetch(`${getAutumnApiUrl()}/refunds`, {
+        method: 'POST',
+        headers: {
+            authorization: `Bearer ${getAutumnSecretKey()}`,
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            checkout_id: options.checkoutId,
+            amount_cents: options.amountCents
+        })
+    })
+
+    if (!response.ok) throw new Error('Autumn refund failed.')
 }
 
 export function verifyAutumnWebhookPayload (

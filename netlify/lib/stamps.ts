@@ -36,6 +36,23 @@ export interface RefundFailedSendOptions {
     lotId:string;
 }
 
+export interface AutumnRefundRequest {
+    checkoutId:string;
+    amountCents:number;
+}
+
+export interface RefundPurchasedStampLotOptions {
+    userId:string;
+    lotId:string;
+    issueRefund:(request:AutumnRefundRequest) => Promise<void>;
+}
+
+export interface RefundPurchasedStampLotResult {
+    lotId:string;
+    refundCents:number;
+    balanceAfter:number;
+}
+
 export interface StampLotRefundRow {
     source:'purchase'|'grant'|'gift_received';
     original_count:number|string;
@@ -63,10 +80,29 @@ interface BalanceRow {
     stamps_balance:number|string;
 }
 
+interface RefundableStampLotRow extends StampLotRefundRow {
+    id:string;
+    autumn_checkout_id:string|null;
+}
+
 export class InsufficientStampsError extends Error {
     constructor () {
         super('Insufficient stamps.')
         this.name = 'InsufficientStampsError'
+    }
+}
+
+export class StampLotNotFoundError extends Error {
+    constructor () {
+        super('Stamp lot not found.')
+        this.name = 'StampLotNotFoundError'
+    }
+}
+
+export class StampLotNotRefundableError extends Error {
+    constructor () {
+        super('Stamp lot is not refundable.')
+        this.name = 'StampLotNotRefundableError'
     }
 }
 
@@ -279,6 +315,105 @@ export async function refundFailedSend (
 
         return {
             lotId: options.lotId,
+            balanceAfter
+        }
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
+export async function refundPurchasedStampLot (
+    options:RefundPurchasedStampLotOptions
+):Promise<RefundPurchasedStampLotResult> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+
+    try {
+        await client.query('BEGIN')
+
+        const lotResult = await client.query<RefundableStampLotRow>(`
+            SELECT
+                id,
+                source,
+                original_count,
+                remaining_count,
+                price_paid_cents,
+                autumn_checkout_id
+            FROM stamp_lots
+            WHERE id = $1
+                AND user_id = $2
+            FOR UPDATE
+        `, [options.lotId, options.userId])
+        const lot = lotResult.rows[0]
+
+        if (!lot) throw new StampLotNotFoundError()
+
+        const remainingCount = Number(lot.remaining_count)
+        const refundCents = calculateStampLotRefundCents(lot)
+
+        if (
+            lot.source !== 'purchase' ||
+            remainingCount <= 0 ||
+            refundCents <= 0 ||
+            !lot.autumn_checkout_id
+        ) {
+            throw new StampLotNotRefundableError()
+        }
+
+        await client.query(`
+            UPDATE stamp_lots
+            SET remaining_count = 0
+            WHERE id = $1
+                AND user_id = $2
+        `, [options.lotId, options.userId])
+
+        const balanceResult = await client.query<BalanceRow>(`
+            UPDATE users
+            SET stamps_balance = stamps_balance - $1
+            WHERE id = $2
+                AND stamps_balance >= $1
+            RETURNING stamps_balance
+        `, [remainingCount, options.userId])
+
+        if (!balanceResult.rows[0]) {
+            throw new StampLotNotRefundableError()
+        }
+
+        const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            options.userId,
+            options.lotId,
+            -remainingCount,
+            'refund',
+            lot.autumn_checkout_id,
+            balanceAfter
+        ])
+
+        await options.issueRefund({
+            checkoutId: lot.autumn_checkout_id,
+            amountCents: refundCents
+        })
+
+        await client.query('COMMIT')
+
+        return {
+            lotId: options.lotId,
+            refundCents,
             balanceAfter
         }
     } catch (error) {
