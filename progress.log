@@ -11,6 +11,9 @@
   global Vitest APIs such as `expect`.
 - Stamp accounting services use `getDatabase().pool.connect()` and explicit
   `BEGIN`/`COMMIT` transactions when multiple writes must stay consistent.
+- Stamp debit should atomically update `stamp_lots` using a nested
+  `SELECT ... FOR UPDATE SKIP LOCKED`, then update `users.stamps_balance`
+  with a `stamps_balance > 0` guard in the same transaction.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -55,4 +58,30 @@ Thread: https://ampcode.com/threads/unknown
     purchase credits, which future webhook idempotency can query.
   - Focused service tests can mock `@netlify/database` with `vi.doMock` and
     inspect the ordered transaction queries without requiring Postgres.
+---
+
+## 2026-05-15 20:04 PDT - US-003
+Thread: https://ampcode.com/threads/unknown
+- Implemented `debitStamp` as the atomic FIFO debit primitive.
+- Added `InsufficientStampsError` for empty-balance and guarded-update
+  failures.
+- The service locks and debits the next non-purchase lot before purchased lots,
+  updates the user's cached balance, and writes the `send` transaction in one
+  explicit DB transaction.
+- Added focused tests for FIFO/locking SQL, insufficient stamps rollback, and
+  the one-success/one-error concurrent debit case.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us003-debit-stamp.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- **Learnings for future iterations:**
+  - `debitStamp` accepts an optional `referenceId`, which can carry the
+    postcard id when the send-flow integration is added.
+  - Balance update failures should be treated like insufficient stamps and
+    rolled back, because the lot decrement and balance cache must remain in
+    sync.
+  - Service tests can assert concurrency behavior by mocking one locked lot
+    selection and one empty selection while still verifying the required
+    `FOR UPDATE SKIP LOCKED` query shape.
 ---

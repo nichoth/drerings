@@ -14,6 +14,16 @@ export interface CreditStampLotResult {
     balanceAfter:number;
 }
 
+export interface DebitStampOptions {
+    userId:string;
+    referenceId?:string;
+}
+
+export interface DebitStampResult {
+    lotId:string;
+    balanceAfter:number;
+}
+
 interface QueryResult<Row> {
     rows:Row[];
 }
@@ -32,6 +42,13 @@ interface StampLotRow {
 
 interface BalanceRow {
     stamps_balance:number|string;
+}
+
+export class InsufficientStampsError extends Error {
+    constructor () {
+        super('Insufficient stamps.')
+        this.name = 'InsufficientStampsError'
+    }
 }
 
 export async function creditStampLot (
@@ -89,6 +106,82 @@ export async function creditStampLot (
             options.count,
             options.source,
             options.autumnCheckoutId,
+            balanceAfter
+        ])
+
+        await client.query('COMMIT')
+
+        return { lotId, balanceAfter }
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
+export async function debitStamp (
+    options:DebitStampOptions
+):Promise<DebitStampResult> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+
+    try {
+        await client.query('BEGIN')
+
+        const lotResult = await client.query<StampLotRow>(`
+            UPDATE stamp_lots
+            SET remaining_count = remaining_count - 1
+            WHERE id = (
+                SELECT id
+                FROM stamp_lots
+                WHERE user_id = $1
+                    AND remaining_count > 0
+                ORDER BY
+                    CASE source WHEN 'purchase' THEN 1 ELSE 0 END,
+                    created_at ASC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id
+        `, [options.userId])
+
+        if (!lotResult.rows[0]) {
+            throw new InsufficientStampsError()
+        }
+
+        const lotId = lotResult.rows[0].id
+        const balanceResult = await client.query<BalanceRow>(`
+            UPDATE users
+            SET stamps_balance = stamps_balance - 1
+            WHERE id = $1
+                AND stamps_balance > 0
+            RETURNING stamps_balance
+        `, [options.userId])
+
+        if (!balanceResult.rows[0]) {
+            throw new InsufficientStampsError()
+        }
+
+        const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            options.userId,
+            lotId,
+            -1,
+            'send',
+            options.referenceId,
             balanceAfter
         ])
 
