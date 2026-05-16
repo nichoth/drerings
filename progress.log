@@ -26,6 +26,9 @@
   `src/components`; routes should open it via `State.OpenBuyPackModal`.
 - Current user data from `/api/whoami` includes optional `stamps_balance`;
   send gating should check an explicit zero balance and allow unknown balances.
+- Checkout account creation is centralized in
+  `upsertCheckoutUser`; signup-only side effects should use its
+  insert-or-select result so existing checkout users are not reprocessed.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -256,4 +259,35 @@ Thread: https://ampcode.com/threads/unknown
     rather than duplicating the pricing modal in composer routes.
   - `/api/whoami` is the right lightweight refresh path for stamp balances
     after a purchase webhook credits the account.
+---
+
+## 2026-05-15 20:46 PDT - US-009
+Thread: https://ampcode.com/threads/unknown
+- Implemented the signup stamp grant in the checkout account creation path.
+- `upsertCheckoutUser` now distinguishes inserted users from existing users
+  and calls `creditStampLot` with a 5-stamp grant only for new accounts.
+- New account creation returns the credited `stamps_balance` immediately, and
+  repeated checkout attempts do not double-credit signup stamps.
+- Files changed:
+  - `netlify/lib/auth-store.ts`
+  - `test/us009-signup-grant.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us009-signup-grant.test.ts
+    test/us014-checkout-store.test.ts
+    test/us014-billing-checkout-api.test.ts`
+  - `npx vitest run test/us004-auth-helpers.test.ts
+    test/us004-magic-link-api.test.ts test/us006-session-whoami.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Checkout signup is currently the account creation boundary; stamp grants
+    should be attached there rather than to passkey registration.
+  - `upsertCheckoutUser` uses a CTE with `ON CONFLICT DO NOTHING` so callers
+    can detect a true insert without mutating existing users.
+  - Signup grants should return `creditStampLot().balanceAfter` as the
+    current user's `stamps_balance`, because the initial insert row still has
+    the default zero balance before the grant transaction runs.
 ---

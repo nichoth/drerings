@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
+import { creditStampLot } from './stamps.js'
 
 export interface MagicLinkLogin {
     userId:string;
@@ -14,6 +15,12 @@ export interface SessionUser {
     stamps_balance?:number;
     autumn_customer_id?:string|null;
 }
+
+interface CheckoutUserRow extends SessionUser {
+    was_inserted:boolean;
+}
+
+const SIGNUP_GRANT_STAMPS = 5
 
 export async function createMagicLinkLogin (
     email:string
@@ -49,19 +56,53 @@ export async function upsertCheckoutUser (
     email:string
 ):Promise<SessionUser> {
     const db = getDatabase()
-    const result = await db.pool.query<SessionUser>(`
-        INSERT INTO users (email)
-        VALUES ($1)
-        ON CONFLICT (email)
-        DO UPDATE SET email = EXCLUDED.email
-        RETURNING
+    const result = await db.pool.query<CheckoutUserRow>(`
+        WITH inserted_user AS (
+            INSERT INTO users (email)
+            VALUES ($1)
+            ON CONFLICT (email) DO NOTHING
+            RETURNING
+                id,
+                email,
+                subscription_status,
+                autumn_customer_id,
+                stamps_balance,
+                true AS was_inserted
+        )
+        SELECT
             id,
             email,
             subscription_status,
-            autumn_customer_id
+            autumn_customer_id,
+            stamps_balance,
+            was_inserted
+        FROM inserted_user
+        UNION ALL
+        SELECT
+            users.id,
+            users.email,
+            users.subscription_status,
+            users.autumn_customer_id,
+            users.stamps_balance,
+            false AS was_inserted
+        FROM users
+        WHERE users.email = $1
+            AND NOT EXISTS (SELECT 1 FROM inserted_user)
     `, [email])
+    const user = result.rows[0]
 
-    return result.rows[0]
+    if (user.was_inserted) {
+        const grant = await creditStampLot({
+            userId: user.id,
+            source: 'grant',
+            count: SIGNUP_GRANT_STAMPS,
+            priceCents: null
+        })
+
+        return { ...user, stamps_balance: grant.balanceAfter }
+    }
+
+    return user
 }
 
 export async function consumeMagicLinkToken (
