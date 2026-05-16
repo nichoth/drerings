@@ -21,11 +21,11 @@ State.fetchAuthStatus(state).catch(err => {
 
 // set debug logging in local env
 if (isDev()) {
-    localStorage.setItem('DEBUG', 'drerings:*,drerings')
+    try { localStorage.setItem('DEBUG', 'drerings:*,drerings') } catch { /* */ }
     // @ts-expect-error DEV env
     window.state = state
 } else {
-    localStorage.removeItem('DEBUG')
+    try { localStorage.removeItem('DEBUG') } catch { /* */ }
 }
 
 // one global FOUCE handler
@@ -72,7 +72,11 @@ export const Drerings:FunctionComponent = function Drerings () {
     return html`
     <header>
         <h1><a href="/">Drerings</a></h1>
-        <${Nav} route=${state.route.value} />
+        <${Nav}
+            route=${state.route.value}
+            isAuthed=${isAuthed.value}
+            authLoading=${state.authLoading.value}
+        />
 
         <ul>
             ${state.authLoading.value ?
@@ -136,26 +140,33 @@ export const Drerings:FunctionComponent = function Drerings () {
     `
 }
 
-render(html`<${Drerings} />`, document.getElementById('root')!)
+const root = document.getElementById('root')
+if (root) render(html`<${Drerings} />`, root)
 
 function isDev ():boolean {
     return !!(import.meta.env.DEV || import.meta.env.MODE === 'staging')
 }
 
-function Nav ({
-    route
-}:{ route:string }):ReturnType<typeof html> {
+export function Nav (props:{
+    route:string;
+    isAuthed:boolean;
+    authLoading:boolean;
+}):ReturnType<typeof html> {
+    const { route, isAuthed, authLoading } = props
+
     return html`<nav aria-label="Main navigation">
         <ul>
-            ${routes.map(r => {
-                const className = `nav${route === r.href ? ' active' : ''}`
+            ${routes
+                .filter(r =>
+                    r.href !== '/settings' || (!authLoading && isAuthed)
+                )
+                .map(r => {
+                    const className = `nav${route === r.href ? ' active' : ''}`
 
-                return html`<li class=${className}>
-                    <a href="${r.href}">${r.text}</a>
-                </li>`
-            })}
+                    return html`<li class=${className}>
+                        <a href="${r.href}">${r.text}</a>
+                    </li>`
+                })}
         </ul>
     </nav>`
-
-    // <li><a href="/contact">contact</a></li> -->
 }
