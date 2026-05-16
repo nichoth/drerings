@@ -24,6 +24,11 @@ export interface DebitStampResult {
     balanceAfter:number;
 }
 
+export interface RefundFailedSendOptions {
+    userId:string;
+    lotId:string;
+}
+
 interface QueryResult<Row> {
     rows:Row[];
 }
@@ -188,6 +193,64 @@ export async function debitStamp (
         await client.query('COMMIT')
 
         return { lotId, balanceAfter }
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
+export async function refundFailedSend (
+    options:RefundFailedSendOptions
+):Promise<DebitStampResult> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+
+    try {
+        await client.query('BEGIN')
+
+        await client.query(`
+            UPDATE stamp_lots
+            SET remaining_count = remaining_count + 1
+            WHERE id = $1
+                AND user_id = $2
+        `, [options.lotId, options.userId])
+
+        const balanceResult = await client.query<BalanceRow>(`
+            UPDATE users
+            SET stamps_balance = stamps_balance + 1
+            WHERE id = $1
+            RETURNING stamps_balance
+        `, [options.userId])
+        const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            options.userId,
+            options.lotId,
+            1,
+            'failed_send_refund',
+            undefined,
+            balanceAfter
+        ])
+
+        await client.query('COMMIT')
+
+        return {
+            lotId: options.lotId,
+            balanceAfter
+        }
     } catch (error) {
         await client.query('ROLLBACK')
 
