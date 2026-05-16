@@ -36,6 +36,9 @@
   ownership with `userOwnsDrawing`, then call `debitStamp` before
   `publishDrawing`; the stamp transaction reference currently uses the
   drawing id as the send reference.
+- Post-debit failures in `POST /api/posts` should call `refundFailedSend`
+  with the debited lot id and return the delivery refund message from the
+  API response so the send route can show it as an alert.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -369,4 +372,37 @@ Thread: https://ampcode.com/threads/unknown
     send handler scope.
   - Handler tests that mock `netlify/lib/posts` now need to include both
     `userOwnsDrawing` and `publishDrawing` for POST send coverage.
+---
+
+## 2026-05-15 21:05 PDT - US-012
+Thread: https://ampcode.com/threads/unknown
+- Implemented the failed-send refund path in the post send handler.
+- The handler now keeps the debited lot id in scope, calls
+  `refundFailedSend` when delivery fails after debit, and returns the
+  user-facing refund notification.
+- Added a focused API test covering a hard-bounce-style failure after debit.
+- Verified the send route displays the refund notification returned by
+  `/api/posts`.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `test/us012-failed-send-refund.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us012-failed-send-refund.test.ts`
+  - `npx vitest run test/us012-failed-send-refund.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us004-refund-failed-send.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback against `http://127.0.0.1:4444/send/drawing-1`:
+    failed `/api/posts` response rendered the stamp-refunded alert.
+- **Learnings for future iterations:**
+  - `POST /api/posts` is the send-flow integration point for stamp debits
+    and refunds; keep the debited lot id outside the publish call so the
+    catch path can restore the same lot.
+  - The frontend send route already surfaces API error text through its
+    alert, so backend refund notifications can be verified by returning the
+    exact message from `/api/posts`.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

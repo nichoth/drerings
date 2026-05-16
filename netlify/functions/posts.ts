@@ -3,7 +3,14 @@ import { json, parseJsonBody } from '../lib/http.js'
 import { getSession } from '../lib/session.js'
 import { isPaid } from '../lib/paid.js'
 import * as postStore from '../lib/posts.js'
-import { debitStamp, InsufficientStampsError } from '../lib/stamps.js'
+import {
+    debitStamp,
+    InsufficientStampsError,
+    refundFailedSend
+} from '../lib/stamps.js'
+
+const failedDeliveryMessage =
+    "Couldn't deliver to that address — your stamp has been refunded."
 
 export const handler:Handler = async function handler (event) {
     if (!['GET', 'POST'].includes(event.httpMethod)) {
@@ -52,6 +59,8 @@ export const handler:Handler = async function handler (event) {
         return json(400, { error: 'Include drawing_id.' })
     }
 
+    let debitedLotId:string|null = null
+
     try {
         const ownsDrawing = await postStore.userOwnsDrawing(
             session.user.id,
@@ -68,7 +77,8 @@ export const handler:Handler = async function handler (event) {
             userId: session.user.id,
             referenceId: input.drawing_id
         })
-        const debitedLotId = debitedStamp.lotId
+        debitedLotId = debitedStamp.lotId
+
         const post = await postStore.publishDrawing(
             session.user.id,
             input.drawing_id
@@ -85,6 +95,19 @@ export const handler:Handler = async function handler (event) {
         if (err instanceof InsufficientStampsError) {
             return json(402, {
                 error: 'Buy stamps before sending this postcard.'
+            })
+        }
+
+        if (debitedLotId) {
+            await refundFailedSend({
+                userId: session.user.id,
+                lotId: debitedLotId
+            })
+
+            console.error(err)
+
+            return json(500, {
+                error: failedDeliveryMessage
             })
         }
 
