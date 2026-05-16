@@ -42,6 +42,9 @@
 - Stamp UI should use the shared `IconStamp` component from
   `src/components/icon-stamp.ts` so later balance, send-cost, and stamp page
   treatments share the same icon language.
+- Stamp refund previews should use `calculateStampLotRefundCents`; it floors
+  the multiply-first prorated purchase refund and returns zero for grants,
+  gifts, missing prices, and fully used lots.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -441,4 +444,32 @@ Thread: https://ampcode.com/threads/unknown
   - The Browser Use skill requires a Node REPL browser tool; when it is not
     exposed, a local Vite server plus Playwright-core can still verify the
     rendered route in a real browser.
+---
+
+## 2026-05-15 21:21 PDT - US-014
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp lot refund calculation service.
+- Added `calculateStampLotRefundCents`, which prorates purchase lots with
+  integer math and returns zero for non-refundable lots.
+- Added focused coverage for full purchase refunds, partial purchase refunds,
+  fully used lots, grant lots, and gifted lots.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us014-refund-calculation.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us014-refund-calculation.test.ts`
+  - `npx vitest run test/us002-credit-stamp-lot.test.ts
+    test/us003-debit-stamp.test.ts test/us004-refund-failed-send.test.ts
+    test/us014-refund-calculation.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Refund calculations should multiply before dividing, then floor the cents
+    result, so packs with fractional per-stamp prices do not lose cents early.
+  - Non-purchase stamp lots are not refundable by this helper; grants, gifts,
+    missing purchase prices, and empty lots all return zero.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

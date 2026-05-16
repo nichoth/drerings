@@ -36,6 +36,13 @@ export interface RefundFailedSendOptions {
     lotId:string;
 }
 
+export interface StampLotRefundRow {
+    source:'purchase'|'grant'|'gift_received';
+    original_count:number|string;
+    remaining_count:number|string;
+    price_paid_cents:number|string|null;
+}
+
 interface QueryResult<Row> {
     rows:Row[];
 }
@@ -61,6 +68,22 @@ export class InsufficientStampsError extends Error {
         super('Insufficient stamps.')
         this.name = 'InsufficientStampsError'
     }
+}
+
+export function calculateStampLotRefundCents (
+    lot:StampLotRefundRow
+):number {
+    if (lot.source !== 'purchase') return 0
+
+    const originalCount = Number(lot.original_count)
+    const remainingCount = Number(lot.remaining_count)
+    const pricePaidCents = Number(lot.price_paid_cents)
+
+    if (!Number.isFinite(originalCount) || originalCount <= 0) return 0
+    if (!Number.isFinite(remainingCount) || remainingCount <= 0) return 0
+    if (!Number.isFinite(pricePaidCents) || pricePaidCents <= 0) return 0
+
+    return Math.floor((remainingCount * pricePaidCents) / originalCount)
 }
 
 export async function creditStampLot (
