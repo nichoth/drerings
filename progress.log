@@ -66,6 +66,9 @@
   `/api/stamps/lots` so the sender stamps panel can show them.
 - Non-user gift checkout uses `gift_pending_recipient_email` metadata while
   existing-user gifts continue to use `gift_recipient_user_id` metadata.
+- Pending gifts are claimed in the checkout signup path for newly inserted
+  users; the normal signup grant is applied first, then matching
+  `pending_gifts` rows are credited as `gift_received` and marked claimed.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -672,5 +675,33 @@ Thread: https://ampcode.com/threads/unknown
   - Gift checkout distinguishes non-user email recipients from missing
     usernames: email addresses can become pending gifts, usernames still
     require an existing account.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:07 PDT - US-019
+Thread: https://ampcode.com/threads/unknown
+- Implemented pending gift conversion for recipient signup.
+- `upsertCheckoutUser` now applies the standard 5-stamp signup grant for a
+  newly inserted user, then claims any pending gifts for the same email.
+- Each pending gift is credited with source `gift_received`, preserving the
+  sender id, original checkout id, count, and price, then marked `claimed`.
+- Files changed:
+  - `netlify/lib/auth-store.ts`
+  - `test/us019-pending-gift-signup.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us019-pending-gift-signup.test.ts`
+  - `npx vitest run test/us019-pending-gift-signup.test.ts
+    test/us009-signup-grant.test.ts test/us014-checkout-store.test.ts
+    test/us014-billing-checkout-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Pending gift conversion belongs in `upsertCheckoutUser`, because that is
+    the account creation boundary that already handles signup stamp grants.
+  - The final session balance should come from the last credited gift when
+    pending gifts exist, otherwise from the signup grant.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

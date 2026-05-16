@@ -20,6 +20,14 @@ interface CheckoutUserRow extends SessionUser {
     was_inserted:boolean;
 }
 
+interface PendingSignupGiftRow {
+    id:string;
+    sender_user_id:string;
+    count:number|string;
+    price_cents:number|string;
+    autumn_checkout_id:string;
+}
+
 const SIGNUP_GRANT_STAMPS = 5
 
 export async function createMagicLinkLogin (
@@ -98,11 +106,59 @@ export async function upsertCheckoutUser (
             count: SIGNUP_GRANT_STAMPS,
             priceCents: null
         })
+        const balanceAfterGifts = await claimPendingSignupGifts(
+            user.id,
+            user.email,
+            grant.balanceAfter
+        )
 
-        return { ...user, stamps_balance: grant.balanceAfter }
+        return { ...user, stamps_balance: balanceAfterGifts }
     }
 
     return user
+}
+
+async function claimPendingSignupGifts (
+    userId:string,
+    email:string,
+    startingBalance:number
+):Promise<number> {
+    const db = getDatabase()
+    const result = await db.pool.query<PendingSignupGiftRow>(`
+        SELECT
+            id,
+            sender_user_id,
+            count,
+            price_cents,
+            autumn_checkout_id
+        FROM pending_gifts
+        WHERE recipient_email = $1
+            AND status = 'pending'
+        ORDER BY created_at ASC
+    `, [email])
+    let balanceAfter = startingBalance
+
+    for (const gift of result.rows) {
+        const credit = await creditStampLot({
+            userId,
+            source: 'gift_received',
+            count: Number(gift.count),
+            priceCents: Number(gift.price_cents),
+            autumnCheckoutId: gift.autumn_checkout_id,
+            giftedByUserId: gift.sender_user_id
+        })
+
+        balanceAfter = credit.balanceAfter
+
+        await db.pool.query(`
+            UPDATE pending_gifts
+            SET status = 'claimed'
+            WHERE id = $1
+                AND status = 'pending'
+        `, [gift.id])
+    }
+
+    return balanceAfter
 }
 
 export async function consumeMagicLinkToken (
