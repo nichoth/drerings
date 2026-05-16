@@ -38,13 +38,24 @@ describe('US-011 publish post API', () => {
     it('publishes an owned drawing for an active subscriber', async () => {
         vi.resetModules()
 
+        const debitStamp = vi.fn(async () => ({
+            lotId: 'lot-1',
+            balanceAfter: 4
+        }))
         const publishDrawing = vi.fn(async () => ({ id: 42 }))
+        const userOwnsDrawing = vi.fn(async () => true)
 
         vi.doMock('../netlify/lib/session', () => {
             return { getSession: async () => activeSession() }
         })
+        vi.doMock('../netlify/lib/stamps', () => {
+            return {
+                debitStamp,
+                InsufficientStampsError: MockInsufficientStampsError
+            }
+        })
         vi.doMock('../netlify/lib/posts', () => {
-            return { publishDrawing }
+            return { publishDrawing, userOwnsDrawing }
         })
 
         const { handler } = await import('../netlify/functions/posts')
@@ -55,17 +66,104 @@ describe('US-011 publish post API', () => {
         expect(publishDrawing).toHaveBeenCalledWith('user-1', 'drawing-1')
     })
 
-    it('returns the existing post id when the drawing was already published',
+    it('debits one stamp before publishing the drawing', async () => {
+        vi.resetModules()
+
+        const calls:string[] = []
+        const userOwnsDrawing = vi.fn(async () => {
+            calls.push('authorize')
+
+            return true
+        })
+        const debitStamp = vi.fn(async () => {
+            calls.push('debit')
+
+            return { lotId: 'lot-1', balanceAfter: 4 }
+        })
+        const publishDrawing = vi.fn(async () => {
+            calls.push('publish')
+
+            return { id: 42 }
+        })
+
+        vi.doMock('../netlify/lib/session', () => {
+            return { getSession: async () => activeSession() }
+        })
+        vi.doMock('../netlify/lib/stamps', () => {
+            return {
+                debitStamp,
+                InsufficientStampsError: MockInsufficientStampsError
+            }
+        })
+        vi.doMock('../netlify/lib/posts', () => {
+            return { publishDrawing, userOwnsDrawing }
+        })
+
+        const { handler } = await import('../netlify/functions/posts')
+        const response = await callHandler(handler, baseEvent)
+
+        expect(response.statusCode).toBe(200)
+        expect(debitStamp).toHaveBeenCalledWith({
+            userId: 'user-1',
+            referenceId: 'drawing-1'
+        })
+        expect(calls).toEqual(['authorize', 'debit', 'publish'])
+    })
+
+    it('returns payment required before publishing when stamps are empty',
         async () => {
             vi.resetModules()
 
-            const publishDrawing = vi.fn(async () => ({ id: 7 }))
+            const userOwnsDrawing = vi.fn(async () => true)
+            const debitStamp = vi.fn(async () => {
+                throw new MockInsufficientStampsError()
+            })
+            const publishDrawing = vi.fn()
 
             vi.doMock('../netlify/lib/session', () => {
                 return { getSession: async () => activeSession() }
             })
+            vi.doMock('../netlify/lib/stamps', () => {
+                return {
+                    debitStamp,
+                    InsufficientStampsError: MockInsufficientStampsError
+                }
+            })
             vi.doMock('../netlify/lib/posts', () => {
-                return { publishDrawing }
+                return { publishDrawing, userOwnsDrawing }
+            })
+
+            const { handler } = await import('../netlify/functions/posts')
+            const response = await callHandler(handler, baseEvent)
+
+            expect(response.statusCode).toBe(402)
+            expect(JSON.parse(response.body || '{}').error)
+                .toMatch(/buy stamps/i)
+            expect(publishDrawing).not.toHaveBeenCalled()
+        })
+
+    it('returns the existing post id when the drawing was already published',
+        async () => {
+            vi.resetModules()
+
+            const debitStamp = vi.fn(async () => ({
+                lotId: 'lot-1',
+                balanceAfter: 4
+            }))
+            const publishDrawing = vi.fn(async () => ({ id: 7 }))
+            const userOwnsDrawing = vi.fn(async () => true)
+
+            vi.doMock('../netlify/lib/session', () => {
+                return { getSession: async () => activeSession() }
+            })
+            vi.doMock('../netlify/lib/stamps', () => {
+                return {
+                    debitStamp,
+                    InsufficientStampsError: MockInsufficientStampsError
+                }
+            })
+            vi.doMock('../netlify/lib/posts', () => {
+                return { publishDrawing, userOwnsDrawing }
             })
 
             const { handler } = await import('../netlify/functions/posts')
@@ -125,13 +223,21 @@ describe('US-011 publish post API', () => {
     it('returns forbidden when the drawing is not owned', async () => {
         vi.resetModules()
 
-        const publishDrawing = vi.fn(async () => null)
+        const debitStamp = vi.fn()
+        const publishDrawing = vi.fn()
+        const userOwnsDrawing = vi.fn(async () => false)
 
         vi.doMock('../netlify/lib/session', () => {
             return { getSession: async () => activeSession() }
         })
+        vi.doMock('../netlify/lib/stamps', () => {
+            return {
+                debitStamp,
+                InsufficientStampsError: MockInsufficientStampsError
+            }
+        })
         vi.doMock('../netlify/lib/posts', () => {
-            return { publishDrawing }
+            return { publishDrawing, userOwnsDrawing }
         })
 
         const { handler } = await import('../netlify/functions/posts')
@@ -140,6 +246,7 @@ describe('US-011 publish post API', () => {
         expect(response.statusCode).toBe(403)
         expect(JSON.parse(response.body || '{}').error)
             .toMatch(/cannot publish/i)
+        expect(debitStamp).not.toHaveBeenCalled()
     })
 })
 
@@ -150,5 +257,12 @@ function activeSession () {
             email: 'paid@example.com',
             subscription_status: 'active'
         }
+    }
+}
+
+class MockInsufficientStampsError extends Error {
+    constructor () {
+        super('Insufficient stamps.')
+        this.name = 'InsufficientStampsError'
     }
 }

@@ -3,6 +3,7 @@ import { json, parseJsonBody } from '../lib/http.js'
 import { getSession } from '../lib/session.js'
 import { isPaid } from '../lib/paid.js'
 import * as postStore from '../lib/posts.js'
+import { debitStamp, InsufficientStampsError } from '../lib/stamps.js'
 
 export const handler:Handler = async function handler (event) {
     if (!['GET', 'POST'].includes(event.httpMethod)) {
@@ -52,19 +53,41 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
+        const ownsDrawing = await postStore.userOwnsDrawing(
+            session.user.id,
+            input.drawing_id
+        )
+
+        if (!ownsDrawing) {
+            return json(403, {
+                error: 'You cannot publish this drawing.'
+            })
+        }
+
+        const debitedStamp = await debitStamp({
+            userId: session.user.id,
+            referenceId: input.drawing_id
+        })
+        const debitedLotId = debitedStamp.lotId
         const post = await postStore.publishDrawing(
             session.user.id,
             input.drawing_id
         )
 
         if (!post) {
-            return json(403, {
-                error: 'You cannot publish this drawing.'
-            })
+            throw new Error(
+                `Drawing disappeared after debiting lot ${debitedLotId}`
+            )
         }
 
         return json(200, { id: post.id })
     } catch (err) {
+        if (err instanceof InsufficientStampsError) {
+            return json(402, {
+                error: 'Buy stamps before sending this postcard.'
+            })
+        }
+
         console.error(err)
 
         return json(500, {

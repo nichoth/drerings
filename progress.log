@@ -32,6 +32,10 @@
 - One-time stamp backfills live in `netlify/lib/stamp-backfill.ts`, check
   `stamp_transactions.reason = 'migration_grant'` per user for idempotency,
   and call `creditStampLot` with `transactionReason: 'migration_grant'`.
+- The postcard send route uses `POST /api/posts`: validate drawing
+  ownership with `userOwnsDrawing`, then call `debitStamp` before
+  `publishDrawing`; the stamp transaction reference currently uses the
+  drawing id as the send reference.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -332,4 +336,37 @@ Thread: https://ampcode.com/threads/unknown
   - The backfill CLI is a thin wrapper around
     `backfillExistingUserStamps`; test behavior in the library and bundle the
     script as a smoke check.
+---
+
+## 2026-05-15 21:01 PDT - US-011
+Thread: https://ampcode.com/threads/unknown
+- Integrated stamp debiting into the postcard send/publish endpoint.
+- Added an ownership precheck so invalid drawing sends are rejected before
+  any stamp is consumed.
+- `POST /api/posts` now calls `debitStamp` before `publishDrawing`, passes
+  the drawing id as `referenceId`, and returns a clear 402 response for
+  `InsufficientStampsError`.
+- Added focused API and store tests for debit ordering, insufficient stamps,
+  and ownership validation.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `netlify/lib/posts.ts`
+  - `test/us011-publish-post-api.test.ts`
+  - `test/us011-publish-post-store.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us011-publish-post-api.test.ts
+    test/us011-publish-post-store.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+- **Learnings for future iterations:**
+  - `publishDrawing` previously combined ownership validation with the
+    public post write; stamp debits need a separate `userOwnsDrawing` check
+    so unauthorized sends cannot consume stamps.
+  - The current send reference available before dispatch is the drawing id;
+    future refund work should keep using the debit result's `lotId` from the
+    send handler scope.
+  - Handler tests that mock `netlify/lib/posts` now need to include both
+    `userOwnsDrawing` and `publishDrawing` for POST send coverage.
 ---
