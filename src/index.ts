@@ -5,6 +5,7 @@ import { useComputed, useSignal } from '@preact/signals'
 import Debug from '@substrate-system/debug'
 import { State } from './state.js'
 import { Button } from './components/button.js'
+import { IconStamp } from './components/icon-stamp.js'
 import Router, { routes } from './routes/index.js'
 import { COPYRIGHT } from './constants.js'
 import { ModalWindow } from '@substrate-system/dialog'
@@ -76,6 +77,7 @@ export const Drerings:FunctionComponent = function Drerings () {
             route=${state.route.value}
             isAuthed=${isAuthed.value}
             authLoading=${state.authLoading.value}
+            stampsBalance=${state.currentUser.value?.stamps_balance}
         />
 
         <ul>
@@ -151,8 +153,12 @@ export function Nav (props:{
     route:string;
     isAuthed:boolean;
     authLoading:boolean;
+    stampsBalance?:number;
 }):ReturnType<typeof html> {
-    const { route, isAuthed, authLoading } = props
+    const { route, isAuthed, authLoading, stampsBalance } = props
+    const showBalance = isAuthed &&
+        !authLoading &&
+        typeof stampsBalance === 'number'
 
     return html`<nav aria-label="Main navigation">
         <ul>
@@ -167,6 +173,22 @@ export function Nav (props:{
                         <a href="${r.href}">${r.text}</a>
                     </li>`
                 })}
+            ${showBalance ?
+                html`<li class="nav stamp-balance">
+                    <a
+                        class="stamp-balance-link"
+                        href="/settings/stamps"
+                    >
+                        <${IconStamp} />
+                        <span>${stampsBalanceLabel(stampsBalance)}</span>
+                    </a>
+                </li>` :
+                null
+            }
         </ul>
     </nav>`
+}
+
+function stampsBalanceLabel (balance:number):string {
+    return `${balance} ${balance === 1 ? 'stamp' : 'stamps'}`
 }

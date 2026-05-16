@@ -52,15 +52,26 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
+        const ownsDrawing = await postStore.userOwnsDrawing(
+            session.user.id,
+            input.drawing_id
+        )
+
+        if (!ownsDrawing) {
+            return json(403, {
+                error: 'You cannot publish this drawing.'
+            })
+        }
+
         const post = await postStore.publishDrawing(
             session.user.id,
             input.drawing_id
         )
 
         if (!post) {
-            return json(403, {
-                error: 'You cannot publish this drawing.'
-            })
+            throw new Error(
+                `Drawing disappeared while publishing ${input.drawing_id}`
+            )
         }
 
         return json(200, { id: post.id })

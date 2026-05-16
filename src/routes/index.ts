@@ -5,6 +5,7 @@ import { ContactRoute } from './contact.js'
 import { ColophonRoute } from './colophon.js'
 import { LoginRoute } from './login.js'
 import { SettingsRoute } from './settings.js'
+import { StampsRoute } from './stamps.js'
 import { DrawingsRoute } from './drawings.js'
 import { SendRoute } from './send.js'
 import { PostRoute } from './post.js'
@@ -35,6 +36,10 @@ export default function _Router (
 
     router.addRoute('/settings', () => {
         return SettingsRoute
+    })
+
+    router.addRoute('/settings/stamps', () => {
+        return StampsRoute
     })
 
     router.addRoute('/drawings', () => {

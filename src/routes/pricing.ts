@@ -5,6 +5,7 @@ import { useSignal } from '@preact/signals'
 import { Button } from '../components/button'
 import { Input } from '../components/input'
 import { State, type AppState } from '../state'
+import { BuyPackModal } from '../components/buy-pack-modal'
 import './pricing.css'
 
 export const PricingRoute:FunctionComponent<{
@@ -16,6 +17,14 @@ export const PricingRoute:FunctionComponent<{
     const startCheckout = useCallback(async (ev:Event) => {
         ev.preventDefault()
         await State.StartCheckout(state, email.value.trim()).catch(() => {})
+    }, [state])
+
+    const openBuyPacks = useCallback(() => {
+        State.OpenBuyPackModal(state)
+    }, [state])
+
+    const closeBuyPacks = useCallback(() => {
+        State.CloseBuyPackModal(state)
     }, [state])
 
     return html`<div class="route pricing">
@@ -45,9 +54,25 @@ export const PricingRoute:FunctionComponent<{
                     <li>Save drawings to your account.</li>
                     <li>Reopen and edit saved drawings.</li>
                     <li>Publish drawings to stable public URLs.</li>
-                    <li>Share your drawings via SMS, email, or Bluesky</li>
+                    <li>
+                        Share your drawings through your device share sheet.
+                    </li>
                 </ul>
             </article>
+        </section>
+
+        <section class="stamp-pack-cta" aria-label="Stamps">
+            <div>
+                <h3>Stamps</h3>
+                <p>
+                    Buy prepaid stamps for sending postcards. One stamp sends
+                    one postcard.
+                </p>
+            </div>
+
+            <${Button} type="button" onClick=${openBuyPacks}>
+                Buy stamps
+            <//>
         </section>
 
         <section class="pricing-checkout" aria-label="Checkout">
@@ -79,5 +104,12 @@ export const PricingRoute:FunctionComponent<{
                 null
             }
         </section>
+
+        ${state.buyPackModalOpen.value ? html`
+            <${BuyPackModal}
+                state=${state}
+                onClose=${closeBuyPacks}
+            />
+        ` : null}
     </div>`
 }

@@ -14,6 +14,7 @@ import './home.css'
 import { State, type AppState } from '../state'
 import { Button } from '../components/button'
 import { ColorPicker } from '../components/color-picker'
+import { BuyPackModal } from '../components/buy-pack-modal'
 import Debug from '@substrate-system/debug'
 
 const debug = Debug('drerings:view')
@@ -167,6 +168,10 @@ export const HomeRoute:FunctionComponent<{
 
         State.GoToSendDrawing(state, drawingId)
     }, [])
+
+    const closeBuyPacks = useCallback(() => {
+        State.CloseBuyPackModal(state)
+    }, [state])
 
     return html`<div class="route home">
         <p>
@@ -324,5 +329,12 @@ export const HomeRoute:FunctionComponent<{
                 ` : null}
             </form>
         </div>
+
+        ${state.buyPackModalOpen.value ? html`
+            <${BuyPackModal}
+                state=${state}
+                onClose=${closeBuyPacks}
+            />
+        ` : null}
     </div>`
 }

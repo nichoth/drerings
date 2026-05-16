@@ -55,6 +55,25 @@
         padding-top: 1rem;
     }
 
+    & .stamp-pack-cta {
+        border-top: 1px solid var(--input-border);
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        padding-top: 1rem;
+
+        & h3 {
+            margin: 0 0 0.5rem;
+        }
+
+        & p {
+            margin: 0;
+            max-width: 36rem;
+        }
+    }
+
     & .pricing-error {
         color: var(--danger);
     }
@@ -64,6 +83,14 @@
     .route.pricing {
         & .pricing-tiers {
             grid-template-columns: 1fr;
+        }
+
+        & .stamp-pack-cta {
+            display: block;
+
+            & .btn {
+                margin-top: 1rem;
+            }
         }
     }
 }

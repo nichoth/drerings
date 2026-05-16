@@ -54,6 +54,22 @@ export async function publishDrawing (
     return { id: Number(row.id) }
 }
 
+export async function userOwnsDrawing (
+    userId:string,
+    drawingId:string
+):Promise<boolean> {
+    const db = getDatabase()
+    const result = await db.pool.query(`
+        SELECT 1
+        FROM drawings
+        WHERE id = $1
+            AND user_id = $2
+        LIMIT 1
+    `, [drawingId, userId])
+
+    return Boolean(result.rows[0])
+}
+
 export async function getPublishedPost (
     postId:number
 ):Promise<PublicPostDetails|null> {

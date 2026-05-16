@@ -1,0 +1,45 @@
+.gift-stamps {
+    border-top: 1px solid var(--input-border);
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+
+    & .gift-stamps-recipient {
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    & input:not([type="radio"]) {
+        border: 1px solid var(--input-border);
+        padding: 0.5rem;
+    }
+
+    & fieldset {
+        border: 1px solid var(--input-border);
+        margin: 0;
+        padding: 0.75rem;
+    }
+
+    & legend {
+        padding-inline: 0.25rem;
+    }
+
+    & .gift-stamps-packs {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    & .gift-stamps-pack {
+        align-items: center;
+        border-left: 4px solid var(--input-border);
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: auto 1fr auto auto;
+        padding-left: 0.75rem;
+    }
+
+    & .gift-stamps-error {
+        color: var(--danger);
+    }
+}

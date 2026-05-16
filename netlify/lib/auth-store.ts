@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
+import { creditStampLot } from './stamps.js'
 
 export interface MagicLinkLogin {
     userId:string;
@@ -11,8 +12,23 @@ export interface SessionUser {
     id:string;
     email:string;
     subscription_status:'free'|'active'|'canceled'|'past_due';
+    stamps_balance?:number;
     autumn_customer_id?:string|null;
 }
+
+interface CheckoutUserRow extends SessionUser {
+    was_inserted:boolean;
+}
+
+interface PendingSignupGiftRow {
+    id:string;
+    sender_user_id:string;
+    count:number|string;
+    price_cents:number|string;
+    autumn_checkout_id:string;
+}
+
+const SIGNUP_GRANT_STAMPS = 5
 
 export async function createMagicLinkLogin (
     email:string
@@ -48,19 +64,101 @@ export async function upsertCheckoutUser (
     email:string
 ):Promise<SessionUser> {
     const db = getDatabase()
-    const result = await db.pool.query<SessionUser>(`
-        INSERT INTO users (email)
-        VALUES ($1)
-        ON CONFLICT (email)
-        DO UPDATE SET email = EXCLUDED.email
-        RETURNING
+    const result = await db.pool.query<CheckoutUserRow>(`
+        WITH inserted_user AS (
+            INSERT INTO users (email)
+            VALUES ($1)
+            ON CONFLICT (email) DO NOTHING
+            RETURNING
+                id,
+                email,
+                subscription_status,
+                autumn_customer_id,
+                stamps_balance,
+                true AS was_inserted
+        )
+        SELECT
             id,
             email,
             subscription_status,
-            autumn_customer_id
+            autumn_customer_id,
+            stamps_balance,
+            was_inserted
+        FROM inserted_user
+        UNION ALL
+        SELECT
+            users.id,
+            users.email,
+            users.subscription_status,
+            users.autumn_customer_id,
+            users.stamps_balance,
+            false AS was_inserted
+        FROM users
+        WHERE users.email = $1
+            AND NOT EXISTS (SELECT 1 FROM inserted_user)
     `, [email])
+    const user = result.rows[0]
 
-    return result.rows[0]
+    if (user.was_inserted) {
+        const grant = await creditStampLot({
+            userId: user.id,
+            source: 'grant',
+            count: SIGNUP_GRANT_STAMPS,
+            priceCents: null
+        })
+        const balanceAfterGifts = await claimPendingSignupGifts(
+            user.id,
+            user.email,
+            grant.balanceAfter
+        )
+
+        return { ...user, stamps_balance: balanceAfterGifts }
+    }
+
+    return user
+}
+
+async function claimPendingSignupGifts (
+    userId:string,
+    email:string,
+    startingBalance:number
+):Promise<number> {
+    const db = getDatabase()
+    const result = await db.pool.query<PendingSignupGiftRow>(`
+        SELECT
+            id,
+            sender_user_id,
+            count,
+            price_cents,
+            autumn_checkout_id
+        FROM pending_gifts
+        WHERE recipient_email = $1
+            AND status = 'pending'
+        ORDER BY created_at ASC
+    `, [email])
+    let balanceAfter = startingBalance
+
+    for (const gift of result.rows) {
+        const credit = await creditStampLot({
+            userId,
+            source: 'gift_received',
+            count: Number(gift.count),
+            priceCents: Number(gift.price_cents),
+            autumnCheckoutId: gift.autumn_checkout_id,
+            giftedByUserId: gift.sender_user_id
+        })
+
+        balanceAfter = credit.balanceAfter
+
+        await db.pool.query(`
+            UPDATE pending_gifts
+            SET status = 'claimed'
+            WHERE id = $1
+                AND status = 'pending'
+        `, [gift.id])
+    }
+
+    return balanceAfter
 }
 
 export async function consumeMagicLinkToken (

@@ -82,6 +82,61 @@ describe('US-014 Autumn checkout store', () => {
         )
     })
 
+    it('creates an Autumn checkout for a stamp pack product', async () => {
+        vi.resetModules()
+
+        const query = vi.fn<Query>(async () => ({ rows: [] }))
+        const fetcher = vi.fn(async () => {
+            return new Response(JSON.stringify({
+                url: 'https://checkout.stripe.com/pay/stamps_bundle',
+                customer_id: 'autumn-user-1'
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            })
+        })
+
+        vi.stubEnv('AUTUMN_SECRET_KEY', 'autumn_sk_test')
+        vi.stubGlobal('fetch', fetcher)
+        vi.doMock('@netlify/database', () => {
+            return {
+                getDatabase: () => ({
+                    pool: { query }
+                })
+            }
+        })
+
+        const billing = await import('../netlify/lib/billing')
+        const { createCheckoutSession } = billing
+        const checkout = await createCheckoutSession(
+            user,
+            'https://drerings.app',
+            'stamps_bundle'
+        )
+
+        expect(checkout).toEqual({
+            url: 'https://checkout.stripe.com/pay/stamps_bundle',
+            customer_id: 'autumn-user-1'
+        })
+        expect(fetcher).toHaveBeenCalledWith(
+            'https://api.useautumn.com/checkout',
+            expect.objectContaining({
+                body: JSON.stringify({
+                    customer_id: 'user-1',
+                    product_id: 'stamps_bundle',
+                    success_url: 'https://drerings.app/account?status=ok',
+                    customer_data: {
+                        email: 'free@example.com'
+                    },
+                    checkout_session_params: {
+                        cancel_url:
+                            'https://drerings.app/account?status=cancel'
+                    }
+                })
+            })
+        )
+    })
+
     it('returns a mocked checkout URL during local development', async () => {
         vi.resetModules()
 

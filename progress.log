@@ -1,923 +1,970 @@
+# Ralph progress: stamps-monetization
+
 ## Codebase Patterns
-- `npm test` bundles and runs `test/index.ts` through `tapout`; Vitest tests
-  live beside it and should be run directly with `npx vitest run <file>` for
-  targeted checks.
-- Generated public assets under `public/` may be ignored by `.gitignore`; use
-  `git add -f` when a story needs committed static assets from that directory.
-- SPA state follows the template pattern: mutable app behavior is attached to
-  the exported `State` function rather than scattered across components.
-- The home route owns the Atrament canvas lifecycle and keeps drawing controls
-  in component-local signals.
-- Netlify Database migrations live under
-  `netlify/database/migrations/<prefix>_<slug>/migration.sql`.
-- Netlify Blobs helpers should call `getStore(...)` lazily inside exported
-  operations, not at module load, so Netlify runtime context is available.
-- Netlify Functions can live in nested directories under `netlify/functions`
-  to match redirected API paths like `/api/auth/magic-link`.
-- Shared backend helpers live under `netlify/lib/*`; keep function handlers
-  thin and put reusable storage, email, session, and HTTP helpers there.
-- One-time token consumption should be atomic in SQL with a guarded
-  `UPDATE ... RETURNING`, checking both `used_at IS NULL` and expiry.
-- WebAuthn passkey flows use `@simplewebauthn/server` in Netlify helpers and
-  `@simplewebauthn/browser` in routes; challenge state is carried by a short
-  lived signed `challenge_token` returned beside the generated options.
-- Passkey API handlers are nested under
-  `netlify/functions/auth/passkey/<flow>/<step>.ts` to match paths like
-  `/api/auth/passkey/register/options`.
-- Session-aware API handlers should use `getSession(event)` from
-  `netlify/lib/session.ts`; it validates the signed cookie and queries the
-  current `users` row so subscription state is not read from stale cookies.
-- Frontend auth state is hydrated by `State.fetchAuthStatus(state)`, which
-  calls `/api/whoami` and stores the result in `state.currentUser`.
-- Routes that fetch authenticated data must react to
-  `state.currentUser.value?.id`; auth hydration happens after initial render.
-- Frontend paid/free checks should read
-  `state.currentUser.value?.subscription_status`; tests that expect paid
-  controls to be enabled must populate `state.currentUser`, not only
-  `state.auth`.
-- Drawing save/update requests are handled by
-  `netlify/functions/drawings.ts`; item routes like `/api/drawings/:id`
-  are parsed from `event.path` in the same function.
-- Saved drawing persistence lives in `netlify/lib/drawings.ts`; API callers
-  send JSON with a base64 `image`, `text`, and `alt_text`, and the helper
-  converts the image to a `Blob` before writing Blob storage and DB rows.
-- Saved drawing frontend behavior lives on `State`: use `State.SaveDrawing`,
-  `State.FetchSavedDrawings`, and `State.OpenSavedDrawing` so route
-  components do not own cross-route drawing state.
-- `GET /api/drawings` and `GET /api/drawings/:id` return image data URLs
-  assembled from Blob storage for thumbnails and reopening drawings.
-- Saved drawing deletion is routed through `State.DeleteSavedDrawing`, which
-  calls `DELETE /api/drawings/:id`, removes the item from
-  `state.savedDrawings`, and clears `state.currentDrawing` if needed.
-- Backend drawing deletion explicitly removes any `public_posts` row before
-  deleting the drawing row and Blob image, even though the schema also has
-  cascade behavior.
-- Use `State.FetchSavedDrawing` when a route needs an owned drawing without
-  navigation; use `State.OpenSavedDrawing` only for the Drawings -> composer
-  flow because it intentionally routes back to `/`.
-- Public posts are readable without a session through `GET /api/posts/:id`;
-  frontend public-post loading goes through `State.FetchPublicPost`, and the
-  `/post/:id` route owns document title and Open Graph metadata updates.
-- Client route tests can render through `Router(state).match(path)` to verify
-  route registration and component rendering together.
-- Billing checkout lives at `netlify/functions/billing/checkout.ts`, with
-  Autumn API details isolated in `netlify/lib/billing.ts`; local Netlify
-  development may use a mocked checkout URL when no Autumn secret is set.
-- Checkout UI state follows the SPA state pattern through
-  `State.StartCheckout`, `state.checkoutLoading`, and
-  `state.checkoutError`.
-- Autumn webhooks are handled at
-  `netlify/functions/billing/webhook.ts`; verify Svix signatures against the
-  raw request body before parsing JSON, then keep subscription update logic in
-  `netlify/lib/billing.ts`.
-- Paid API gates should use `isPaid(user)` from `netlify/lib/paid.ts`;
-  frontend paid/free UI should use the derived `state.isPaid` signal.
-- Account management APIs keep account-specific SQL in
-  `netlify/lib/account.ts`; route components call account behaviors through
-  `State` methods.
-- Email-change confirmations reuse `magic_link_tokens` with
-  `purpose = 'email_update'` and `pending_email`, while login magic links
-  continue to require `purpose = 'login'`.
-- Canceled subscription display depends on
-  `users.subscription_current_period_end`, which is updated by the Autumn
-  cancel-at-period-end flow.
-- Logout is server-backed through `POST /api/auth/logout`; frontend callers
-  should use `State.Logout` so shared auth/account state is cleared and
-  protected routes redirect to `/login`.
-- Static informational routes can set document title and meta description in
-  the route component with `useEffect` when the SPA route owns page metadata.
-- Vite uses `_public` as `publicDir` and writes builds to `public`; static
-  assets that must survive builds should exist in `_public`, with generated
-  `public` copies committed when required by a story.
-- Static HTML metadata belongs in source `index.html`; update
-  `public/index.html` too when a story validates the current built output.
-- Share UI should read the derived `state.canShare` signal; do not add
-  route-local subscription-status checks for share gates.
-- Published-post share affordances belong on the `/post/:id` route and
-  should require both `state.canShare.value` and a loaded `PublicPost.id`;
-  `/send/:drawingId` is the unpublished confirmation flow.
-- Native share fallback handoff uses the `drerings:share-fallback` browser
-  event with `{ url }` detail; future fallback UI should listen for that
-  event instead of duplicating Web Share feature checks.
-- The published-post fallback share panel lives in `src/routes/post.ts`; it
-  listens for `drerings:share-fallback` so native share detection stays
-  isolated in the share click handler.
-- Contributor-facing project behavior belongs in README sections near the
-  top-level setup/deployment material; keep route-level implementation
-  details in docs only when the README needs a deeper supporting link.
 
-## 2026-05-11 14:24 PDT - US-025
-Thread: https://ampcode.com/threads/
-- Added a gated Share button to `src/routes/post.ts` for paid users viewing
-  a loaded public post.
-- Reused `src/components/button.ts` so the Share control is a real styled
-  `<button>` with `aria-label="Share drawing"` and the existing focus state.
-- Added route coverage for paid + published, free + published, and paid +
-  unpublished send-view states.
-- Marked US-025 as passing in `specs/prd.json`.
-- Files changed: `src/routes/post.ts`, `src/components/button.ts`,
-  `test/us025-share-button-ui.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us025-share-button-ui.test.ts`;
-  `npx vitest run test/us025-share-button-ui.test.ts
-  test/us012-public-post-ui.test.ts test/us011-send-route-ui.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
-- Browser verification used a Playwright fallback because the Browser
-  plugin's Node REPL control tool was unavailable; mocked checks found 1
-  Share button for paid + published, 0 for free + published, and 0 for
-  paid + unpublished.
+- Netlify Database migrations live in
+  `netlify/database/migrations/<number>_<name>/migration.sql`.
+- Reversible migrations can include a sibling `down.sql` rollback file.
+- Schema tests use Vitest and read migration SQL as text from
+  `netlify/database/migrations`.
+- `tsconfig.json` includes `vitest/globals` because many existing tests use
+  global Vitest APIs such as `expect`.
+- Stamp accounting services use `getDatabase().pool.connect()` and explicit
+  `BEGIN`/`COMMIT` transactions when multiple writes must stay consistent.
+- Stamp debit should atomically update `stamp_lots` using a nested
+  `SELECT ... FOR UPDATE SKIP LOCKED`, then update `users.stamps_balance`
+  with a `stamps_balance > 0` guard in the same transaction.
+- Failed-send refunds re-credit the original `stamp_lots` row and cached
+  `users.stamps_balance`, then record a `failed_send_refund` transaction.
+- Autumn stamp pack product ids, counts, prices, and product metadata live in
+  shared `PACK_DEFINITIONS` in `src/stamp-packs.ts`; `netlify/lib/billing.ts`
+  re-exports it for backend callers.
+- Autumn webhook processing lives in `applyAutumnWebhookEvent`; stamp pack
+  `checkout.completed` events are handled before subscription status events,
+  and purchase idempotency checks `stamp_transactions.reference_id`.
+- Stamp pack purchase UI lives in shared `BuyPackModal` under
+  `src/components`; routes should open it via `State.OpenBuyPackModal`.
+- Current user data from `/api/whoami` includes optional `stamps_balance`;
+  send gating should check an explicit zero balance and allow unknown balances.
+- Checkout account creation is centralized in
+  `upsertCheckoutUser`; signup-only side effects should use its
+  insert-or-select result so existing checkout users are not reprocessed.
+- One-time stamp backfills live in `netlify/lib/stamp-backfill.ts`, check
+  `stamp_transactions.reason = 'migration_grant'` per user for idempotency,
+  and call `creditStampLot` with `transactionReason: 'migration_grant'`.
+- Public broadcast publishing uses `POST /api/posts`: validate drawing
+  ownership with `userOwnsDrawing`, then call `publishDrawing` without stamp
+  debits or failed-send refunds.
+- Paid postcard delivery needs a separate debit/refund integration point from
+  public post publishing; do not attach `debitStamp` to `/api/posts`.
+- Stamp UI should use the shared `IconStamp` component from
+  `src/components/icon-stamp.ts` so later balance, send-cost, and stamp page
+  treatments share the same icon language.
+- Stamp refund previews should use `calculateStampLotRefundCents`; it floors
+  the multiply-first prorated purchase refund and returns zero for grants,
+  gifts, missing prices, and fully used lots.
+- User-initiated stamp refunds run through `refundPurchasedStampLot`, which
+  locks the caller-owned lot, writes local refund state in one transaction,
+  and receives an injected Autumn refund function so API tests can verify
+  rollback behavior without calling Autumn.
+- Stamp lot refund UI should load lots through `State.FetchStampLots`, submit
+  refunds through `State.RefundStampLot`, and use `/api/stamps/lots` for
+  refund preview rows calculated server-side.
+- Existing-recipient stamp gifts start through
+  `/api/stamps/gifts/checkout`, attach gift sender and recipient metadata to
+  the Autumn checkout, and are credited from the checkout webhook.
+- Gift webhook handling uses `creditGiftStampLot` so recipient
+  `gift_received` credit and sender `gift_sent` history rows are written in
+  one stamp transaction while leaving the sender balance unchanged.
+- Gift purchase UI lives in `GiftStampsPanel` and starts checkout through
+  `State.StartGiftStampCheckout`, keeping stamp checkout state methods on the
+  central State object.
+- Pending non-user gifts are stored in `pending_gifts`, created from the
+  Autumn checkout webhook, and loaded with stamp lots through
+  `/api/stamps/lots` so the sender stamps panel can show them.
+- Non-user gift checkout uses `gift_pending_recipient_email` metadata while
+  existing-user gifts continue to use `gift_recipient_user_id` metadata.
+- Pending gifts are claimed in the checkout signup path for newly inserted
+  users; the normal signup grant is applied first, then matching
+  `pending_gifts` rows are credited as `gift_received` and marked claimed.
+- Scheduled stamp maintenance jobs can use Netlify's `schedule()` wrapper in
+  `netlify/functions`, while keeping the DB workflow in `netlify/lib/stamps.ts`
+  with injected Autumn and Resend functions to avoid billing/stamp import
+  cycles.
+- Sender gift management uses recipient `stamp_lots` rows with
+  `source = 'gift_received'` and `gifted_by_user_id` set to the sender; the
+  sender stamps panel loads those rows through `/api/stamps/lots` as
+  `sent_gifts`.
+- Gift reclaim refunds write `stamp_transactions.reason = 'gift_reclaimed'`
+  against the recipient's lot and balance, while Autumn refunds the original
+  gift checkout to the sender's payment method.
+- The app header stamp balance lives in `Nav`, reads the numeric
+  `currentUser.stamps_balance` from `/api/whoami`, and links to the
+  dedicated stamps route at `/settings/stamps`.
+- Dedicated stamps account management lives at `/settings/stamps`; it
+  composes `GiftStampsPanel` and `StampLotsRefundPanel` instead of
+  duplicating gift and refund behavior.
+- Stamp transaction history loads through
+  `State.FetchStampTransactions` and `/api/stamps/transactions`, which return
+  50 rows plus a `next_before` cursor for older history.
+- Stamp invariant verification lives in `verifyStampInvariants`; it uses
+  read-only aggregate subqueries, logs drift for human investigation, and is
+  run by a daily scheduled function without automatic reconciliation.
+
+## 2026-05-15 19:49 PDT - US-001
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp accounting schema migration.
+- Added `users.stamps_balance`, `stamp_lots`, and `stamp_transactions`.
+- Added the FIFO consumption index and transaction history index.
+- Added a `down.sql` rollback for the stamp tables and balance column.
+- Files changed:
+  - `netlify/database/migrations/0003_stamp_accounting/migration.sql`
+  - `netlify/database/migrations/0003_stamp_accounting/down.sql`
+  - `test/us001-stamp-schema.test.ts`
+  - `tsconfig.json`
+  - `specs/prd.json`
+  - `progress.log`
 - **Learnings for future iterations:**
-  - The public share button should live on the public post route after a
-    post id exists; the send route remains pre-publish and should not expose
-    share UI.
-  - `ButtonProps` now accepts `aria-label`, so route components can keep
-    accessible names on shared button controls without bypassing the
-    component.
----
-## 2026-05-11 15:20 PDT - US-028
-Thread: https://ampcode.com/threads/
-- Documented Drerings as an installable PWA and pointed contributors to
-  `public/manifest.webmanifest`.
-- Documented that share eligibility is gated through `state.canShare`, which
-  is true only when `subscription_status` is `active`.
-- Linked the README share notes to `docs/SMS.md` for the Web Share API and
-  SMS/Messages rationale.
-- Marked US-028 as passing in `specs/prd.json`.
-- Files changed: `README.md`, `specs/prd.json`, and `progress.log`.
-- Verification: `npx tsc --noEmit`; `npm run lint`; `npm test`.
-- **Learnings for future iterations:**
-  - Use the README for project-level PWA and share-gate contributor context;
-    link to focused docs like `docs/SMS.md` for supporting API rationale.
----
-## 2026-05-11 15:16 PDT - US-027
-Thread: https://ampcode.com/threads/
-- Added a paid-only fallback share panel on the published post route with
-  Copy link and Download PNG actions.
-- Wired Copy link through `navigator.clipboard.writeText`, showing a
-  transient Copied status, with a readonly URL input when clipboard support
-  is unavailable.
-- Wired Download PNG to create a `drering-<id>.png` download from the loaded
-  public post image.
-- Added Escape and external-focus dismissal for the fallback panel while
-  preserving the `drerings:share-fallback` handoff from US-026.
-- Marked US-027 as passing in `specs/prd.json`.
-- Files changed: `src/routes/post.ts`, `src/routes/post.css`,
-  `test/us027-share-fallback.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us027-share-fallback.test.ts`;
-  `npx vitest run test/us027-share-fallback.test.ts
-  test/us026-native-share.test.ts test/us025-share-button-ui.test.ts
-  test/us012-public-post-ui.test.ts`; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`.
-- Browser verification used a Playwright fallback because the Browser
-  plugin's Node REPL control tool was unavailable; with `navigator.share`
-  disabled on `/post/42`, Copy link wrote the absolute post URL, Download
-  PNG prepared `drering-42.png`, and no page console errors were observed.
-- **Learnings for future iterations:**
-  - Keep the Web Share API detection in the share click handler; fallback UI
-    should react to the `drerings:share-fallback` event so native and desktop
-    fallback paths do not duplicate URL construction.
-  - The public post route already has the loaded `PublicPost.image`, so
-    fallback download can use that data URL directly without adding another
-    API or Blob helper.
----
-## 2026-05-11 14:20 PDT - US-024
-Thread: https://ampcode.com/threads/
-- Added `state.canShare` as a derived `@preact/signals` value in
-  `src/state.ts`, true only for active subscribers.
-- Added state-flow coverage for logged-out, free, active, canceled, and
-  past-due share eligibility.
-- Marked US-024 as passing in `specs/prd.json`.
-- Files changed: `src/state.ts`, `test/state.flows.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/state.flows.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
-- **Learnings for future iterations:**
-  - Share gating now has its own frontend source of truth:
-    `state.canShare`. Use it for share UI instead of checking
-    `state.currentUser.value?.subscription_status` in routes.
+  - The existing `users.id` column is `uuid`, so new stamp references need
+    `uuid` foreign keys instead of the older text sketch in the design doc.
+  - This repo already has text-based migration tests in Vitest; focused
+    schema stories can follow that pattern without spinning up Postgres.
+  - Rollback SQL is not present in older migrations, but stamp accounting
+    uses a sibling `down.sql` to satisfy reversibility.
+  - Typechecking the whole repo requires Vitest global types; existing tests
+    use global `expect`.
 ---
 
-## 2026-05-11 13:58 PDT - US-022
-Thread: https://ampcode.com/threads/
-- Added `public/manifest.webmanifest` with the Drerings PWA identity,
-  standalone display mode, existing global color-token values, and generated
-  icon references.
-- Added `_public/manifest.webmanifest` so the manifest is preserved by the
-  Vite build path that copies `_public` into `public`.
-- Added a US-022 Vitest contract covering manifest identity, color reuse, and
-  the icon list.
-- Marked US-022 as passing in `specs/prd.json`.
-- Files changed: `public/manifest.webmanifest`,
-  `_public/manifest.webmanifest`, `test/us022-web-manifest.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us022-web-manifest.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+## 2026-05-15 19:54 PDT - US-002
+Thread: https://ampcode.com/threads/unknown
+- Implemented `creditStampLot` as the credit chokepoint for purchases,
+  grants, and received gifts.
+- The service inserts a stamp lot, increments `users.stamps_balance`, and
+  writes the positive transaction row inside one explicit DB transaction.
+- Added rollback handling so failed writes release the client cleanly.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us002-credit-stamp-lot.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
 - **Learnings for future iterations:**
-  - Vite is configured with `publicDir: '_public'` and
-    `build.outDir: './public'`, so source static assets belong in `_public`
-    even when a story explicitly validates the built `public` copy.
+  - Stamp services should use a connected DB client for multi-write
+    operations instead of separate `pool.query` calls.
+  - `stamp_transactions.reference_id` can carry the Autumn checkout id for
+    purchase credits, which future webhook idempotency can query.
+  - Focused service tests can mock `@netlify/database` with `vi.doMock` and
+    inspect the ordered transaction queries without requiring Postgres.
 ---
 
-## 2026-05-11 13:48 PDT - US-021
-Thread: https://ampcode.com/threads/
-- Added a regression test that validates the source icon and generated PWA
-  icon PNG dimensions by reading the PNG IHDR fields.
-- Generated `public/icon-192.png`, `public/icon-512.png`, and
-  `public/icon-512-maskable.png` from `public/icon.png`.
-- Kept the maskable 512px asset centered inside an 80% safe zone on a
-  transparent square canvas.
-- Marked US-021 as passing in `specs/prd.json`.
-- Files changed: `public/icon-192.png`, `public/icon-512.png`,
-  `public/icon-512-maskable.png`, `test/us021-pwa-icons.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us021-pwa-icons.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+## 2026-05-15 20:04 PDT - US-003
+Thread: https://ampcode.com/threads/unknown
+- Implemented `debitStamp` as the atomic FIFO debit primitive.
+- Added `InsufficientStampsError` for empty-balance and guarded-update
+  failures.
+- The service locks and debits the next non-purchase lot before purchased lots,
+  updates the user's cached balance, and writes the `send` transaction in one
+  explicit DB transaction.
+- Added focused tests for FIFO/locking SQL, insufficient stamps rollback, and
+  the one-success/one-error concurrent debit case.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us003-debit-stamp.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
 - **Learnings for future iterations:**
-  - Generated assets in `public/` are ignored by default and must be staged
-    with `git add -f` when they are intentional deliverables.
-  - PNG dimension checks can read bytes 16 and 20 from the IHDR chunk, which
-    avoids adding another test dependency for simple asset contracts.
+  - `debitStamp` accepts an optional `referenceId`, which can carry the
+    postcard id when the send-flow integration is added.
+  - Balance update failures should be treated like insufficient stamps and
+    rolled back, because the lot decrement and balance cache must remain in
+    sync.
+  - Service tests can assert concurrency behavior by mocking one locked lot
+    selection and one empty selection while still verifying the required
+    `FOR UPDATE SKIP LOCKED` query shape.
 ---
 
-## 2026-05-09 22:16 PDT - US-001
-Thread: https://ampcode.com/threads/
-- Removed all AT Proto package dependencies from `package.json` and
-  `package-lock.json`.
-- Deleted the old Netlify auth and constellation functions, plus the feed,
-  profile, and DID config modules that depended on the old backend.
-- Simplified app state, login, routing, home publishing controls, and about
-  copy so the app boots without AT Proto or Bluesky code paths.
-- Added a US-001 regression guard that scans package manifests and source for
-  removed backend references.
-- Files changed: `package.json`, `package-lock.json`, `src/state.ts`,
-  `src/util.ts`, `src/post-text.ts`, `src/index.ts`, `src/routes/home.ts`,
-  `src/routes/index.ts`, `src/routes/login.ts`, `src/routes/login.css`,
-  `src/routes/colophon.ts`, deleted old route/function/config files, and
-  updated tests.
-- Verification: `npx vitest run test/us001-no-atproto.test.ts
-  test/home-route.color-picker.test.ts test/login-route.flows.test.ts
-  test/state.flows.test.ts test/util.test.ts`; `npm run lint`; `npm test`;
-  `npx tsc --noEmit`; browser smoke check at `http://127.0.0.1:8888/`
-  confirmed the home route, canvas, and Save button render with no console or
-  page errors.
+## 2026-05-15 20:08 PDT - US-004
+Thread: https://ampcode.com/threads/unknown
+- Implemented `refundFailedSend` for failed postcard delivery refunds.
+- The service re-credits the specific spent lot, increments the user's cached
+  stamp balance, and writes a `failed_send_refund` transaction inside one DB
+  transaction.
+- Added focused rollback coverage for failed refund writes.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us004-refund-failed-send.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
 - **Learnings for future iterations:**
-  - The checked-in `test/test-bundle.js` is generated output if present; the
-    tracked browser test entry point is `test/index.ts`.
-  - Removing source modules also requires deleting or rewriting old Vitest
-    tests because lint scans every `*.ts` file, not just test files that run.
-  - Browser-use's Node REPL bridge was not exposed in this session, so the
-    browser acceptance check used a Playwright fallback against the same local
-    dev server.
-  - `tsconfig.json` uses explicit `types` and `typeRoots`; Node-based tests
-    need both `@types/node` and the `node` entry in `compilerOptions.types`.
-  - `npm test` uses tapout's fixed browser-test port, so run it by itself
-    instead of in parallel with other browser-oriented test commands.
+  - Failed-send refunds should use the `lotId` returned by `debitStamp` so
+    the original spent lot is restored instead of creating a new credit lot.
+  - Refund transaction rows keep `reference_id` unset at the service layer;
+    send-flow integration can decide whether to add postcard context later.
+  - Focused service tests can keep asserting ordered `BEGIN`/write/`COMMIT`
+    calls while mocking only the balance `RETURNING` row.
 ---
-## 2026-05-09 22:39 PDT - US-002
-Thread: https://ampcode.com/threads/
-- Added `@netlify/database` so the app has the official Netlify Database
-  package available for later function work.
-- Added the initial paid-accounts migration with `users`, `passkeys`,
-  `magic_link_tokens`, `drawings`, and `public_posts`.
-- Added a US-002 Vitest guard that checks the Netlify migration layout,
-  required package, table columns, key constraints, and URL-facing
-  `bigserial` public post id.
-- Marked US-002 as passing in `specs/prd.json`.
-- Files changed: `package.json`, `package-lock.json`,
-  `netlify/database/migrations/0001_paid_accounts_schema/migration.sql`,
-  `test/us002-netlify-db-schema.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us002-netlify-db-schema.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
-- Local migration apply note: `npx netlify db status` requires a linked
-  Netlify site, the installed CLI does not expose the current GA
-  `database migrations apply` command, and the local Docker daemon was not
-  running. The migration contract is covered by the static schema guard.
-- **Learnings for future iterations:**
-  - Current Netlify Database docs use migration directories named
-    `<prefix>_<slug>` with a nested `migration.sql` file.
-  - This repo is not linked to a Netlify site, so `netlify db status` cannot
-    verify database setup from a fresh checkout.
-  - Updating the Netlify CLI to the latest major currently conflicts with
-    Vitest's optional OpenTelemetry peer dependency.
----
-## 2026-05-09 22:44 PDT - US-003
-Thread: https://ampcode.com/threads/
-- Added `@netlify/blobs` as an app dependency.
-- Added `netlify/lib/drawing-images.ts` with the named `drawings` blob store
-  helper functions: `putDrawingImage`, `getDrawingImage`, and
-  `deleteDrawingImage`.
-- Added a US-003 Vitest contract covering stable blob keys, store selection,
-  image reads, missing images, and deletion.
-- Marked US-003 as passing in `specs/prd.json`.
-- Files changed: `package.json`, `package-lock.json`,
-  `netlify/lib/drawing-images.ts`, `test/us003-drawing-blobs.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us003-drawing-blobs.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
-- **Learnings for future iterations:**
-  - Use `@netlify/blobs` from `netlify/lib/*` modules for backend storage
-    helpers.
-  - Call `getStore('drawings')` inside each helper operation so the store is
-    created after Netlify has populated its runtime context.
-  - Drawing image blob keys use
-    `users/<userId>/drawings/<drawingId>.png`.
----
-## 2026-05-09 22:52 PDT - US-004
-Thread: https://ampcode.com/threads/
-- Added magic-link auth functions for
-  `POST /api/auth/magic-link` and
-  `GET /api/auth/magic-link/callback`.
-- Added backend helpers for magic-link token creation/consumption, Resend
-  delivery, signed session cookies, and shared HTTP JSON/origin parsing.
-- Replaced the login placeholder with a single email form, Send link button,
-  inline error handling, and a check-your-email success state.
-- Added US-004 regression coverage for the API handlers, auth helpers, Resend
-  payloads, and login route flow.
-- Marked US-004 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/auth/magic-link.ts`,
-  `netlify/functions/auth/magic-link-callback.ts`,
-  `netlify/lib/auth-store.ts`, `netlify/lib/http.ts`,
-  `netlify/lib/resend.ts`, `netlify/lib/session.ts`,
-  `src/routes/login.ts`, `src/routes/login.css`,
-  `test/us004-auth-helpers.test.ts`,
-  `test/us004-magic-link-api.test.ts`,
-  `test/login-route.flows.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us004-auth-helpers.test.ts
-  test/us004-magic-link-api.test.ts test/login-route.flows.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback
-  against `http://127.0.0.1:8889/login` confirmed one Sign In heading, one
-  Email input, one Send link button, and no page errors. Browser Use's Node
-  REPL bridge was not exposed, and Computer Use was blocked by macOS
-  authentication, so the browser check used Playwright against the local dev
-  server.
-- **Learnings for future iterations:**
-  - Netlify Functions route cleanly from `/api/*` when nested under
-    `netlify/functions`, for example `auth/magic-link.ts`.
-  - `@netlify/database` exposes `getDatabase().pool.query(...)`; use
-    parameterized SQL for helper modules under `netlify/lib`.
-  - Magic-link login currently upserts a user before inserting the token
-    because `magic_link_tokens.user_id` is non-nullable.
-  - Resend delivery uses `RESEND_API_KEY`, with optional
-    `RESEND_FROM_EMAIL`; no Resend SDK dependency is required.
-  - Session cookies require `SESSION_SECRET` outside test/local Netlify mode.
----
-## 2026-05-09 23:03 PDT - US-005
-Thread: https://ampcode.com/threads/
-- Added passkey registration and sign-in endpoints for options and verify
-  steps under `/api/auth/passkey/*`.
-- Added shared WebAuthn helpers for signed challenge tokens, registration
-  verification, authentication verification, passkey storage, and counter
-  updates.
-- Added session cookie parsing for endpoint authorization without exposing the
-  US-006 `getSession`/`whoami` contract yet.
-- Added passkey sign-in to the login route, with magic-link-only fallback when
-  WebAuthn is unavailable.
-- Added a settings route with a logged-in-only "Register a passkey" action.
-- Marked US-005 as passing in `specs/prd.json`.
-- Files changed: `package.json`, `package-lock.json`,
-  `netlify/lib/session.ts`, `netlify/lib/passkeys.ts`,
-  `netlify/functions/auth/passkey/register/options.ts`,
-  `netlify/functions/auth/passkey/register/verify.ts`,
-  `netlify/functions/auth/passkey/login/options.ts`,
-  `netlify/functions/auth/passkey/login/verify.ts`,
-  `src/routes/login.ts`, `src/routes/login.css`,
-  `src/routes/settings.ts`, `src/routes/settings.css`,
-  `src/routes/index.ts`, `test/us005-passkey-helpers.test.ts`,
-  `test/us005-passkey-api.test.ts`, `test/us005-passkey-ui.test.ts`,
-  `specs/prd.json`, and `progress.log`.
+
+## 2026-05-15 20:12 PDT - US-005
+Thread: https://ampcode.com/threads/unknown
+- Added the Autumn stamp pack configuration contract in code.
+- Exported `PACK_DEFINITIONS` for the Starter, Bundle, and Big bundle
+  products with product ids, counts, prices, and Autumn metadata.
+- Documented the matching Autumn dashboard setup and staging checkout smoke
+  check in the README.
+- Added a focused test that locks the code contract to the configured
+  product tiers.
+- Files changed:
+  - `netlify/lib/billing.ts`
+  - `test/us005-stamp-packs.test.ts`
+  - `README.md`
+  - `specs/prd.json`
+  - `progress.log`
 - Verification:
-  `npx vitest run test/us005-passkey-helpers.test.ts
-  test/us005-passkey-api.test.ts test/us005-passkey-ui.test.ts`;
-  `npx vitest run test/login-route.flows.test.ts test/state.flows.test.ts
-  test/us004-magic-link-api.test.ts test/us004-auth-helpers.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback against
-  `http://127.0.0.1:5173/login` and `/settings` confirmed the passkey button,
-  signed-out settings state, and no console or page errors.
-- Browser Use note: the required Node REPL tool was not exposed in this
-  session, so browser verification used Playwright against the local Vite dev
-  server.
+  - `npx vitest run test/us005-stamp-packs.test.ts
+    test/us014-billing-store.test.ts
+    test/us020-readme-deployment-notes.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
 - **Learnings for future iterations:**
-  - SimpleWebAuthn v13 returns credential data as
-    `registrationInfo.credential`; store its `id`, `publicKey`, and `counter`.
-  - Existing `passkeys.public_key` is text, so encode public keys as base64url
-    on write and decode to `Uint8Array` before WebAuthn authentication checks.
-  - Until US-006 adds `getSession`, passkey registration can authorize with
-    `readSessionUserFromCookie(event)` from `netlify/lib/session.ts`.
+  - Keep Autumn stamp product ids and metadata centralized in
+    `PACK_DEFINITIONS`; webhook and buy-modal stories should import that
+    constant instead of duplicating pack prices.
+  - The existing billing module remains the right home for Autumn product
+    contracts because checkout, cancellation, and webhook helpers already
+    live there.
+  - README deployment notes are covered by `test/us020-readme-deployment-notes`
+    and should be included in focused checks when billing setup docs change.
 ---
-## 2026-05-09 23:09 PDT - US-006
-Thread: https://ampcode.com/threads/
-- Added `getSession(event)` in `netlify/lib/session.ts` to validate the
-  signed session cookie, load the current `users` row, and return
-  `{ user } | null`.
-- Added `GET /api/whoami`, returning the current user's `id`, `email`, and
-  `subscription_status`, or a 401 JSON error when signed out.
-- Added `state.currentUser` and made `State.fetchAuthStatus(state)` hydrate
-  auth state from `/api/whoami`; app boot now calls it from `src/index.ts`.
-- Added US-006 regression coverage for session lookup, the whoami endpoint,
-  and frontend auth hydration.
-- Marked US-006 as passing in `specs/prd.json`.
-- Files changed: `netlify/lib/session.ts`, `netlify/functions/whoami.ts`,
-  `src/state.ts`, `src/index.ts`, `test/us006-session-whoami.test.ts`,
-  `test/state.flows.test.ts`, `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us006-session-whoami.test.ts
-  test/state.flows.test.ts`; `npx tsc --noEmit`; `npm run lint`;
-  `npm test`.
+
+## 2026-05-15 20:18 PDT - US-006
+Thread: https://ampcode.com/threads/unknown
+- Implemented the Autumn stamp purchase webhook branch.
+- `checkout.completed` events for configured `stamps_*` products now verify
+  idempotency by checkout id, then credit the matching pack with
+  `creditStampLot`.
+- The signed Netlify webhook response reports stamp purchase processing while
+  keeping existing subscription webhook behavior intact.
+- Files changed:
+  - `netlify/lib/billing.ts`
+  - `netlify/functions/billing/webhook.ts`
+  - `test/us006-autumn-stamp-webhook.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
 - **Learnings for future iterations:**
-  - Do not authorize future paid APIs from the cookie payload alone; use
-    `getSession(event)` so user and subscription data come from the DB.
-  - `State.fetchAuthStatus(state)` is the frontend boot hydration point for
-    `state.currentUser`; keep auth mutations attached to `State`.
+  - Stamp purchase webhooks should use `stamp_transactions.reference_id` as
+    the idempotency key before calling `creditStampLot`.
+  - Autumn checkout payloads can be normalized through local helper functions
+    in `billing.ts`, matching the existing customer-id extraction style.
+  - Handler response bodies are derived from `applyAutumnWebhookEvent` results,
+    so adding new Autumn event families should extend that result contract.
 ---
-## 2026-05-09 23:16 PDT - US-007
-Thread: https://ampcode.com/threads/
-- Added the free-account home warning with a `/pricing` upgrade link while
-  keeping the drawing canvas available to anonymous visitors.
-- Gated Save and Send It behind an active subscription, with accessible
-  explanatory tooltip copy and a `/pricing` link for free/anonymous users.
-- Added US-007 Vitest coverage for anonymous canvas loading, no
-  localStorage/backend persistence, disabled paid controls, and pricing links.
-- Updated existing home-route validation tests to model a paid user through
-  `state.currentUser.subscription_status === 'active'`.
-- Marked US-007 as passing in `specs/prd.json`.
-- Files changed: `src/routes/home.ts`, `src/routes/home.css`,
-  `src/components/button.ts`, `test/us007-free-user-drawing.test.ts`,
-  `test/home-route.color-picker.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us007-free-user-drawing.test.ts`;
-  `npx vitest run test/us007-free-user-drawing.test.ts
-  test/home-route.color-picker.test.ts`; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`; browser fallback against
-  `http://localhost:8889/` confirmed the canvas, warning, disabled Save,
-  disabled Send It, pricing links, and no page JS errors or 5xx responses.
-- Browser Use note: the required Node REPL browser tool was not exposed in
-  this session, so browser verification used Playwright against `npm start`.
+
+## 2026-05-15 20:33 PDT - US-007
+Thread: https://ampcode.com/threads/unknown
+- Implemented the buy-pack modal on the pricing route.
+- Added three stamp pack cards with count, price, per-stamp price, and a
+  Bundle recommendation treatment.
+- Added signal-backed state methods for opening, closing, and starting stamp
+  pack checkout.
+- Taught the billing checkout endpoint and Autumn checkout helper to accept
+  validated stamp pack product ids while preserving subscription checkout.
+- Files changed:
+  - `src/stamp-packs.ts`
+  - `src/state.ts`
+  - `src/routes/pricing.ts`
+  - `src/routes/pricing.css`
+  - `src/style.css`
+  - `netlify/lib/billing.ts`
+  - `netlify/functions/billing/checkout.ts`
+  - `test/us007-buy-pack-modal.test.ts`
+  - `test/us014-billing-checkout-api.test.ts`
+  - `test/us014-billing-store.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us007-buy-pack-modal.test.ts
+    test/us014-billing-checkout-api.test.ts
+    test/us014-billing-store.test.ts test/us005-stamp-packs.test.ts
+    test/us006-autumn-stamp-webhook.test.ts test/us014-checkout-ui.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+  - Browser fallback via Playwright against `http://localhost:4444/pricing`:
+    modal opened, all pack text rendered, and pack cards did not overlap.
 - **Learnings for future iterations:**
-  - The Vite-only dev server proxies `/api/*` to the Netlify functions port,
-    so browser checks that exercise auth hydration should use `npm start`.
-  - Anonymous app boot intentionally receives a 401 from `/api/whoami`; treat
-    that as signed-out state, not as a failed page render.
-  - Home paid-control tests need `state.currentUser` populated with an
-    `active` subscription when they expect Save to be enabled.
+  - Shared stamp pack data belongs in `src/stamp-packs.ts` so frontend UI and
+    Netlify billing code can use the same product contract.
+  - Keep UI-only display decisions, such as the recommended pack, out of
+    `PACK_DEFINITIONS`; US-005 locks that object as billing configuration.
+  - Billing checkout can handle both subscriptions and one-time stamp packs by
+    passing an optional validated product id to `createCheckoutSession`.
 ---
-## 2026-05-09 23:25 PDT - US-008
-Thread: https://ampcode.com/threads/
-- Added the paid drawing API for `POST /api/drawings` and
-  `PUT /api/drawings/:id`.
-- Added drawing persistence helpers that decode base64 PNG data, write the
-  image to Netlify Blobs, insert or update the `drawings` row, and delete the
-  replaced blob when the blob key changes.
-- Gated drawing save/update behind a current session with
-  `subscription_status === 'active'`, returning 401 for anonymous users and
-  402 for free users.
-- Added US-008 Vitest coverage for session gating, paid saves, paid updates,
-  Blob writes, DB writes, ownership-qualified updates, and replaced blob
-  deletion.
-- Marked US-008 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/drawings.ts`,
-  `netlify/lib/drawings.ts`, `test/us008-save-drawing-api.test.ts`,
-  `test/us008-drawing-store.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us008-save-drawing-api.test.ts
-  test/us008-drawing-store.test.ts`; `npx tsc --noEmit`; `npm run lint`;
-  `npm test`.
+
+## 2026-05-15 20:39 PDT - US-008
+Thread: https://ampcode.com/threads/unknown
+- Implemented zero-balance send gating on the postcard composer.
+- `State.GoToSendDrawing` now opens the stamp pack modal when
+  `stamps_balance === 0` instead of navigating away from the draft.
+- Moved the buy-pack modal into a shared component so the pricing route and
+  composer use the same checkout UI.
+- Extended session and `/api/whoami` current-user data with
+  `stamps_balance` so refreshed auth state can unlock retry after purchase.
+- Files changed:
+  - `src/components/buy-pack-modal.ts`
+  - `src/components/buy-pack-modal.css`
+  - `src/routes/home.ts`
+  - `src/routes/pricing.ts`
+  - `src/routes/pricing.css`
+  - `src/state.ts`
+  - `netlify/lib/auth-store.ts`
+  - `netlify/lib/session.ts`
+  - `netlify/functions/whoami.ts`
+  - `test/us008-zero-balance-send.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us008-zero-balance-send.test.ts`
+  - `npx vitest run test/us007-buy-pack-modal.test.ts
+    test/us011-send-route-ui.test.ts test/state.flows.test.ts
+    test/us006-session-whoami.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright against `http://127.0.0.1:4444/`:
+    zero-balance Send It opened the buy modal, stayed on `/`, and preserved
+    draft text fields.
+  - `npm test`
 - **Learnings for future iterations:**
-  - One `drawings.ts` Netlify function can cover both collection and item
-    writes by parsing the drawing id from `event.path`.
-  - Save/update API tests can mock `netlify/lib/drawings` while lower-level
-    persistence tests mock `@netlify/database` and `drawing-images`.
-  - `json(...)` currently accepts `Record<string, unknown>`, so typed result
-    interfaces should be converted to plain object literals in handlers.
+  - Composer send checks belong in `State.GoToSendDrawing`, not directly in
+    route click handlers, so list and canvas send paths stay aligned.
+  - Keep stamp pack checkout UI shared in `src/components/buy-pack-modal.ts`
+    rather than duplicating the pricing modal in composer routes.
+  - `/api/whoami` is the right lightweight refresh path for stamp balances
+    after a purchase webhook credits the account.
 ---
-## 2026-05-09 23:34 PDT - US-009
-Thread: https://ampcode.com/threads/
-- Added paid Save wiring on the home composer. It captures the canvas as a
-  PNG data URL, POSTs or PUTs through `State.SaveDrawing`, and shows inline
-  saved/error states.
-- Added saved drawing read support for `GET /api/drawings` and
-  `GET /api/drawings/:id`, backed by `listSavedDrawings` and
-  `getSavedDrawing` in `netlify/lib/drawings.ts`.
-- Added `/drawings` with thumbnails, text excerpts, update timestamps, Open,
-  and placeholder Delete actions for the next story.
-- Added cross-route drawing state so Open fetches the saved drawing, routes
-  back to `/`, and repopulates text, alt text, and canvas image.
-- Marked US-009 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/drawings.ts`,
-  `netlify/lib/drawings.ts`, `src/state.ts`, `src/routes/home.ts`,
-  `src/routes/home.css`, `src/routes/drawings.ts`,
-  `src/routes/drawings.css`, `src/routes/index.ts`, `src/style.css`,
-  `test/us009-drawing-read-api.test.ts`,
-  `test/us009-drawing-read-store.test.ts`,
-  `test/us009-save-load-ui.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us009-drawing-read-api.test.ts
-  test/us009-drawing-read-store.test.ts test/us009-save-load-ui.test.ts`;
-  related targeted Vitest tests for US-007, US-008, home, and state;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser smoke
-  against `http://localhost:8889/` with mocked paid auth/drawing APIs.
-- Browser Use note: the required Node REPL browser tool was not exposed in
-  this session, so browser verification used the Playwright fallback already
-  established in prior iterations.
+
+## 2026-05-15 20:46 PDT - US-009
+Thread: https://ampcode.com/threads/unknown
+- Implemented the signup stamp grant in the checkout account creation path.
+- `upsertCheckoutUser` now distinguishes inserted users from existing users
+  and calls `creditStampLot` with a 5-stamp grant only for new accounts.
+- New account creation returns the credited `stamps_balance` immediately, and
+  repeated checkout attempts do not double-credit signup stamps.
+- Files changed:
+  - `netlify/lib/auth-store.ts`
+  - `test/us009-signup-grant.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us009-signup-grant.test.ts
+    test/us014-checkout-store.test.ts
+    test/us014-billing-checkout-api.test.ts`
+  - `npx vitest run test/us004-auth-helpers.test.ts
+    test/us004-magic-link-api.test.ts test/us006-session-whoami.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
 - **Learnings for future iterations:**
-  - Keep drawing reads in the existing `drawings.ts` Netlify function; parse
-    the optional drawing id from `event.path` just like the update path.
-  - Saved drawing images are sent to the SPA as PNG data URLs. This keeps the
-    `/drawings` thumbnail and composer reopen flow simple until a dedicated
-    image endpoint is needed.
-  - Cross-route drawing UI state should live on `State`, not in route-local
-    signals, because `/drawings` needs to hand an opened drawing to `/`.
-  - Auth-dependent route effects should key off the current user id so they
-    run when `/api/whoami` resolves after the first render.
+  - Checkout signup is currently the account creation boundary; stamp grants
+    should be attached there rather than to passkey registration.
+  - `upsertCheckoutUser` uses a CTE with `ON CONFLICT DO NOTHING` so callers
+    can detect a true insert without mutating existing users.
+  - Signup grants should return `creditStampLot().balanceAfter` as the
+    current user's `stamps_balance`, because the initial insert row still has
+    the default zero balance before the grant transaction runs.
 ---
-## 2026-05-10 01:14 PDT - US-010
-Thread: https://ampcode.com/threads/
-- Added saved drawing deletion for active subscribers through
-  `DELETE /api/drawings/:id`.
-- Added backend storage deletion that verifies ownership, deletes any public
-  post row, deletes the drawing row, and removes the drawing image blob.
-- Enabled the `/drawings` Delete button with a native confirm prompt, inline
-  error handling, immediate list removal, and current drawing cleanup.
-- Added US-010 regression coverage for the storage helper, API handler, and
-  Drawings route confirmation behavior.
-- Marked US-010 as passing in `specs/prd.json`.
-- Files changed: `netlify/lib/drawings.ts`,
-  `netlify/functions/drawings.ts`, `src/state.ts`,
-  `src/routes/drawings.ts`, `test/us010-delete-drawing-store.test.ts`,
-  `test/us010-delete-drawing-api.test.ts`,
-  `test/us010-delete-drawing-ui.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us010-delete-drawing-store.test.ts
-  test/us010-delete-drawing-api.test.ts
-  test/us010-delete-drawing-ui.test.ts`; neighboring drawing tests;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; browser fallback against
-  `http://127.0.0.1:5173/drawings` confirmed the delete confirm prompt,
-  DELETE call, immediate list update, and no console or page errors.
-- Browser Use note: the required Node REPL browser tool was not exposed in
-  this session, so browser verification used Playwright against the local Vite
-  dev server.
+
+## 2026-05-15 20:52 PDT - US-010
+Thread: https://ampcode.com/threads/unknown
+- Implemented the existing-user migration grant backfill.
+- Added `backfillExistingUserStamps`, which reads all users, skips users with
+  an existing `migration_grant` transaction, and grants 10 stamps to the
+  remaining users through `creditStampLot`.
+- Added dry-run support and summary logging for users processed, users
+  skipped, stamps granted, and dry-run status.
+- Extended `creditStampLot` with a transaction reason override so migration
+  grants can keep `stamp_lots.source = 'grant'` while recording
+  `stamp_transactions.reason = 'migration_grant'`.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `netlify/lib/stamp-backfill.ts`
+  - `scripts/backfill-existing-stamp-grants.ts`
+  - `test/us010-stamp-backfill.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us010-stamp-backfill.test.ts`
+  - `npx vitest run test/us010-stamp-backfill.test.ts
+    test/us002-credit-stamp-lot.test.ts test/us009-signup-grant.test.ts`
+  - `npx esbuild scripts/backfill-existing-stamp-grants.ts --bundle
+    --platform=node --format=esm
+    --outfile=.netlify/backfill-existing-stamp-grants.mjs`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
 - **Learnings for future iterations:**
-  - Keep destructive saved-drawing actions on `State` so routes update shared
-    drawing signals consistently.
-  - `DELETE /api/drawings/:id` returns 403 when the drawing is not owned by
-    the current user.
-  - Delete tests can mock `/api/whoami`, `/api/drawings`, and
-    `/api/drawings/:id` in Playwright to exercise the authenticated
-    `/drawings` route without a live database.
+  - Migration grants need a transaction reason override instead of a new lot
+    source, because `stamp_lots.source` remains limited to purchase, grant,
+    and gift received.
+  - The backfill idempotency key is the per-user
+    `stamp_transactions.reason = 'migration_grant'` row.
+  - The backfill CLI is a thin wrapper around
+    `backfillExistingUserStamps`; test behavior in the library and bundle the
+    script as a smoke check.
 ---
-## 2026-05-10 01:23 PDT - US-011
-Thread: https://ampcode.com/threads/
-- Added the paid publish API at `POST /api/posts`, gated by
-  `getSession(event)` and `subscription_status === 'active'`.
-- Added `netlify/lib/posts.ts` with `publishDrawing`, which verifies drawing
-  ownership and upserts `public_posts` so republishing returns the existing
-  public post id.
-- Added `/send/:drawingId` with an owner-only preview, Publish action, and
-  redirect to `/post/:id` after a successful publish.
-- Wired Send It buttons from the home composer and saved drawings list through
-  `State.GoToSendDrawing`, and added `State.PublishDrawing` plus
-  `State.FetchSavedDrawing` for route-owned data loading.
-- Added US-011 regression coverage for the publish store helper, API handler,
-  dynamic route matching, Send It navigation, preview loading, and publish
-  redirect.
-- Marked US-011 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/posts.ts`, `netlify/lib/posts.ts`,
-  `src/state.ts`, `src/routes/home.ts`, `src/routes/drawings.ts`,
-  `src/routes/index.ts`, `src/routes/send.ts`, `src/routes/send.css`,
-  `test/us011-publish-post-api.test.ts`,
-  `test/us011-publish-post-store.test.ts`,
-  `test/us011-send-route-ui.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us011-publish-post-api.test.ts
-  test/us011-publish-post-store.test.ts test/us011-send-route-ui.test.ts`;
-  neighboring drawing/home/state Vitest tests; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`; Playwright browser fallback against
-  `http://127.0.0.1:5173/send/drawing-1` confirmed the preview image,
-  Publish action, redirect to `/post/42`, and no page or console errors.
-- Browser Use note: the required Node REPL browser tool was not exposed in
-  this session, so browser verification used the established Playwright
-  fallback against the local Vite dev server.
+
+## 2026-05-15 21:01 PDT - US-011
+Thread: https://ampcode.com/threads/unknown
+- Integrated stamp debiting into the postcard send/publish endpoint.
+- Added an ownership precheck so invalid drawing sends are rejected before
+  any stamp is consumed.
+- `POST /api/posts` now calls `debitStamp` before `publishDrawing`, passes
+  the drawing id as `referenceId`, and returns a clear 402 response for
+  `InsufficientStampsError`.
+- Added focused API and store tests for debit ordering, insufficient stamps,
+  and ownership validation.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `netlify/lib/posts.ts`
+  - `test/us011-publish-post-api.test.ts`
+  - `test/us011-publish-post-store.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us011-publish-post-api.test.ts
+    test/us011-publish-post-store.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
 - **Learnings for future iterations:**
-  - `State.OpenSavedDrawing` is navigation-oriented; routes that only need
-    drawing data should call `State.FetchSavedDrawing`.
-  - `POST /api/posts` lives in a separate Netlify function from drawing CRUD,
-    with reusable publish storage in `netlify/lib/posts.ts`.
-  - Publishing can be idempotent with `INSERT ... ON CONFLICT (drawing_id)`
-    because `public_posts.drawing_id` is unique.
+  - `publishDrawing` previously combined ownership validation with the
+    public post write; stamp debits need a separate `userOwnsDrawing` check
+    so unauthorized sends cannot consume stamps.
+  - The current send reference available before dispatch is the drawing id;
+    future refund work should keep using the debit result's `lotId` from the
+    send handler scope.
+  - Handler tests that mock `netlify/lib/posts` now need to include both
+    `userOwnsDrawing` and `publishDrawing` for POST send coverage.
 ---
-## 2026-05-10 01:29 PDT - US-012
-Thread: https://ampcode.com/threads/
-- Added public post read support to `GET /api/posts/:id`, with no session
-  requirement and 404 JSON for unknown IDs.
-- Added `getPublishedPost(postId)` to join `public_posts` to `drawings` and
-  return image data URLs from Blob storage.
-- Added `State.FetchPublicPost` and the `/post/:id` route to render the
-  published image, text, alt text, and share metadata.
-- Marked US-012 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/posts.ts`, `netlify/lib/posts.ts`,
-  `src/state.ts`, `src/routes/index.ts`, `src/routes/post.ts`,
-  `src/routes/post.css`, `test/us012-public-post-api.test.ts`,
-  `test/us012-public-post-store.test.ts`,
-  `test/us012-public-post-ui.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us012-public-post-store.test.ts
-  test/us012-public-post-api.test.ts test/us012-public-post-ui.test.ts`;
-  `npx vitest run test/us011-publish-post-store.test.ts
-  test/us011-publish-post-api.test.ts test/us011-send-route-ui.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
-  fallback against `http://127.0.0.1:5173/post/42` confirmed the public post
-  image, text, page title, Open Graph title/image, and no unexpected page or
-  console errors.
-- Browser Use note: the required Node REPL browser tool was not exposed in
-  this session, so browser verification used the established Playwright
-  fallback against the local Vite dev server.
+
+## 2026-05-15 21:05 PDT - US-012
+Thread: https://ampcode.com/threads/unknown
+- Implemented the failed-send refund path in the post send handler.
+- The handler now keeps the debited lot id in scope, calls
+  `refundFailedSend` when delivery fails after debit, and returns the
+  user-facing refund notification.
+- Added a focused API test covering a hard-bounce-style failure after debit.
+- Verified the send route displays the refund notification returned by
+  `/api/posts`.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `test/us012-failed-send-refund.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us012-failed-send-refund.test.ts`
+  - `npx vitest run test/us012-failed-send-refund.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us004-refund-failed-send.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback against `http://127.0.0.1:4444/send/drawing-1`:
+    failed `/api/posts` response rendered the stamp-refunded alert.
 - **Learnings for future iterations:**
-  - Public post reads should not call `getSession`; the published URL is
-    intentionally visitor-readable.
-  - Public post image responses follow the saved-drawing pattern: read the
-    drawing blob and return a `data:image/png;base64,...` URL.
-  - Route-level metadata updates can live in the route component when the
-    metadata depends on client-fetched content.
+  - `POST /api/posts` is the send-flow integration point for stamp debits
+    and refunds; keep the debited lot id outside the publish call so the
+    catch path can restore the same lot.
+  - The frontend send route already surfaces API error text through its
+    alert, so backend refund notifications can be verified by returning the
+    exact message from `/api/posts`.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 01:37 PDT - US-013
-Thread: https://ampcode.com/threads/
-- Added the `/pricing` client route with free and paid tier details plus the
-  `Subscribe - $5/month` CTA.
-- Added signed-out checkout prompting so anonymous visitors see a `/login`
-  link and a disabled Subscribe button before checkout exists.
-- Added Pricing to the main navigation and covered the existing home route
-  disabled Save/Send pricing link behavior in the US-013 tests.
-- Marked US-013 as passing in `specs/prd.json`.
-- Files changed: `src/routes/pricing.ts`, `src/routes/pricing.css`,
-  `src/routes/index.ts`, `test/us013-pricing-page.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us013-pricing-page.test.ts`;
-  `npx vitest run test/us013-pricing-page.test.ts
-  test/us007-free-user-drawing.test.ts`; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`; Playwright browser fallback against
-  `http://localhost:8889/pricing` confirmed the pricing route, tier headings,
-  disabled signed-out Subscribe button, sign-in link, and no unexpected page
-  or console errors.
-- Browser Use note: the required Node REPL browser control surface was not
-  exposed in this session, so browser verification used the established
-  Playwright fallback against the local dev server.
+
+## 2026-05-15 21:16 PDT - US-013
+Thread: https://ampcode.com/threads/unknown
+- Added a subtle `1 stamp` cost indicator next to the send route's publish
+  button without adding a confirmation step.
+- Added a shared stamp icon component for stamp-related UI.
+- Added focused Preact Testing Library coverage for the send-cost indicator.
+- Verified the send route in a local browser with Vite and Playwright-core
+  after the Browser Use Node REPL tool was unavailable in this session.
+- Files changed:
+  - `src/components/icon-stamp.ts`
+  - `src/routes/send.ts`
+  - `src/routes/send.css`
+  - `test/us013-send-stamp-indicator.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us013-send-stamp-indicator.test.ts`
+  - `npx vitest run test/us011-send-route-ui.test.ts
+    test/us013-send-stamp-indicator.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+  - Browser fallback at `http://127.0.0.1:5173/send/drawing-1`
 - **Learnings for future iterations:**
-  - `/pricing` is a client route for US-013; US-014 should attach checkout
-    behavior to the existing Subscribe button instead of replacing the route.
-  - Anonymous auth hydration still produces a known `/api/whoami` 401 in
-    browser checks; intercept or allow that expected signed-out signal.
-  - Route tests can render a route through `Router(state).match(path)` to
-    cover dynamic route registration without importing the route component.
+  - Send route UI tests can stub `/api/drawings/:id` and assert the loaded
+    preview plus controls without touching the delivery API.
+  - Use plain Vitest assertions in UI tests; jest-dom matchers such as
+    `toHaveTextContent` are not globally installed.
+  - The Browser Use skill requires a Node REPL browser tool; when it is not
+    exposed, a local Vite server plus Playwright-core can still verify the
+    rendered route in a real browser.
 ---
-## 2026-05-10 01:44 PDT - US-014
-Thread: https://ampcode.com/threads/
-- Added `POST /api/billing/checkout`, gated by `getSession(event)`, to create
-  an Autumn checkout session for the signed-in user.
-- Added `netlify/lib/billing.ts` to call Autumn's `/checkout` endpoint,
-  persist `users.autumn_customer_id`, and return a mocked account URL for
-  local Netlify development when no Autumn secret is configured.
-- Wired the `/pricing` Subscribe button through `State.StartCheckout` so it
-  posts to `/api/billing/checkout`, redirects to the returned URL, and shows
-  inline checkout errors.
-- Added `/account` to receive `/account?status=ok` and
-  `/account?status=cancel` returns from checkout.
-- Documented the Autumn environment variables in `README.md`.
-- Marked US-014 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/billing/checkout.ts`,
-  `netlify/lib/billing.ts`, `src/state.ts`, `src/routes/pricing.ts`,
-  `src/routes/pricing.css`, `src/routes/account.ts`,
-  `src/routes/account.css`, `src/routes/index.ts`, `README.md`,
-  `test/us014-billing-store.test.ts`,
-  `test/us014-billing-checkout-api.test.ts`,
-  `test/us014-checkout-ui.test.ts`, `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us014-billing-store.test.ts
-  test/us014-billing-checkout-api.test.ts test/us014-checkout-ui.test.ts`;
-  `npx vitest run test/us014-billing-store.test.ts
-  test/us014-billing-checkout-api.test.ts test/us014-checkout-ui.test.ts
-  test/us013-pricing-page.test.ts test/state.flows.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
-  fallback against `http://localhost:8889/pricing` confirmed signed-in
-  checkout redirect to `/account?status=ok`, cancellation messaging at
-  `/account?status=cancel`, and no page or console errors.
+
+## 2026-05-15 21:21 PDT - US-014
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp lot refund calculation service.
+- Added `calculateStampLotRefundCents`, which prorates purchase lots with
+  integer math and returns zero for non-refundable lots.
+- Added focused coverage for full purchase refunds, partial purchase refunds,
+  fully used lots, grant lots, and gifted lots.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us014-refund-calculation.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us014-refund-calculation.test.ts`
+  - `npx vitest run test/us002-credit-stamp-lot.test.ts
+    test/us003-debit-stamp.test.ts test/us004-refund-failed-send.test.ts
+    test/us014-refund-calculation.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
 - **Learnings for future iterations:**
-  - Autumn checkout uses `POST https://api.useautumn.com/checkout` with the
-    secret key as a bearer token, `customer_id`, `product_id`, `success_url`,
-    and Stripe `cancel_url` passed through `checkout_session_params`.
-  - Keep billing provider calls in `netlify/lib/billing.ts`; function handlers
-    should only resolve auth, derive origin, and return JSON.
-  - The account route reads checkout return status from `location.search`
-    because app route state strips query strings.
+  - Refund calculations should multiply before dividing, then floor the cents
+    result, so packs with fractional per-stamp prices do not lose cents early.
+  - Non-purchase stamp lots are not refundable by this helper; grants, gifts,
+    missing purchase prices, and empty lots all return zero.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 01:52 PDT - US-015
-Thread: https://ampcode.com/threads/
-- Added `POST /api/billing/webhook` for Autumn subscription webhooks.
-- Added Svix signature verification against the raw request body using
-  `AUTUMN_WEBHOOK_SECRET`.
-- Added billing helper logic that maps created, activated, renewed, canceled,
-  and payment-failed events to local `users.subscription_status` values.
-- Documented the webhook endpoint URL and required webhook secret in
-  `README.md`.
-- Marked US-015 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/billing/webhook.ts`,
-  `netlify/lib/billing.ts`, `test/us015-billing-webhook-api.test.ts`,
-  `test/us015-billing-webhook-store.test.ts`, `README.md`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us015-billing-webhook-api.test.ts
-  test/us015-billing-webhook-store.test.ts`; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`.
+
+## 2026-05-15 21:32 PDT - US-015
+Thread: https://ampcode.com/threads/unknown
+- Implemented the user-initiated stamp refund API endpoint.
+- Added `POST /api/stamps/refund/:lotId`, which authenticates the caller,
+  validates and locks the caller-owned purchase lot, calculates the prorated
+  refund, zeroes the lot, decrements the cached balance, records a `refund`
+  transaction, and calls Autumn before committing the local transaction.
+- Added rollback handling so an Autumn refund failure reverses the local
+  stamp state changes and logs the failed refund path for reconciliation.
+- Files changed:
+  - `netlify/functions/stamps/refund.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us015-stamp-refund-api.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us015-stamp-refund-api.test.ts`
+  - `npx vitest run test/us015-stamp-refund-api.test.ts
+    test/us014-refund-calculation.test.ts
+    test/us004-refund-failed-send.test.ts test/us014-billing-store.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
 - **Learnings for future iterations:**
-  - Autumn currently signs webhooks with Svix headers:
-    `svix-id`, `svix-timestamp`, and `svix-signature`.
-  - Webhook verification must use the raw Netlify event body before JSON
-    parsing or re-stringifying.
-  - Store billing webhook mutations in `netlify/lib/billing.ts`; keep the
-    Netlify handler focused on method validation, signature verification, and
-    JSON responses.
+  - Refund endpoints can live under nested Netlify function paths such as
+    `netlify/functions/stamps/refund.ts`; the `/api/*` redirect leaves the
+    lot id available in `event.path`.
+  - Keep Autumn refund calls injectable into stamp refund services so the DB
+    transaction can be tested with realistic rollback behavior.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 01:59 PDT - US-016
-Thread: https://ampcode.com/threads/
-- Added the shared `isPaid(user)` helper for paid-feature checks.
-- Updated drawing save/read/delete and publish APIs to use `isPaid(user)` and
-  keep returning 402 when the current user is not paid.
-- Added a frontend `state.isPaid` derived signal and changed the home route
-  paid controls to read that signal instead of checking subscription status
-  inline.
-- Added US-016 regression coverage for the helper, frontend signal, and API
-  helper usage.
-- Marked US-016 as passing in `specs/prd.json`.
-- Files changed: `netlify/lib/paid.ts`, `netlify/functions/drawings.ts`,
-  `netlify/functions/posts.ts`, `src/state.ts`, `src/routes/home.ts`,
-  `test/us016-paid-gating.test.ts`, `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us016-paid-gating.test.ts`; related
-  targeted Vitest checks for drawing APIs, publish API, home route, and state;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+
+## 2026-05-15 21:42 PDT - US-016
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp-lot refund UI for authenticated settings users.
+- Added a reusable stamp lot panel that lists purchase date, original count,
+  remaining count, refund preview, confirmation, success messaging, and
+  non-refundable grant/gift explanations.
+- Added `/api/stamps/lots` so the UI can fetch caller-owned stamp lots with
+  server-calculated refund previews.
+- Added signal-backed state methods for fetching lots and submitting refunds,
+  including cached balance and lot updates after a successful refund.
+- Files changed:
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/routes/settings.ts`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us016-stamp-refund-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts`
+  - `npx vitest run test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts test/us005-passkey-ui.test.ts
+    test/us015-stamp-refund-api.test.ts test/us008-zero-balance-send.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    stamp lots rendered on `/settings`, refund confirmation appeared, and a
+    successful refund updated the visible balance message.
 - **Learnings for future iterations:**
-  - Keep backend paid checks in `netlify/lib/paid.ts` so API handlers do not
-    duplicate subscription-status comparisons.
-  - Use `state.isPaid` for frontend paid/free UI gates; it stays reactive as
-    `/api/whoami` hydrates `state.currentUser`.
+  - Stamp lot rows for UI should come from `/api/stamps/lots`; the server
+    calculates `refund_cents` with `calculateStampLotRefundCents` so the
+    client does not duplicate refund math.
+  - The refund panel is reusable and currently mounted in `/settings`; US-023
+    can move or reuse it when adding the dedicated `/settings/stamps` page.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 02:10 PDT - US-017
-Thread: https://ampcode.com/threads/
-- Added account management storage in `netlify/lib/account.ts`, including
-  account details, passkey removal, email-update token confirmation, and
-  account data deletion with drawing blob cleanup.
-- Added the US-017 migration for `subscription_current_period_end` plus
-  purpose-scoped magic-link tokens with pending email addresses.
-- Added `GET/DELETE /api/account`, `POST /api/account/email`,
-  `GET /api/account/email/callback`, `DELETE /api/account/passkeys/:id`,
-  and `POST /api/billing/cancel`.
-- Expanded the `/account` route into the profile, subscription, passkeys, and
-  danger-zone management page, with state-owned account actions.
-- Marked US-017 as passing in `specs/prd.json`.
-- Files changed: `netlify/lib/account.ts`, `netlify/lib/auth-store.ts`,
-  `netlify/lib/billing.ts`, `netlify/lib/session.ts`,
-  `netlify/functions/account.ts`, `netlify/functions/account/*`,
-  `netlify/functions/billing/cancel.ts`,
-  `netlify/database/migrations/0002_account_management/migration.sql`,
-  `src/state.ts`, `src/routes/account.ts`, `src/routes/account.css`,
-  `test/us017-account-store.test.ts`, `test/us017-account-api.test.ts`,
-  `test/us017-billing-cancel.test.ts`, `test/us017-account-ui.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us017-account-store.test.ts
-  test/us017-account-api.test.ts test/us017-billing-cancel.test.ts
-  test/us017-account-ui.test.ts`; neighboring auth, passkey, billing, state,
-  and checkout Vitest tests; `npx tsc --noEmit`; `npm run lint`;
-  `npm test`; Playwright browser fallback against
-  `http://127.0.0.1:5173/account` confirmed account details, email-update
-  request, cancellation status update, delete confirmation, redirect after
-  delete, and no page or console errors.
+
+## 2026-05-15 21:52 PDT - US-017
+Thread: https://ampcode.com/threads/unknown
+- Implemented existing-recipient stamp gifting.
+- Added an authenticated gift checkout endpoint that looks up an existing
+  recipient by email or email username, then creates a stamp pack Autumn
+  checkout with sender and recipient gift metadata.
+- Extended the Autumn stamp webhook to detect gift metadata, credit the
+  recipient with `gift_received` stamps, record the sender's `gift_sent`
+  history row with no balance change, and send the recipient notification
+  email.
+- Added the settings gift form for selecting a stamp pack, entering a
+  recipient, and continuing to checkout.
+- Files changed:
+  - `netlify/functions/stamps/gifts/checkout.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/gift-stamps.ts`
+  - `src/components/gift-stamps.css`
+  - `src/routes/settings.ts`
+  - `src/state.ts`
+  - `test/us017-gift-checkout-api.test.ts`
+  - `test/us017-gift-stamp-webhook.test.ts`
+  - `test/us017-gift-stamps-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us017-gift-checkout-api.test.ts
+    test/us017-gift-stamp-webhook.test.ts
+    test/us017-gift-stamps-ui.test.ts`
+  - `npx vitest run test/us014-billing-store.test.ts
+    test/us014-billing-checkout-api.test.ts
+    test/us006-autumn-stamp-webhook.test.ts
+    test/us002-credit-stamp-lot.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:4444`:
+    gift form rendered on `/settings`, posted the Bundle gift checkout for
+    `friend@example.com`, and redirected to the checkout URL.
 - **Learnings for future iterations:**
-  - Account management should stay behind `State` methods so the route
-    remains a renderer of shared account/auth state.
-  - Email-update magic links need a token purpose guard so sign-in callbacks
-    cannot consume account-management links.
-  - Account deletion should clear the session cookie in the API and clear
-    frontend auth/account state after the DELETE call succeeds.
+  - Existing-user gift checkout should not upsert recipients; it should
+    require a current session and look up an existing user before calling
+    Autumn.
+  - Autumn gift checkout metadata is the bridge between the UI checkout and
+    webhook fulfillment; pending gifts in US-018 can extend that metadata
+    path without changing pack definitions.
+  - Sender gift history rows use `delta = 0` and `reason = 'gift_sent'`
+    because the gift purchase does not affect the sender's stamp balance.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 02:19 PDT - US-018
-Thread: https://ampcode.com/threads/
-- Added `POST /api/auth/logout` to clear the signed session cookie.
-- Updated `State.Logout` to call the logout endpoint, clear shared frontend
-  auth/account/drawing state, and redirect protected routes to `/login`.
-- Added US-018 regression coverage for the logout API, state transition, and
-  protected-route redirect; updated the existing state auth test to expect the
-  server-backed logout call.
-- Marked US-018 as passing in `specs/prd.json`.
-- Files changed: `netlify/functions/auth/logout.ts`, `src/state.ts`,
-  `test/us018-logout.test.ts`, `test/state.flows.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/state.flows.test.ts
-  test/us018-logout.test.ts`; Playwright browser fallback against
-  `http://127.0.0.1:5174/account` confirmed the header Logout button,
-  `POST /api/auth/logout`, redirect to `/login`, and Login link after logout;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+
+## 2026-05-15 22:02 PDT - US-018
+Thread: https://ampcode.com/threads/unknown
+- Implemented pending stamp gifts for recipients without accounts.
+- Added the `pending_gifts` migration with rollback, status constraints, and
+  lookup indexes.
+- Gift checkout now starts Autumn checkout for non-user email recipients using
+  pending gift metadata, while unresolved usernames still fail.
+- The stamp checkout webhook now records pending gifts idempotently and sends
+  invitation emails with claim signup links.
+- `/api/stamps/lots` now returns pending gifts, and the settings stamps panel
+  displays pending recipient, count, price, and status for the sender.
+- Files changed:
+  - `netlify/database/migrations/0004_pending_gifts/migration.sql`
+  - `netlify/database/migrations/0004_pending_gifts/down.sql`
+  - `netlify/functions/stamps/gifts/checkout.ts`
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us017-gift-checkout-api.test.ts`
+  - `test/us018-pending-gift-checkout-api.test.ts`
+  - `test/us018-pending-gift-webhook.test.ts`
+  - `test/us018-pending-gifts-schema.test.ts`
+  - `test/us018-pending-gifts-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us018-pending-gifts-schema.test.ts
+    test/us018-pending-gift-checkout-api.test.ts
+    test/us018-pending-gift-webhook.test.ts
+    test/us018-pending-gifts-ui.test.ts`
+  - `npx vitest run test/us017-gift-checkout-api.test.ts
+    test/us017-gift-stamp-webhook.test.ts test/us017-gift-stamps-ui.test.ts
+    test/us016-stamp-lots-api.test.ts test/us016-stamp-refund-ui.test.ts
+    test/us006-autumn-stamp-webhook.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:4444`:
+    pending gift recipient, count, price, and status rendered on `/settings`.
 - **Learnings for future iterations:**
-  - Logout should go through `State.Logout`; direct local auth clearing would
-    leave the httpOnly session cookie active.
-  - Protected-route logout redirects should be decided before clearing state,
-    because `clearAuthState` also removes account and drawing context.
-  - The Browser plugin Node REPL surface was not exposed in this session, so
-    the required browser check used the established Playwright fallback.
+  - Pending gift fulfillment should happen in the Autumn webhook, not during
+    checkout creation, so only successful checkouts create `pending_gifts`.
+  - `/api/stamps/lots` is now the sender stamps-panel aggregate endpoint; it
+    returns both refundable lots and pending gifts.
+  - Gift checkout distinguishes non-user email recipients from missing
+    usernames: email addresses can become pending gifts, usernames still
+    require an existing account.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 02:24 PDT - US-019
-Thread: https://ampcode.com/threads/
-- Added `/privacy` and `/terms` client routes with readable plain-language
-  policy and terms content covering email, drawings, Autumn payment metadata,
-  retention, deletion, and contact details.
-- Added route-owned document title and meta description updates for both
-  legal pages.
-- Added Privacy and Terms links to the app footer.
-- Added US-019 regression coverage for route registration, required legal
-  topics, title/meta updates, and footer links.
-- Marked US-019 as passing in `specs/prd.json`.
-- Files changed: `src/routes/legal.ts`, `src/routes/legal.css`,
-  `src/routes/index.ts`, `src/index.ts`,
-  `test/us019-legal-pages.test.ts`, `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us019-legal-pages.test.ts`;
-  `npx vitest run test/us019-legal-pages.test.ts
-  test/us013-pricing-page.test.ts`; `npx tsc --noEmit`;
-  `npm run lint`; `npm test`; Playwright browser fallback against
-  `http://127.0.0.1:8888/privacy` and `/terms` confirmed headings, policy
-  content, footer links, title/meta updates, and no page or console errors
-  with `/api/whoami` mocked as an authenticated free user.
+
+## 2026-05-15 22:07 PDT - US-019
+Thread: https://ampcode.com/threads/unknown
+- Implemented pending gift conversion for recipient signup.
+- `upsertCheckoutUser` now applies the standard 5-stamp signup grant for a
+  newly inserted user, then claims any pending gifts for the same email.
+- Each pending gift is credited with source `gift_received`, preserving the
+  sender id, original checkout id, count, and price, then marked `claimed`.
+- Files changed:
+  - `netlify/lib/auth-store.ts`
+  - `test/us019-pending-gift-signup.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us019-pending-gift-signup.test.ts`
+  - `npx vitest run test/us019-pending-gift-signup.test.ts
+    test/us009-signup-grant.test.ts test/us014-checkout-store.test.ts
+    test/us014-billing-checkout-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
 - **Learnings for future iterations:**
-  - Static client routes can own their document title and meta description
-    updates with a small route-level `useEffect`.
-  - Footer links currently live directly in `src/index.ts`, not in
-    `src/routes/index.ts`.
-  - The Browser plugin Node REPL surface was not exposed in this session, so
-    the required browser check used the established Playwright fallback.
+  - Pending gift conversion belongs in `upsertCheckoutUser`, because that is
+    the account creation boundary that already handles signup stamp grants.
+  - The final session balance should come from the last credited gift when
+    pending gifts exist, otherwise from the signup grant.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
-## 2026-05-10 02:30 PDT - US-020
-Thread: https://ampcode.com/threads/
-- Replaced stale OAuth-era README guidance with Netlify-only deployment
-  notes for Functions, Netlify Database, Netlify Blobs, Resend, and Autumn.
-- Documented production environment variables, Autumn dashboard webhook
-  configuration, app-base-url behavior, and local provider behavior.
-- Added a US-020 README contract test covering deployment notes, webhook
-  setup, and local provider notes.
-- Marked US-020 as passing in `specs/prd.json`.
-- Files changed: `README.md`, `test/us020-readme-deployment-notes.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us020-readme-deployment-notes.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`.
+
+## 2026-05-15 22:13 PDT - US-020
+Thread: https://ampcode.com/threads/unknown
+- Implemented the daily expired pending gift refund job.
+- Added a scheduled Netlify function that runs the refund workflow once per
+  day.
+- The job finds pending gifts older than 90 days, locks each row before
+  refunding, calls Autumn for the original gift price, marks the gift
+  refunded, and emails the sender.
+- Files changed:
+  - `netlify/functions/refund-expired-gifts.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us020-expired-pending-gifts.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us020-expired-pending-gifts.test.ts`
+  - `npx vitest run test/us020-expired-pending-gifts.test.ts
+    test/us018-pending-gift-webhook.test.ts
+    test/us018-pending-gift-checkout-api.test.ts
+    test/us019-pending-gift-signup.test.ts
+    test/us015-stamp-refund-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
 - **Learnings for future iterations:**
-  - The app does not currently read an `APP_BASE_URL` env var; backend links
-    and checkout URLs are derived from the request origin.
-  - Local Autumn checkout is mocked when `NETLIFY_LOCAL=true` and
-    `AUTUMN_SECRET_KEY` is unset, but Resend email delivery is not mocked in
-    the Netlify Function.
+  - Scheduled maintenance handlers should stay thin and inject external
+    services into library workflows so service tests can avoid live Autumn or
+    Resend calls.
+  - Expired pending gift refunds should lock a pending row with
+    `FOR UPDATE SKIP LOCKED` before calling Autumn so concurrent runs do not
+    process the same gift.
+  - Sender notification emails for expired pending gifts belong in
+    `netlify/lib/resend.ts` next to the existing stamp gift emails.
 ---
-## 2026-05-11 14:11 PDT - US-023
-Thread: https://ampcode.com/threads/
-- Added a US-023 Vitest contract that parses `public/index.html` and checks
-  for the manifest link, Apple touch icon, and a theme-color value matching
-  `public/manifest.webmanifest`.
-- Added the PWA metadata tags to source `index.html` and current built
-  `public/index.html`.
-- Marked US-023 as passing in `specs/prd.json`.
-- Files changed: `index.html`, `public/index.html`,
-  `test/us023-pwa-html-tags.test.ts`, `specs/prd.json`, and
-  `progress.log`.
-- Verification: `npx vitest run test/us023-pwa-html-tags.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright CDP
-  fallback against `http://127.0.0.1:8888/` confirmed the manifest URL,
-  zero manifest parse errors, matching theme color, and zero installability
-  errors.
+
+## 2026-05-15 22:23 PDT - US-021
+Thread: https://ampcode.com/threads/unknown
+- Implemented the sender refund window for unused stamp gifts.
+- `/api/stamps/lots` now includes sent gift summaries with unused, in-use,
+  expired, and refunded status data plus refund eligibility.
+- Added `refundSentGiftStampLot`, which locks a sender-owned gift lot,
+  verifies the recipient has not used any gifted stamps and the lot is still
+  inside the 30-day window, zeroes the recipient lot, decrements the
+  recipient balance, writes a `gift_reclaimed` transaction, and calls Autumn
+  for the sender refund.
+- Added a nested gift refund endpoint and wired the settings stamps panel to
+  show sent gift statuses, restrict refund buttons to eligible gifts, confirm
+  the refund, and show the result.
+- Added a reversible migration for the `gift_reclaimed` transaction reason.
+- Files changed:
+  - `netlify/database/migrations/0005_gift_reclaimed_reason/migration.sql`
+  - `netlify/database/migrations/0005_gift_reclaimed_reason/down.sql`
+  - `netlify/functions/stamps/gifts/refund.ts`
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us021-sent-gift-refund.test.ts`
+  - `test/us021-sent-gifts-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us021-sent-gift-refund.test.ts
+    test/us021-sent-gifts-ui.test.ts`
+  - `npx vitest run test/us021-sent-gift-refund.test.ts
+    test/us021-sent-gifts-ui.test.ts test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts test/us017-gift-stamp-webhook.test.ts
+    test/us020-expired-pending-gifts.test.ts
+    test/us015-stamp-refund-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    sent gifts rendered, only the unused recent gift exposed a refund button,
+    confirmation appeared, and the mocked refund success message rendered.
 - **Learnings for future iterations:**
-  - Source HTML metadata lives in root `index.html`, while some PWA stories
-    validate the checked-in `public/index.html` built output directly.
+  - `/api/stamps/lots` is the aggregate endpoint for the settings stamp
+    panel; adding sender-side gift data should extend that response instead
+    of creating a separate page fetch.
+  - Gift refunds operate on the recipient's credited lot and cached balance,
+    not the sender's balance, because gift purchase never debits sender
+    stamps.
+  - The Browser Use Node REPL tool was not exposed in this session; the
+    established Vite plus Playwright-core fallback can still verify the
+    authenticated settings UI with route-level request mocks.
 ---
-## 2026-05-11 14:47 PDT - US-026
-Thread: https://ampcode.com/threads/
-- Wired the paid public-post Share button to native Web Share.
-- Built the absolute public-post URL from `window.location.origin` and the
-  loaded `PublicPost.id`.
-- Added shared route-level share copy: title `A drering for you` and text
-  `Check out this drering:`.
-- Added a fallback handoff event for unsupported native share cases.
-- Swallowed native-share `AbortError` dismissals and logged unexpected share
-  errors.
-- Added focused US-026 route coverage for payloads, click-only invocation,
-  fallback handoff, and error handling.
-- Marked US-026 as passing in `specs/prd.json`.
-- Files changed: `src/routes/post.ts`, `test/us026-native-share.test.ts`,
-  `specs/prd.json`, and `progress.log`.
-- Verification: `npx vitest run test/us026-native-share.test.ts`;
-  `npx vitest run test/us026-native-share.test.ts
-  test/us025-share-button-ui.test.ts test/us012-public-post-ui.test.ts`;
-  `npx tsc --noEmit`; `npm run lint`; `npm test`; Playwright browser
-  fallback against `http://127.0.0.1:5173/post/42` confirmed a real click
-  called
-  `navigator.canShare({ url })` and `navigator.share({ url, title, text })`
-  with the expected `http://127.0.0.1:5173/post/42` URL.
-- Browser verification used a Playwright fallback because the Browser
-  plugin's Node REPL control tool was unavailable in this session.
+
+## 2026-05-15 22:27 PDT - US-022
+Thread: https://ampcode.com/threads/unknown
+- Implemented the authenticated header stamp balance indicator.
+- `Nav` now renders a stamp-icon link when `/api/whoami` has provided a
+  numeric `currentUser.stamps_balance`.
+- The balance link points to `/settings#stamps`, and the settings stamp panel
+  now exposes that anchor.
+- Added focused UI coverage for authenticated visibility, anonymous
+  omission, signal-driven balance updates, and availability on other
+  authenticated routes.
+- Files changed:
+  - `src/index.ts`
+  - `src/style.css`
+  - `src/components/stamp-lots-refund.ts`
+  - `test/us022-balance-indicator.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us022-balance-indicator.test.ts`
+  - `npx vitest run test/us022-balance-indicator.test.ts
+    test/us028-nav-settings-auth.test.ts
+    test/us013-send-stamp-indicator.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    `/drawings` rendered the `5 stamps` header link with href
+    `/settings#stamps` and one `.icon-stamp`.
 - **Learnings for future iterations:**
-  - Keep native share copy in one route-level constant so future copy changes
-    do not drift between tests and UI behavior.
-  - US-027 can attach fallback UI to the `drerings:share-fallback` event,
-    which already carries the absolute public-post URL.
+  - Header-level stamp affordances should stay in `Nav` and use
+    `currentUser.stamps_balance` instead of introducing a separate balance
+    fetch.
+  - The current stamps management surface is still the settings stamp panel,
+    so header links should target `/settings#stamps` until the dedicated
+    `/settings/stamps` route is added.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:38 PDT - US-023
+Thread: https://ampcode.com/threads/unknown
+- Implemented the dedicated stamps account page at `/settings/stamps`.
+- The page shows the current stamp balance, a buy-more CTA, paginated stamp
+  transaction history, gift purchase controls, refund lots, pending gifts,
+  and sent gift management.
+- Added `/api/stamps/transactions` and `listStampTransactionsForUser` for
+  authenticated history pages of 50 transactions with a `next_before` cursor.
+- Updated the settings overview and header stamp balance link to point to
+  `/settings/stamps`.
+- Files changed:
+  - `netlify/functions/stamps/transactions.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/index.ts`
+  - `src/routes/index.ts`
+  - `src/routes/settings.ts`
+  - `src/routes/settings.css`
+  - `src/routes/stamps.ts`
+  - `src/routes/stamps.css`
+  - `src/state.ts`
+  - `test/us022-balance-indicator.test.ts`
+  - `test/us023-stamp-transactions-api.test.ts`
+  - `test/us023-stamps-page-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us023-stamp-transactions-api.test.ts
+    test/us023-stamps-page-ui.test.ts test/us022-balance-indicator.test.ts`
+  - `npx vitest run test/us016-stamp-refund-ui.test.ts
+    test/us016-stamp-lots-api.test.ts test/us017-gift-stamps-ui.test.ts
+    test/us021-sent-gifts-ui.test.ts test/us021-sent-gift-refund.test.ts
+    test/us023-stamp-transactions-api.test.ts
+    test/us023-stamps-page-ui.test.ts test/us022-balance-indicator.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    `/settings/stamps` rendered history, lots, sent gifts, and the buy modal
+    opened from the buy-more CTA.
+- **Learnings for future iterations:**
+  - `/settings/stamps` should reuse the existing gift and stamp-lot panels;
+    keep the dedicated page focused on layout, balance, and history.
+  - Stamp history uses `/api/stamps/transactions` and appends older pages via
+    the `next_before` cursor in `State.FetchStampTransactions`.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:46 PDT - US-024
+Thread: https://ampcode.com/threads/unknown
+- Verified public broadcast posting stays unmetered.
+- Removed stamp debit and failed-send refund calls from `POST /api/posts`, so
+  publishing public posts no longer consumes stamps or blocks zero-balance
+  users.
+- Added regression coverage that public post publishing does not call
+  `debitStamp` and that the published-post share button remains enabled when
+  `stamps_balance = 0`.
+- Updated pricing copy to avoid a literal Bluesky source reference while
+  keeping the share-sheet positioning.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `src/routes/pricing.ts`
+  - `test/us011-publish-post-api.test.ts`
+  - `test/us012-failed-send-refund.test.ts`
+  - `test/us024-bluesky-free-posting.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us024-bluesky-free-posting.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us012-failed-send-refund.test.ts test/us001-no-atproto.test.ts`
+  - `npx vitest run test/us024-bluesky-free-posting.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us012-failed-send-refund.test.ts test/us001-no-atproto.test.ts
+    test/us025-share-button-ui.test.ts test/us026-native-share.test.ts
+    test/us027-share-fallback.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+- **Learnings for future iterations:**
+  - `/api/posts` is the public broadcast path and should stay free of stamp
+    debit/refund concerns.
+  - The legacy AT Proto guard still rejects literal Bluesky source references;
+    product copy in source should use generic device share-sheet wording.
+  - Public-post failures should return the generic publish error because no
+    stamp was consumed and no refund is owed.
+---
+
+## 2026-05-15 22:52 PDT - US-025
+Thread: https://ampcode.com/threads/unknown
+- Implemented the daily stamp invariant verification job.
+- Added `verifyStampInvariants`, which compares every user's cached stamp
+  balance with both remaining lot totals and transaction delta totals.
+- Drift is logged with user id, invariant name, expected value, and actual
+  value, followed by a log-based alert summary when any drift is found.
+- Added a scheduled Netlify function that runs the verifier daily.
+- Files changed:
+  - `netlify/functions/verify-stamp-invariants.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us025-stamp-invariants.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us025-stamp-invariants.test.ts`
+  - `npx vitest run test/us025-stamp-invariants.test.ts
+    test/us020-expired-pending-gifts.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+- **Learnings for future iterations:**
+  - Invariant checks should aggregate lots and transactions in separate
+    subqueries before joining to users, avoiding duplicated sums from
+    cross-products.
+  - The v1 verification job intentionally does not update balances; log drift
+    for human investigation instead of automatically reconciling data.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

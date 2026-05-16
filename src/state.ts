@@ -7,6 +7,7 @@ import {
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
 import { RequestState, type RequestFor } from '@substrate-system/state'
+import { type StampPackProductId } from './stamp-packs.js'
 
 const debug = Debug('drerings:state')
 
@@ -26,6 +27,7 @@ export type SubscriptionStatus = 'free'|'active'|'canceled'|'past_due'
 
 export interface CurrentUser extends UserState {
     subscription_status:SubscriptionStatus;
+    stamps_balance?:number;
 }
 
 export interface AccountPasskey {
@@ -63,6 +65,82 @@ export interface PublicPost extends PublishedPost {
     published_at:string;
 }
 
+export type StampLotSource = 'purchase'|'grant'|'gift_received'
+
+export interface StampLotSummary {
+    id:string;
+    source:StampLotSource;
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    created_at:string;
+}
+
+export type PendingGiftStatus = 'pending'|'claimed'|'refunded'
+
+export interface PendingGiftSummary {
+    id:string;
+    recipient_email:string;
+    pack_id:StampPackProductId;
+    count:number;
+    price_cents:number;
+    status:PendingGiftStatus;
+    created_at:string;
+}
+
+export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
+
+export interface SentGiftSummary {
+    id:string;
+    recipient_email:string;
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    refundable:boolean;
+    refundable_until:string;
+    status:SentGiftStatus;
+    created_at:string;
+}
+
+export type StampTransactionReason =
+    'purchase'|
+    'grant'|
+    'migration_grant'|
+    'send'|
+    'refund'|
+    'gift_sent'|
+    'gift_received'|
+    'failed_send_refund'|
+    'gift_reclaimed'
+
+export interface StampTransactionSummary {
+    id:string;
+    delta:number;
+    reason:StampTransactionReason;
+    balance_after:number;
+    created_at:string;
+}
+
+export interface StampTransactionPage {
+    transactions:StampTransactionSummary[];
+    next_before:string|null;
+}
+
+export interface StampRefundResult {
+    refund_cents:number;
+    stamps_balance:number;
+}
+
+export interface SentGiftRefundResult {
+    refund_cents:number;
+    recipient_stamps_balance?:number;
+}
+
+export interface GiftStampCheckoutInput {
+    productId:StampPackProductId;
+    recipient:string;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
@@ -77,9 +155,20 @@ export function State (): {
     currentDrawing:Signal<SavedDrawing|null>;
     checkoutLoading:Signal<boolean>;
     checkoutError:Signal<string|null>;
+    buyPackModalOpen:Signal<boolean>;
+    stampCheckoutProductId:Signal<StampPackProductId|null>;
     savedDrawings:Signal<SavedDrawing[]>;
     savedDrawingsLoading:Signal<boolean>;
     savedDrawingsError:Signal<string|null>;
+    stampLots:Signal<StampLotSummary[]>;
+    pendingGifts:Signal<PendingGiftSummary[]>;
+    sentGifts:Signal<SentGiftSummary[]>;
+    stampTransactions:Signal<StampTransactionSummary[]>;
+    stampTransactionsNextBefore:Signal<string|null>;
+    stampTransactionsLoading:Signal<boolean>;
+    stampTransactionsError:Signal<string|null>;
+    stampLotsLoading:Signal<boolean>;
+    stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
@@ -99,9 +188,20 @@ export function State (): {
         currentDrawing: signal<SavedDrawing|null>(null),
         checkoutLoading: signal<boolean>(false),
         checkoutError: signal<string|null>(null),
+        buyPackModalOpen: signal<boolean>(false),
+        stampCheckoutProductId: signal<StampPackProductId|null>(null),
         savedDrawings: signal<SavedDrawing[]>([]),
         savedDrawingsLoading: signal<boolean>(false),
         savedDrawingsError: signal<string|null>(null),
+        stampLots: signal<StampLotSummary[]>([]),
+        pendingGifts: signal<PendingGiftSummary[]>([]),
+        sentGifts: signal<SentGiftSummary[]>([]),
+        stampTransactions: signal<StampTransactionSummary[]>([]),
+        stampTransactionsNextBefore: signal<string|null>(null),
+        stampTransactionsLoading: signal<boolean>(false),
+        stampTransactionsError: signal<string|null>(null),
+        stampLotsLoading: signal<boolean>(false),
+        stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
@@ -277,6 +377,195 @@ State.FetchSavedDrawings = async function (
     }
 }
 
+State.FetchStampLots = async function (
+    state:AppState
+):Promise<StampLotSummary[]> {
+    state.stampLotsLoading.value = true
+    state.stampLotsError.value = null
+
+    try {
+        const response = await fetch('/api/stamps/lots')
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load stamp lots right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as {
+            lots?:unknown;
+            pending_gifts?:unknown;
+            sent_gifts?:unknown;
+        }
+        const lots = Array.isArray(body.lots) ?
+            body.lots.filter(isStampLotSummary) :
+            []
+        const pendingGifts = Array.isArray(body.pending_gifts) ?
+            body.pending_gifts.filter(isPendingGiftSummary) :
+            []
+        const sentGifts = Array.isArray(body.sent_gifts) ?
+            body.sent_gifts.filter(isSentGiftSummary) :
+            []
+
+        state.stampLots.value = lots
+        state.pendingGifts.value = pendingGifts
+        state.sentGifts.value = sentGifts
+
+        return lots
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load stamp lots right now.'
+
+        state.stampLotsError.value = message
+
+        throw err
+    } finally {
+        state.stampLotsLoading.value = false
+    }
+}
+
+State.RefundStampLot = async function (
+    state:AppState,
+    lotId:string
+):Promise<StampRefundResult> {
+    const response = await fetch(
+        `/api/stamps/refund/${encodeURIComponent(lotId)}`,
+        { method: 'POST' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to refund stamps right now.'
+
+        throw new Error(message)
+    }
+
+    const result = await response.json() as Partial<StampRefundResult>
+
+    if (
+        typeof result.refund_cents !== 'number' ||
+        typeof result.stamps_balance !== 'number'
+    ) {
+        throw new Error('Unable to refund stamps right now.')
+    }
+
+    if (state.currentUser.value) {
+        state.currentUser.value = {
+            ...state.currentUser.value,
+            stamps_balance: result.stamps_balance
+        }
+    }
+
+    state.stampLots.value = state.stampLots.value.map((lot) => {
+        if (lot.id !== lotId) return lot
+
+        return {
+            ...lot,
+            remaining_count: 0,
+            refund_cents: 0
+        }
+    })
+
+    return result as StampRefundResult
+}
+
+State.RefundSentGift = async function (
+    state:AppState,
+    lotId:string
+):Promise<SentGiftRefundResult> {
+    const response = await fetch(
+        `/api/stamps/gifts/refund/${encodeURIComponent(lotId)}`,
+        { method: 'POST' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to refund gift right now.'
+
+        throw new Error(message)
+    }
+
+    const result = await response.json() as Partial<SentGiftRefundResult>
+
+    if (typeof result.refund_cents !== 'number') {
+        throw new Error('Unable to refund gift right now.')
+    }
+
+    state.sentGifts.value = state.sentGifts.value.map((gift) => {
+        if (gift.id !== lotId) return gift
+
+        return {
+            ...gift,
+            remaining_count: 0,
+            refund_cents: 0,
+            refundable: false,
+            status: 'refunded'
+        }
+    })
+
+    return result as SentGiftRefundResult
+}
+
+State.FetchStampTransactions = async function (
+    state:AppState,
+    before?:string|null
+):Promise<StampTransactionPage> {
+    state.stampTransactionsLoading.value = true
+    state.stampTransactionsError.value = null
+
+    try {
+        const url = before ?
+            `/api/stamps/transactions?before=${encodeURIComponent(before)}` :
+            '/api/stamps/transactions'
+        const response = await fetch(url)
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load stamp history right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as Partial<StampTransactionPage>
+        const transactions = Array.isArray(body.transactions) ?
+            body.transactions.filter(isStampTransactionSummary) :
+            []
+        const page = {
+            transactions,
+            next_before: typeof body.next_before === 'string' ?
+                body.next_before :
+                null
+        }
+
+        state.stampTransactions.value = before ?
+            state.stampTransactions.value.concat(page.transactions) :
+            page.transactions
+        state.stampTransactionsNextBefore.value = page.next_before
+
+        return page
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load stamp history right now.'
+
+        state.stampTransactionsError.value = message
+
+        throw err
+    } finally {
+        state.stampTransactionsLoading.value = false
+    }
+}
+
 State.OpenSavedDrawing = async function (
     state:AppState,
     drawingId:string
@@ -344,6 +633,11 @@ State.GoToSendDrawing = function (
     state:AppState,
     drawingId:string
 ):void {
+    if (state.currentUser.value?.stamps_balance === 0) {
+        State.OpenBuyPackModal(state)
+        return
+    }
+
     const path = `/send/${encodeURIComponent(drawingId)}`
 
     state._setRoute(path)
@@ -421,6 +715,119 @@ State.StartCheckout = async function (
         throw err
     } finally {
         state.checkoutLoading.value = false
+    }
+}
+
+State.OpenBuyPackModal = function (state:AppState):void {
+    state.checkoutError.value = null
+    state.buyPackModalOpen.value = true
+}
+
+State.CloseBuyPackModal = function (state:AppState):void {
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = null
+    state.buyPackModalOpen.value = false
+}
+
+State.StartStampCheckout = async function (
+    state:AppState,
+    productId:StampPackProductId
+):Promise<void> {
+    const email = state.currentUser.value?.email || state.profile.value?.email
+
+    state.checkoutLoading.value = true
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = productId
+
+    try {
+        if (!email) {
+            throw new Error('Sign in before buying stamps.')
+        }
+
+        const response = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                product_id: productId
+            })
+        })
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to start checkout right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { url?:unknown }
+
+        if (typeof body.url !== 'string' || body.url.trim() === '') {
+            throw new Error('Unable to start checkout right now.')
+        }
+
+        location.assign(body.url)
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to start checkout right now.'
+
+        state.checkoutError.value = message
+
+        throw err
+    } finally {
+        state.checkoutLoading.value = false
+        state.stampCheckoutProductId.value = null
+    }
+}
+
+State.StartGiftStampCheckout = async function (
+    state:AppState,
+    input:GiftStampCheckoutInput
+):Promise<void> {
+    state.checkoutLoading.value = true
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = input.productId
+
+    try {
+        const response = await fetch('/api/stamps/gifts/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: input.productId,
+                recipient: input.recipient
+            })
+        })
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to start gift checkout right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { url?:unknown }
+
+        if (typeof body.url !== 'string' || body.url.trim() === '') {
+            throw new Error('Unable to start gift checkout right now.')
+        }
+
+        location.assign(body.url)
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to start gift checkout right now.'
+
+        state.checkoutError.value = message
+
+        throw err
+    } finally {
+        state.checkoutLoading.value = false
+        state.stampCheckoutProductId.value = null
     }
 }
 
@@ -611,7 +1018,16 @@ function clearAuthState (state:AppState):void {
     state.currentUser.value = null
     state.currentDrawing.value = null
     state.checkoutError.value = null
+    state.buyPackModalOpen.value = false
+    state.stampCheckoutProductId.value = null
     state.savedDrawings.value = []
+    state.stampLots.value = []
+    state.pendingGifts.value = []
+    state.sentGifts.value = []
+    state.stampLotsError.value = null
+    state.stampTransactions.value = []
+    state.stampTransactionsNextBefore.value = null
+    state.stampTransactionsError.value = null
     state.account.value = null
     state.accountError.value = null
     state.profile.value = null
@@ -640,12 +1056,114 @@ function isCurrentUser (value:unknown):value is CurrentUser {
 
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
-        statuses.includes(maybeUser.subscription_status as SubscriptionStatus)
+        statuses.includes(
+            maybeUser.subscription_status as SubscriptionStatus
+        ) &&
+        (
+            maybeUser.stamps_balance === undefined ||
+            typeof maybeUser.stamps_balance === 'number'
+        )
+}
+
+function isStampLotSummary (value:unknown):value is StampLotSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeLot = value as Partial<StampLotSummary>
+    const sources:StampLotSource[] = [
+        'purchase',
+        'grant',
+        'gift_received'
+    ]
+
+    return typeof maybeLot.id === 'string' &&
+        sources.includes(maybeLot.source as StampLotSource) &&
+        typeof maybeLot.original_count === 'number' &&
+        typeof maybeLot.remaining_count === 'number' &&
+        typeof maybeLot.refund_cents === 'number' &&
+        typeof maybeLot.created_at === 'string'
+}
+
+function isPendingGiftSummary (value:unknown):value is PendingGiftSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeGift = value as Partial<PendingGiftSummary>
+    const statuses:PendingGiftStatus[] = [
+        'pending',
+        'claimed',
+        'refunded'
+    ]
+
+    return typeof maybeGift.id === 'string' &&
+        typeof maybeGift.recipient_email === 'string' &&
+        isStampPackProductId(maybeGift.pack_id) &&
+        typeof maybeGift.count === 'number' &&
+        typeof maybeGift.price_cents === 'number' &&
+        statuses.includes(maybeGift.status as PendingGiftStatus) &&
+        typeof maybeGift.created_at === 'string'
+}
+
+function isSentGiftSummary (value:unknown):value is SentGiftSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeGift = value as Partial<SentGiftSummary>
+    const statuses:SentGiftStatus[] = [
+        'unused',
+        'in_use',
+        'expired',
+        'refunded'
+    ]
+
+    return typeof maybeGift.id === 'string' &&
+        typeof maybeGift.recipient_email === 'string' &&
+        typeof maybeGift.original_count === 'number' &&
+        typeof maybeGift.remaining_count === 'number' &&
+        typeof maybeGift.refund_cents === 'number' &&
+        typeof maybeGift.refundable === 'boolean' &&
+        typeof maybeGift.refundable_until === 'string' &&
+        statuses.includes(maybeGift.status as SentGiftStatus) &&
+        typeof maybeGift.created_at === 'string'
+}
+
+function isStampTransactionSummary (
+    value:unknown
+):value is StampTransactionSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeTransaction = value as Partial<StampTransactionSummary>
+
+    return typeof maybeTransaction.id === 'string' &&
+        typeof maybeTransaction.delta === 'number' &&
+        isStampTransactionReason(maybeTransaction.reason) &&
+        typeof maybeTransaction.balance_after === 'number' &&
+        typeof maybeTransaction.created_at === 'string'
+}
+
+function isStampTransactionReason (
+    value:unknown
+):value is StampTransactionReason {
+    return value === 'purchase' ||
+        value === 'grant' ||
+        value === 'migration_grant' ||
+        value === 'send' ||
+        value === 'refund' ||
+        value === 'gift_sent' ||
+        value === 'gift_received' ||
+        value === 'failed_send_refund' ||
+        value === 'gift_reclaimed'
+}
+
+function isStampPackProductId (
+    value:unknown
+):value is StampPackProductId {
+    return value === 'stamps_starter' ||
+        value === 'stamps_bundle' ||
+        value === 'stamps_big_bundle'
 }
 
 function isProtectedRoute (path:string):boolean {
     return path === '/account' ||
         path === '/drawings' ||
         path === '/settings' ||
+        path === '/settings/stamps' ||
         path.startsWith('/send/')
 }

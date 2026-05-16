@@ -1,19 +1,19 @@
 {
   "project": "drerings.app",
-  "branchName": "ralph/paid-accounts-redesign",
-  "description": "Paid Accounts + Netlify Backend Redesign — replace the Bluesky/AT Proto backend with a Netlify-only stack (Functions, Blobs, DB), add a $5/month paid tier via Autumn that unlocks save + publish, switch auth to passkey + magic link via Resend, and ship the legal/account pages required to take payment.",
+  "branchName": "ralph/stamps-monetization",
+  "description": "Drerings Stamps Monetization — prepaid one-time-purchase credit system where one stamp is consumed per postcard sent. Stamps never expire, are refundable on a prorated basis, and can be gifted between users (including to non-users via pending invitations). Failed sends do not consume a stamp. Posts to Bluesky remain free and unmetered.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Remove Bluesky / AT Proto dependencies",
-      "description": "As a developer, I want all Bluesky/AT Proto code and dependencies removed so the app has a single clean backend story.",
+      "title": "Schema migration for stamp accounting",
+      "description": "As a developer, I need the database schema for tracking stamp balances, lots, and transactions so that all subsequent stamp logic has a foundation.",
       "acceptanceCriteria": [
-        "@atproto/api, @atproto/identity, @atproto/oauth-client, @atproto/oauth-client-browser, @atproto/oauth-client-node removed from package.json",
-        "All AT Proto imports and call sites removed from src/ and netlify/functions/",
-        "Old Bluesky-specific routes (e.g. AT-Proto login/callback) and components deleted",
-        "App boots and renders the home route with no console errors",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "users.stamps_balance INTEGER NOT NULL DEFAULT 0 column added",
+        "stamp_lots table created per design doc schema with CHECK constraints and idx_lots_consumption partial index",
+        "stamp_transactions table created with idx_stamp_tx_user_created index",
+        "Migration runs forward-compatibly (additive only, no destructive changes)",
+        "Migration is reversible (down migration drops new tables/columns cleanly)",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
@@ -21,15 +21,16 @@
     },
     {
       "id": "US-002",
-      "title": "Provision Netlify DB schema (users, drawings, public_posts)",
-      "description": "As a developer, I need persistent tables for users, saved drawings, and public posts so the rest of the feature can be built on stable storage.",
+      "title": "creditStampLot service function",
+      "description": "As a developer, I need a single chokepoint function that inserts a stamp lot, updates the user's balance cache, and writes a transaction row — all in one DB transaction — so that every credit path (purchase, grant, gift) stays consistent.",
       "acceptanceCriteria": [
-        "users table: id (PK), email (unique), created_at, subscription_status ('free' | 'active' | 'canceled' | 'past_due'), autumn_customer_id (nullable)",
-        "passkeys table: id, user_id (FK), credential_id, public_key, counter, created_at",
-        "magic_link_tokens table: token (PK), user_id (FK), expires_at, used_at",
-        "drawings table: id (PK, uuid), user_id (FK), blob_key (string), text (string), alt_text (string), created_at, updated_at",
-        "public_posts table: id (BIGSERIAL autoincrementing integer PK — appears in the URL), drawing_id (FK, unique), published_at",
-        "Migration runs cleanly against a fresh DB",
+        "Function signature accepts { userId, source, count, priceCents?, autumnCheckoutId?, giftedByUserId? }",
+        "Inserts stamp_lots row with original_count = remaining_count = count",
+        "Atomically updates users.stamps_balance += count",
+        "Inserts stamp_transactions row with delta = +count, correct reason, balance_after",
+        "All three writes happen in one BEGIN/COMMIT",
+        "Unit tests cover purchase, grant, and gift_received paths",
+        "Tests pass",
         "Typecheck passes"
       ],
       "priority": 2,
@@ -38,13 +39,18 @@
     },
     {
       "id": "US-003",
-      "title": "Configure Netlify Blobs store for drawing images",
-      "description": "As a developer, I need a configured blob store and helper functions to put/get/delete drawing images so the API can persist images outside the DB.",
+      "title": "debitStamp service function (atomic FIFO)",
+      "description": "As a developer, I need an atomic debit function that selects the correct lot per FIFO-with-grants-first rules and prevents negative balances under concurrent sends, so that the send flow can rely on a single primitive.",
       "acceptanceCriteria": [
-        "A named blob store ('drawings') is configured",
-        "putDrawingImage(userId, drawingId, blob) writes the image and returns a stable blob_key",
-        "getDrawingImage(blob_key) returns the image bytes (or 404)",
-        "deleteDrawingImage(blob_key) removes it",
+        "Uses FOR UPDATE SKIP LOCKED SELECT per design doc query",
+        "Order: non-purchase lots first, then purchased lots by created_at ASC",
+        "Decrements stamp_lots.remaining_count by 1",
+        "Decrements users.stamps_balance by 1 with guard WHERE stamps_balance > 0",
+        "Inserts stamp_transactions row with delta = -1, lot_id, reason = 'send', balance_after",
+        "Returns the affected lot_id (needed for failed-send refund)",
+        "Throws InsufficientStampsError when no lot available",
+        "Concurrency test: two simultaneous debits on balance of 1 — one success, one error, no negative balance",
+        "Tests pass",
         "Typecheck passes"
       ],
       "priority": 3,
@@ -53,16 +59,16 @@
     },
     {
       "id": "US-004",
-      "title": "Magic-link auth via Resend",
-      "description": "As a user, I want to sign in with a one-time link emailed to me so I don't need a password.",
+      "title": "refundFailedSend service function",
+      "description": "As a developer, I need a function that re-credits a specific lot when a send fails, so the failed-send refund path can be called from the send flow's error handler.",
       "acceptanceCriteria": [
-        "POST /api/auth/magic-link accepts an email, creates a single-use token (15-minute expiry), and sends the link via Resend",
-        "GET /api/auth/magic-link/callback?token=… validates the token, marks it used_at, creates the user if needed, and issues a session cookie (httpOnly, Secure, SameSite=Lax)",
-        "Login route in the SPA has a single email input, a 'Send link' button, and a 'check your email' success state",
-        "Reused/expired tokens return a clear error page",
-        "Resend API key is read from a Netlify env var; no key in the repo",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "Accepts { userId, lotId }",
+        "Increments stamp_lots.remaining_count by 1 on the specific lot",
+        "Increments users.stamps_balance by 1",
+        "Inserts stamp_transactions row with delta = +1, reason = 'failed_send_refund', lot_id, balance_after",
+        "All writes in one transaction",
+        "Unit tests pass",
+        "Typecheck passes"
       ],
       "priority": 4,
       "passes": true,
@@ -70,16 +76,16 @@
     },
     {
       "id": "US-005",
-      "title": "Passkey registration and sign-in",
-      "description": "As a logged-in user, I want to register a passkey and use it on subsequent visits so I don't have to wait for an email.",
+      "title": "Configure three stamp pack products in Autumn",
+      "description": "As a product owner, I need the three pack tiers configured in Autumn so users can purchase them via Stripe checkout.",
       "acceptanceCriteria": [
-        "POST /api/auth/passkey/register/options and /register/verify implement WebAuthn registration using @simplewebauthn/server + @simplewebauthn/browser",
-        "POST /api/auth/passkey/login/options and /login/verify implement WebAuthn authentication and issue a session cookie on success",
-        "Settings page has a 'Register a passkey' button (visible only when logged in)",
-        "Login page has a 'Sign in with passkey' affordance in addition to the magic-link form",
-        "Browsers without passkey support fall back gracefully to magic link only (no broken UI)",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "Product stamps_starter created in Autumn: 10 stamps, $5.00",
+        "Product stamps_bundle created in Autumn: 25 stamps, $10.00",
+        "Product stamps_big_bundle created in Autumn: 60 stamps, $20.00",
+        "Product metadata records stamp count and per-stamp price",
+        "PACK_DEFINITIONS constant in code matches Autumn config",
+        "Test checkout works end-to-end in staging",
+        "Typecheck passes"
       ],
       "priority": 5,
       "passes": true,
@@ -87,12 +93,16 @@
     },
     {
       "id": "US-006",
-      "title": "Session middleware + whoami endpoint",
-      "description": "As a developer, I need a single helper that resolves the current user from the session cookie so every API function can authorize requests consistently.",
+      "title": "Autumn webhook handler for stamp purchases",
+      "description": "As a developer, I need the existing Autumn webhook handler at /api/billing/webhook to branch on stamp pack product IDs and credit the user's account.",
       "acceptanceCriteria": [
-        "getSession(request) returns { user } | null",
-        "GET /api/whoami returns { id, email, subscription_status } or 401",
-        "Frontend has a currentUser signal populated on app boot from /api/whoami",
+        "Handler detects event.type === 'checkout.completed' with product_id starting 'stamps_'",
+        "Looks up pack definition by product_id",
+        "Calls creditStampLot with source: 'purchase', autumnCheckoutId: event.checkout_id, correct count and price",
+        "Idempotent on event.checkout_id — replay does not double-credit (check for existing stamp_transactions row with matching reference_id)",
+        "Existing Svix signature verification still applies",
+        "Integration test simulates a webhook event and verifies the lot is created",
+        "Tests pass",
         "Typecheck passes"
       ],
       "priority": 6,
@@ -101,15 +111,15 @@
     },
     {
       "id": "US-007",
-      "title": "Free-user drawing experience (in-memory only)",
-      "description": "As a free or anonymous user, I want to open the app and draw, but I should be clearly told that my work won't be saved.",
+      "title": "Buy-pack modal UI",
+      "description": "As a user, I want to see the three pack options with clear pricing so I can choose what to buy.",
       "acceptanceCriteria": [
-        "Home route loads the canvas without requiring login",
-        "No localStorage or backend persistence of the drawing",
-        "A small persistent banner or hint reads roughly: 'Drawings aren't saved on free accounts — upgrade to keep them,' with a link to the pricing page",
-        "'Save' and 'Send It' controls are disabled with a tooltip explaining why and a link to the pricing page",
-        "Refreshing the page clears the canvas (expected behavior)",
-        "Typecheck and lint pass",
+        "Modal shows three packs (Starter / Bundle / Big bundle) side by side",
+        "Each pack displays: stamp count, total price, per-stamp price",
+        "'Buy' button per pack initiates Autumn checkout for that product",
+        "Bundle is visually highlighted as the recommended option",
+        "Closes cleanly without state leaks",
+        "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
@@ -118,14 +128,15 @@
     },
     {
       "id": "US-008",
-      "title": "Save drawing API (paid)",
-      "description": "As a paid user, I want to save my current drawing (image + text + alt text) so I can come back to it later.",
+      "title": "Auto-open buy modal on zero-balance send attempt",
+      "description": "As a user, when I try to send a postcard with zero stamps, I want to be prompted to buy more without losing my draft.",
       "acceptanceCriteria": [
-        "POST /api/drawings accepts { image (binary or base64), text, alt_text }, requires an active subscription, writes the image to Netlify Blobs, and inserts a drawings row",
-        "Returns { id, created_at } on success",
-        "Returns 401 for unauthenticated, 402 for free accounts",
-        "PUT /api/drawings/:id updates an existing drawing (image replace allowed; previous blob deleted)",
-        "Typecheck and lint pass"
+        "Send action checks balance before attempting debit",
+        "If stamps_balance === 0, buy modal opens",
+        "Postcard draft (canvas state, recipient) is preserved while modal is open",
+        "After successful purchase (webhook credits balance), user can retry the send",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
       "passes": true,
@@ -133,15 +144,15 @@
     },
     {
       "id": "US-009",
-      "title": "Save / load drawing UI (paid)",
-      "description": "As a paid user, I want a Save button on the canvas and a list of my saved drawings I can reopen.",
+      "title": "Grant 5 free stamps on new account signup",
+      "description": "As a new user, I want 5 free stamps so I can try sending postcards before deciding to pay.",
       "acceptanceCriteria": [
-        "'Save' button on the canvas page is enabled for paid users and POSTs to /api/drawings",
-        "A /drawings route lists the user's saved drawings (thumbnail, text excerpt, updated_at, 'Open' + 'Delete' actions)",
-        "Opening a drawing loads its image and text back into the canvas for further editing",
-        "Save shows a clear success state; failure shows an inline error",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "Signup flow calls creditStampLot with source: 'grant', count: 5, priceCents: null",
+        "stamp_transactions.reason = 'grant'",
+        "New user's stamps_balance is 5 immediately after account creation",
+        "Integration test: create account → balance is 5",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 9,
       "passes": true,
@@ -149,15 +160,16 @@
     },
     {
       "id": "US-010",
-      "title": "Delete a saved drawing (paid)",
-      "description": "As a paid user, I want to delete a saved drawing (and its blob) from my list.",
+      "title": "Backfill grant of 10 stamps for existing users",
+      "description": "As an existing user, I want to receive 10 free stamps on rollout as a thank-you for early adoption.",
       "acceptanceCriteria": [
-        "DELETE /api/drawings/:id removes the row, deletes the blob, and (if the drawing has a public_posts row) also deletes the public post",
-        "Delete button on /drawings shows a confirm dialog before acting",
-        "List updates immediately on success",
-        "Returns 401/403 if not the owner",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "One-time backfill script grants 10 stamps to every existing user",
+        "Each grant uses creditStampLot with source: 'grant'",
+        "stamp_transactions.reason = 'migration_grant' (distinct from regular signup grant for accounting clarity)",
+        "Script is idempotent — running it twice does not double-credit (check for existing migration_grant transaction per user)",
+        "Script logs total users processed and total stamps granted",
+        "Dry-run mode available",
+        "Typecheck passes"
       ],
       "priority": 10,
       "passes": true,
@@ -165,17 +177,16 @@
     },
     {
       "id": "US-011",
-      "title": "'Send It' confirmation route + publish API (paid)",
-      "description": "As a paid user, I want a 'Send It' button that takes me to a confirmation screen, then publishes my drawing to a public URL.",
+      "title": "Integrate debit into postcard send flow",
+      "description": "As a user, when I send a postcard, one stamp is debited before the postcard is dispatched so revenue is tracked correctly.",
       "acceptanceCriteria": [
-        "'Send It' button on the canvas (and on each drawing in /drawings) navigates to /send/:drawingId (client-side route)",
-        "/send/:drawingId shows a preview (image, text, alt text) and a 'Publish' button. Owner-only",
-        "Clicking 'Publish' calls POST /api/posts with { drawing_id }, which inserts a public_posts row (autoincrementing id) and returns { id }",
-        "On success, redirect to /post/:id",
-        "If the drawing already has a public_posts row, the publish action is a no-op and just redirects to the existing post URL",
-        "Returns 401 / 402 / 403 as appropriate",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "Send endpoint calls debitStamp before any delivery work",
+        "If InsufficientStampsError is thrown, send fails with a clear error before any delivery is attempted",
+        "lot_id from debit is held in scope for the duration of the delivery attempt",
+        "stamp_transactions.reference_id is set to the postcard_id",
+        "Integration test: send postcard → balance decremented by 1, lot decremented, transaction row exists",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 11,
       "passes": true,
@@ -183,14 +194,15 @@
     },
     {
       "id": "US-012",
-      "title": "Public post page /post/:id",
-      "description": "As any visitor (logged in or not), I want to view a published drawing at a stable URL.",
+      "title": "Failed-send refund path",
+      "description": "As a user, if a postcard fails to deliver, I want my stamp returned automatically and a clear notification.",
       "acceptanceCriteria": [
-        "Client-side route /post/:id fetches GET /api/posts/:id and renders the image, text, and alt text. No author display, no reactions, no comments",
-        "<img> uses the drawing's alt text as its alt attribute",
-        "Page sets appropriate <title> and meta tags (Open Graph image + title) for link previews",
-        "Unknown ID returns a 404 view",
-        "Typecheck and lint pass",
+        "Send flow's error handler calls refundFailedSend for: Resend hard bounce, blob write failure (after retries), malformed recipient address",
+        "Recipient never opening, marking as spam, or sender regret do NOT trigger refund",
+        "User-facing notification: 'Couldn't deliver to that address — your stamp has been refunded.'",
+        "Integration test: trigger hard bounce → balance restored, failed_send_refund transaction exists",
+        "Tests pass",
+        "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
@@ -199,13 +211,13 @@
     },
     {
       "id": "US-013",
-      "title": "Pricing page + paywall CTA",
-      "description": "As a visitor, I want a pricing page that explains the $5/month plan and lets me start checkout.",
+      "title": "Send confirmation UI with '1 stamp' indicator",
+      "description": "As a user, I want to see that sending costs one stamp without it feeling transactional, so I understand the cost without feeling nickel-and-dimed.",
       "acceptanceCriteria": [
-        "/pricing route describes the free vs. paid tiers and shows 'Subscribe — $5/month'",
-        "Disabled 'Save' / 'Send It' buttons across the app link to /pricing",
-        "If the user is logged out, the pricing page prompts sign-in before checkout",
-        "Typecheck and lint pass",
+        "Subtle '1 stamp' indicator next to the send button on the postcard composer",
+        "Indicator uses the stamp icon used elsewhere",
+        "Not a modal, not a confirmation step — just a visible label",
+        "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
@@ -214,15 +226,16 @@
     },
     {
       "id": "US-014",
-      "title": "Autumn checkout integration",
-      "description": "As a logged-in free user, I want to subscribe via Autumn so I can unlock paid features.",
+      "title": "Refund calculation service",
+      "description": "As a developer, I need a function that calculates the prorated refund amount for a given lot so refund logic is consistent.",
       "acceptanceCriteria": [
-        "POST /api/billing/checkout creates an Autumn checkout session for the current user and returns the checkout URL",
-        "'Subscribe' button on /pricing calls that endpoint and redirects the browser to the returned URL",
-        "On return from Autumn, the user lands on /account?status=ok (or ?status=cancel on cancel)",
-        "Autumn customer id is persisted on the users row",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill (mocked Autumn in dev is acceptable; document the env vars needed for the live flow)"
+        "Accepts a stamp_lots row",
+        "Returns refund_cents = remaining_count * (price_paid_cents / original_count) using integer math",
+        "Returns 0 (and rejects) for non-purchase lots",
+        "Returns 0 for lots with remaining_count = 0",
+        "Unit tests cover: full refund, partial refund, fully-used lot, grant lot, gift lot",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 14,
       "passes": true,
@@ -230,15 +243,18 @@
     },
     {
       "id": "US-015",
-      "title": "Autumn webhook → subscription status",
-      "description": "As a developer, I want subscription state in our DB to stay in sync with Autumn so gating decisions are correct.",
+      "title": "Refund API endpoint",
+      "description": "As a user, I want to request a refund of unused stamps from a specific lot so I can recover money for stamps I won't use.",
       "acceptanceCriteria": [
-        "POST /api/billing/webhook validates Autumn's signature header",
-        "Handles at minimum: subscription created/activated → 'active'; canceled → 'canceled'; payment failed → 'past_due'; renewed → 'active'",
-        "Updates users.subscription_status and (if needed) stored Autumn ids",
-        "Returns 200 for handled events, 400 for invalid signature",
-        "Webhook endpoint is reachable from Autumn (configured in netlify.toml / Autumn dashboard — documented in README)",
-        "Typecheck and lint pass"
+        "POST /api/stamps/refund/:lotId endpoint",
+        "Validates: caller owns the lot, source = 'purchase', remaining_count > 0",
+        "Calls refund calculation, then in one DB transaction: zero out remaining_count, decrement stamps_balance, insert refund transaction row with delta = -remaining_count",
+        "Calls Autumn to issue refund against autumn_checkout_id",
+        "On Autumn failure: reverses local state changes and surfaces error; logs for manual reconciliation",
+        "Returns refund amount in cents and updated balance",
+        "Integration test: refund 15 of 25 stamps in $10 pack → $6.00 refund issued",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 15,
       "passes": true,
@@ -246,13 +262,16 @@
     },
     {
       "id": "US-016",
-      "title": "Paid-feature gating helper",
-      "description": "As a developer, I need one place that decides whether a user is 'paid' so the UI and the API stay consistent.",
+      "title": "Refund UI on stamps page",
+      "description": "As a user, I want to see my refundable lots and trigger a refund with one click.",
       "acceptanceCriteria": [
-        "isPaid(user) returns true only for subscription_status === 'active' (canceled users keep access until period end — see open question OQ-2)",
-        "All API endpoints that require payment use this helper and return 402 Payment Required on failure",
-        "Frontend has an isPaid derived signal used to gate UI",
-        "Typecheck passes"
+        "Each refundable lot displayed with: purchase date, original count, remaining count, refund amount preview",
+        "'Refund unused stamps' button per refundable lot",
+        "Confirmation step before submission ('Refund $X.XX to your card?')",
+        "Success message shows refund amount and new balance",
+        "Granted and gifted lots displayed but without refund button, with explanation tooltip",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
       "passes": true,
@@ -260,15 +279,17 @@
     },
     {
       "id": "US-017",
-      "title": "Account / settings page",
-      "description": "As a user, I want one page where I can manage my email, passkey, subscription, and account.",
+      "title": "Gift pack purchase flow (existing recipient)",
+      "description": "As a user, I want to buy a pack for another Drerings user so I can share stamps with friends.",
       "acceptanceCriteria": [
-        "/account route shows: current email, subscription status ('Free' / 'Active — renews YYYY-MM-DD' / 'Canceled — ends YYYY-MM-DD' / 'Past due'), passkey list with 'Register new passkey' and 'Remove' actions",
-        "'Update email' flow: enter new email → magic link sent to new address → on confirm, update users.email",
-        "'Cancel subscription' button hits POST /api/billing/cancel which calls Autumn's cancel-at-period-end API. UI updates to show 'Canceled — ends YYYY-MM-DD'",
-        "'Delete account' button shows a confirm dialog ('Type DELETE to confirm'). On confirm, hits DELETE /api/account which cancels Autumn subscription, deletes all the user's drawings + blobs + public_posts, then deletes the user row, then logs out",
-        "All destructive actions require an active session",
-        "Typecheck and lint pass",
+        "Gift purchase UI: select pack, enter recipient email or username, confirm",
+        "Existing user lookup by email/username",
+        "On successful checkout (Autumn webhook), creditStampLot is called for the recipient with source: 'gift_received', giftedByUserId: senderId, priceCents from pack",
+        "Sender's balance is unaffected",
+        "Recipient sees the gift in their transaction history",
+        "Sender sees the gift in their transaction history (as outgoing gift)",
+        "Notification email to recipient: 'Alice sent you 25 stamps.'",
+        "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 17,
@@ -277,13 +298,14 @@
     },
     {
       "id": "US-018",
-      "title": "Logout",
-      "description": "As a logged-in user, I want a logout control that clears my session.",
+      "title": "Pending gift for non-user recipient",
+      "description": "As a user, I want to gift a pack to someone who doesn't have a Drerings account yet, so I can recruit them.",
       "acceptanceCriteria": [
-        "POST /api/auth/logout clears the session cookie",
-        "Logout link is visible in the app header when logged in",
-        "After logout, protected routes redirect to /login",
-        "Typecheck and lint pass",
+        "If recipient email has no account, a pending_gifts record is created (new table) on successful checkout",
+        "Fields: id, sender_user_id, recipient_email, pack_id, count, price_cents, autumn_checkout_id, created_at, status ('pending' | 'claimed' | 'refunded')",
+        "Invitation email sent to recipient with signup link",
+        "Sender sees pending gift in their stamps page",
+        "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
@@ -292,14 +314,16 @@
     },
     {
       "id": "US-019",
-      "title": "Legal pages (/privacy, /terms)",
-      "description": "As a paying customer, I want to read the privacy policy and terms of service before subscribing.",
+      "title": "Pending gift conversion on recipient signup",
+      "description": "As a recipient of a pending gift, when I sign up, the gifted stamps are credited to my new account.",
       "acceptanceCriteria": [
-        "/privacy and /terms are real client-side routes with readable, plain-language content covering the data we collect (email, drawings, payment metadata via Autumn), how it's used, retention, deletion, and contact info",
-        "Footer (or pricing/checkout flow) links to both pages",
-        "Both pages are crawlable (server-rendered or pre-rendered HTML acceptable; at minimum a meaningful <title> and meta description)",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill"
+        "Signup flow checks pending_gifts for recipient email",
+        "For each pending gift, creditStampLot is called with source: 'gift_received', correct count, price, gifter id, and original autumn_checkout_id",
+        "pending_gifts.status updated to 'claimed'",
+        "New user still receives the standard 5-stamp signup grant in addition",
+        "Integration test: sender gifts → recipient signs up → recipient has gift + signup grant",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 19,
       "passes": true,
@@ -307,12 +331,15 @@
     },
     {
       "id": "US-020",
-      "title": "README / deployment notes",
-      "description": "As a developer (or future me), I need to know which env vars and dashboards to configure to run this in production.",
+      "title": "Auto-refund pending gifts older than 90 days",
+      "description": "As a sender, if my gift recipient never signs up within 90 days, I want the gift automatically refunded.",
       "acceptanceCriteria": [
-        "README documents required env vars: RESEND_API_KEY, AUTUMN_API_KEY, AUTUMN_WEBHOOK_SECRET, session secret, Netlify DB connection, Netlify Blobs store name, app base URL",
-        "README documents how to point Autumn webhooks at the deployed function URL",
-        "README documents the local dev story (mock Autumn / Resend if keys are absent)",
+        "Background job runs daily",
+        "Finds pending_gifts with status = 'pending' and created_at < now() - 90 days",
+        "Calls Autumn refund against autumn_checkout_id",
+        "Updates status = 'refunded'",
+        "Sends email to sender: 'Your gift to X was refunded — they didn't claim it.'",
+        "Idempotent — job can run twice without double-refunding",
         "Typecheck passes"
       ],
       "priority": 20,
@@ -321,13 +348,15 @@
     },
     {
       "id": "US-021",
-      "title": "Generate PWA icon PNGs from existing icon source",
-      "description": "As a developer, I need PWA icon assets at the standard sizes so the manifest can reference them.",
+      "title": "Sender's 30-day refund window on unused gifts",
+      "description": "As a gift sender, I want to refund a gift if the recipient hasn't used any of the stamps within 30 days.",
       "acceptanceCriteria": [
-        "public/icon-192.png exists at 192x192, sourced from existing public/icon.png",
-        "public/icon-512.png exists at 512x512, sourced from existing public/icon.png",
-        "public/icon-512-maskable.png exists at 512x512 with a maskable safe-zone crop of public/icon.png",
-        "Typecheck passes"
+        "Sender's stamps page shows gifts they've sent with status: 'unused (refundable until DATE)' or 'in use (final)'",
+        "Refund button shown only when: gift was created < 30 days ago AND recipient's gift lot remaining_count == original_count",
+        "Refund flow zeroes the recipient's lot, decrements their balance, issues Autumn refund to sender's payment method",
+        "Recipient sees stamp_transactions row noting the gift was reclaimed",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 21,
       "passes": true,
@@ -335,13 +364,15 @@
     },
     {
       "id": "US-022",
-      "title": "Add web app manifest at public/manifest.webmanifest",
-      "description": "As a mobile user, I want a PWA manifest so the browser knows how to install Drerings to my home screen.",
+      "title": "Balance indicator in app header",
+      "description": "As a user, I want to see my stamp count at all times so I know when I need to buy more.",
       "acceptanceCriteria": [
-        "public/manifest.webmanifest exists with name 'Drerings', short_name 'Drerings', start_url '/', scope '/', display 'standalone'",
-        "background_color and theme_color reuse existing color variables defined in _variables.css / _vars.css — no new color variables introduced",
-        "icons array references public/icon-192.png (192x192, purpose 'any'), public/icon-512.png (512x512, purpose 'any'), and public/icon-512-maskable.png (512x512, purpose 'maskable')",
-        "Typecheck passes"
+        "Header shows current balance with stamp icon: e.g. '5 stamps'",
+        "Tappable — opens stamps page",
+        "Reactive — updates when balance changes (signal-based)",
+        "Visible on all authenticated routes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 22,
       "passes": true,
@@ -349,14 +380,16 @@
     },
     {
       "id": "US-023",
-      "title": "Wire manifest and PWA meta tags into public/index.html",
-      "description": "As a mobile user, I want the page to advertise the manifest and PWA metadata so the browser shows the correct install prompt and icon.",
+      "title": "Stamps page (settings → stamps)",
+      "description": "As a user, I want a dedicated page to see my balance, buy more stamps, view transaction history, and manage refunds/gifts.",
       "acceptanceCriteria": [
-        "public/index.html includes <link rel=\"manifest\" href=\"/manifest.webmanifest\" />",
-        "public/index.html includes <meta name=\"theme-color\" content=\"...\" /> matching the theme_color in the manifest",
-        "public/index.html includes <link rel=\"apple-touch-icon\" href=\"/icon-192.png\" />",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill: Chrome DevTools Application > Manifest panel shows the manifest parsed with no errors and reports the app as installable"
+        "Route at /settings/stamps",
+        "Shows: current balance, 'buy more' CTA, transaction history list, lots with refund actions (US-016), sent gifts (US-021)",
+        "Transaction history shows: date, reason, delta, balance after",
+        "Pagination or virtualization for long histories (>50 entries)",
+        "Linked from settings navigation",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
       "passes": true,
@@ -364,13 +397,14 @@
     },
     {
       "id": "US-024",
-      "title": "Add canShare derived signal in src/state.ts",
-      "description": "As a developer, I want a single source of truth for 'can this user share?' so every share UI uses the same paid-gate.",
+      "title": "Verify Bluesky posting does not consume stamps",
+      "description": "As a product owner, I need explicit verification that posting to Bluesky does not consume stamps, so the free-broadcast positioning holds.",
       "acceptanceCriteria": [
-        "src/state.ts exposes a canShare derived signal following existing @preact/signals patterns in that file",
-        "canShare is true only when the current user's subscription_status === 'active'; false in all other cases (logged out, free, canceled, past_due)",
-        "No new color variables, no inline subscription checks introduced elsewhere",
-        "Typecheck and lint pass"
+        "Bluesky post code path has no calls to debitStamp",
+        "Integration test: post to Bluesky → balance unchanged",
+        "Bluesky post button is enabled even when stamps_balance = 0",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 24,
       "passes": true,
@@ -378,69 +412,18 @@
     },
     {
       "id": "US-025",
-      "title": "Render Share button on published-drawing view (paid + published only)",
-      "description": "As a paid user viewing my published drawing, I want a Share button so I can send the link to a friend.",
+      "title": "Invariant verification background job",
+      "description": "As a developer, I need a periodic job that verifies the data invariants hold, so we catch any drift before it compounds.",
       "acceptanceCriteria": [
-        "Share button rendered on the published-drawing UI; placement confirmed against src/routes/post.ts and src/routes/send.ts during implementation",
-        "Button is only rendered when canShare is true AND the drawing has a public_posts.id (is published); free users and unpublished states render no button at all in the DOM",
-        "Button is a real <button> element with aria-label 'Share drawing' and a visible focus state",
-        "Reuses existing src/components/button.ts styles and CSS variables; no new color variables introduced",
-        "Click handler is a stub at this stage (full wiring lands in US-026)",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill: button appears for mocked paid + published state and is absent for free or unpublished states"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-026",
-      "title": "Wire Share button to navigator.share with public-post URL",
-      "description": "As a paid user tapping Share, I want the OS share sheet to open with a link to my public post pre-filled.",
-      "acceptanceCriteria": [
-        "Click handler builds an absolute public-post URL as window.location.origin + '/post/' + public_posts.id",
-        "Handler calls navigator.share({ url, title, text }) only when navigator.canShare?.({ url }) is truthy",
-        "title is 'A drering for you' and text is a short human line (e.g. 'Check out this drering:'); copy is defined in one place for easy change and does not duplicate the URL inside text",
-        "AbortError (user dismissed the sheet) is swallowed silently; other errors are logged to the console",
-        "Handler runs only on user click (no programmatic invocation on load)",
-        "If navigator.canShare is falsy or navigator.share is undefined, the handler delegates to the fallback UI from US-027 (a stub call here is acceptable; full UI lands in US-027)",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill: on a Chromium browser, clicking Share invokes navigator.share with the correct payload (capture the call via a spy or console log)"
-      ],
-      "priority": 26,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-027",
-      "title": "Add fallback share panel: copy link + download PNG",
-      "description": "As a paid user on a desktop browser without navigator.share, I still want a useful way to send my drawing.",
-      "acceptanceCriteria": [
-        "When navigator.share is unavailable or canShare({ url }) is falsy, clicking Share opens a popover or inline panel with two actions: 'Copy link' and 'Download PNG'",
-        "'Copy link' calls navigator.clipboard.writeText with the public-post URL and shows a transient 'Copied' confirmation near the button",
-        "'Download PNG' triggers a download of the drawing image named 'drering-<id>.png' (reuse any existing PNG export/fetch helper if one exists before adding new code)",
-        "If navigator.clipboard is also unavailable, the URL is shown in a selectable read-only text input as a last-resort fallback",
-        "Both actions are keyboard accessible; the panel dismisses on Escape or when focus leaves",
-        "Panel is rendered inside the same canShare gate; free users never see this UI",
-        "Reuses existing button styles and color variables; no new color variables introduced",
-        "Typecheck and lint pass",
-        "Verify in browser using dev-browser skill: simulate navigator.share = undefined and confirm Copy link writes to the clipboard and Download PNG initiates a download"
-      ],
-      "priority": 27,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-028",
-      "title": "Document PWA installability and share gate in README",
-      "description": "As a future contributor, I want to know the app is a PWA and how the share gate works without reading every file.",
-      "acceptanceCriteria": [
-        "README.md mentions the app is installable as a PWA and points to public/manifest.webmanifest",
-        "README (or a short doc under docs/) explains that share is gated to subscription_status === 'active' and links to docs/SMS.md for the underlying API rationale",
-        "No test file added for docs (per project rule: don't write tests for docs)",
+        "Job verifies for every user: users.stamps_balance == SUM(stamp_lots.remaining_count WHERE user_id = ...)",
+        "Job verifies for every user: SUM(stamp_transactions.delta WHERE user_id = ...) == users.stamps_balance",
+        "Drift is logged with user_id, expected, actual",
+        "Alerts (email or log-based notification) on any drift",
+        "No automatic reconciliation in v1 — human investigates first",
+        "Runs daily via scheduled function",
         "Typecheck passes"
       ],
-      "priority": 28,
+      "priority": 25,
       "passes": true,
       "notes": ""
     }

@@ -3,6 +3,7 @@ import { type FunctionComponent } from 'preact'
 import { useCallback, useEffect } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
 import { Button } from '../components/button'
+import { IconStamp } from '../components/icon-stamp'
 import { State, type AppState, type SavedDrawing } from '../state'
 import './send.css'
 
@@ -82,13 +83,26 @@ export const SendRoute:FunctionComponent<{
                     alt=${drawing.value.alt_text}
                 />
                 <p>${drawing.value.text}</p>
-                <${Button}
-                    type="button"
-                    onClick=${publish}
-                    isSpinning=${isPublishing}
+                <div
+                    class="send-actions"
+                    role="group"
+                    aria-label="Send actions"
                 >
-                    Publish
-                <//>
+                    <${Button}
+                        type="button"
+                        onClick=${publish}
+                        isSpinning=${isPublishing}
+                    >
+                        Publish
+                    <//>
+                    <span
+                        class="send-stamp-cost"
+                        aria-label="Sending this postcard costs 1 stamp"
+                    >
+                        <${IconStamp} />
+                        <span>1 stamp</span>
+                    </span>
+                </div>
             </article>
         ` : null}
     </div>`
