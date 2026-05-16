@@ -1,7 +1,8 @@
 import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
-import { creditStampLot } from './stamps.js'
+import { sendStampGiftEmail } from './resend.js'
+import { creditGiftStampLot, creditStampLot } from './stamps.js'
 import {
     PACK_DEFINITIONS,
     type StampPackDefinition,
@@ -35,7 +36,7 @@ interface AutumnWebhookEvent {
 interface AutumnWebhookResult {
     handled:boolean;
     subscription_status?:SubscriptionStatus;
-    stamp_purchase?:'credited'|'already_credited';
+    stamp_purchase?:'credited'|'already_credited'|'gift_credited';
 }
 
 export interface CancelSubscriptionResult {
@@ -48,16 +49,34 @@ export interface AutumnStampRefundOptions {
     amountCents:number;
 }
 
+interface StampGiftMetadata {
+    senderUserId:string;
+    senderEmail:string;
+    recipientUserId:string;
+    recipientEmail:string;
+}
+
 interface StampCheckoutEvent {
     userId:string;
     checkoutId:string;
     pack:StampPackDefinition;
+    gift?:StampGiftMetadata;
+}
+
+export interface GiftRecipient {
+    id:string;
+    email:string;
+}
+
+interface CheckoutOptions {
+    metadata?:Record<string, string>;
 }
 
 export async function createCheckoutSession (
     user:SessionUser,
     origin:string,
-    productId?:StampPackProductId
+    productId?:StampPackProductId,
+    options:CheckoutOptions = {}
 ):Promise<CheckoutSession> {
     if (shouldUseMockCheckout()) {
         const checkout = {
@@ -70,23 +89,30 @@ export async function createCheckoutSession (
         return checkout
     }
 
+    const checkoutBody:Record<string, unknown> = {
+        customer_id: user.id,
+        product_id: getCheckoutProductId(productId),
+        success_url: `${origin}/account?status=ok`,
+        customer_data: {
+            email: user.email
+        }
+    }
+
+    if (options.metadata) {
+        checkoutBody.metadata = options.metadata
+    }
+
+    checkoutBody.checkout_session_params = {
+        cancel_url: `${origin}/account?status=cancel`
+    }
+
     const response = await fetch(`${getAutumnApiUrl()}/checkout`, {
         method: 'POST',
         headers: {
             authorization: `Bearer ${getAutumnSecretKey()}`,
             'content-type': 'application/json'
         },
-        body: JSON.stringify({
-            customer_id: user.id,
-            product_id: getCheckoutProductId(productId),
-            success_url: `${origin}/account?status=ok`,
-            customer_data: {
-                email: user.email
-            },
-            checkout_session_params: {
-                cancel_url: `${origin}/account?status=cancel`
-            }
-        })
+        body: JSON.stringify(checkoutBody)
     })
 
     if (!response.ok) {
@@ -110,6 +136,49 @@ export async function createCheckoutSession (
         url: checkoutUrl,
         customer_id: customerId
     }
+}
+
+export async function findGiftRecipient (
+    identifier:string
+):Promise<GiftRecipient|null> {
+    const normalized = identifier.trim().toLowerCase()
+
+    if (!normalized) return null
+
+    const username = normalized.includes('@') ?
+        normalized.split('@')[0] :
+        normalized
+    const db = getDatabase()
+    const result = await db.pool.query<GiftRecipient>(`
+        SELECT id, email
+        FROM users
+        WHERE lower(email) = $1
+            OR lower(split_part(email, '@', 1)) = $2
+        ORDER BY
+            CASE WHEN lower(email) = $1 THEN 0 ELSE 1 END,
+            created_at ASC
+        LIMIT 2
+    `, [normalized, username])
+
+    if (result.rows.length !== 1) return null
+
+    return result.rows[0]
+}
+
+export async function createGiftCheckoutSession (
+    sender:SessionUser,
+    origin:string,
+    productId:StampPackProductId,
+    recipient:GiftRecipient
+):Promise<CheckoutSession> {
+    return createCheckoutSession(sender, origin, productId, {
+        metadata: {
+            gift_sender_user_id: sender.id,
+            gift_sender_email: sender.email,
+            gift_recipient_user_id: recipient.id,
+            gift_recipient_email: recipient.email
+        }
+    })
 }
 
 export async function cancelAutumnSubscription (
@@ -223,10 +292,30 @@ export async function applyAutumnWebhookEvent (
 async function applyStampCheckout (
     checkout:StampCheckoutEvent
 ):Promise<AutumnWebhookResult> {
-    if (await hasStampPurchase(checkout.checkoutId)) {
+    if (await hasStampCheckout(checkout.checkoutId)) {
         return {
             handled: true,
             stamp_purchase: 'already_credited'
+        }
+    }
+
+    if (checkout.gift) {
+        await creditGiftStampLot({
+            senderUserId: checkout.gift.senderUserId,
+            recipientUserId: checkout.gift.recipientUserId,
+            count: checkout.pack.count,
+            priceCents: checkout.pack.priceCents,
+            autumnCheckoutId: checkout.checkoutId
+        })
+        await sendStampGiftEmail({
+            email: checkout.gift.recipientEmail,
+            senderEmail: checkout.gift.senderEmail,
+            count: checkout.pack.count
+        })
+
+        return {
+            handled: true,
+            stamp_purchase: 'gift_credited'
         }
     }
 
@@ -244,13 +333,13 @@ async function applyStampCheckout (
     }
 }
 
-async function hasStampPurchase (checkoutId:string):Promise<boolean> {
+async function hasStampCheckout (checkoutId:string):Promise<boolean> {
     const db = getDatabase()
     const result = await db.pool.query(`
         SELECT 1
         FROM stamp_transactions
         WHERE reference_id = $1
-            AND reason = 'purchase'
+            AND reason IN ('purchase', 'gift_sent', 'gift_received')
         LIMIT 1
     `, [checkoutId])
 
@@ -340,7 +429,50 @@ function getStampCheckoutEvent (
 
     if (!pack || !checkoutId || !userId) return null
 
-    return { userId, checkoutId, pack }
+    return {
+        userId,
+        checkoutId,
+        pack,
+        gift: getWebhookGiftMetadata(event)
+    }
+}
+
+function getWebhookGiftMetadata (
+    event:AutumnWebhookEvent
+):StampGiftMetadata|undefined {
+    const metadata = getWebhookMetadata(event)
+    const senderUserId = getString(metadata.gift_sender_user_id)
+    const senderEmail = getString(metadata.gift_sender_email)
+    const recipientUserId = getString(metadata.gift_recipient_user_id)
+    const recipientEmail = getString(metadata.gift_recipient_email)
+
+    if (
+        !senderUserId ||
+        !senderEmail ||
+        !recipientUserId ||
+        !recipientEmail
+    ) {
+        return undefined
+    }
+
+    return {
+        senderUserId,
+        senderEmail,
+        recipientUserId,
+        recipientEmail
+    }
+}
+
+function getWebhookMetadata (
+    event:AutumnWebhookEvent
+):Record<string, unknown> {
+    const data = isRecord(event.data) ? event.data : {}
+    const checkout = getRecord(data.checkout)
+
+    return getRecord(event.metadata) ||
+        getRecord(data.metadata) ||
+        getRecord(checkout?.metadata) ||
+        {}
 }
 
 function getAutumnSecretKey ():string {

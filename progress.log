@@ -52,6 +52,15 @@
 - Stamp lot refund UI should load lots through `State.FetchStampLots`, submit
   refunds through `State.RefundStampLot`, and use `/api/stamps/lots` for
   refund preview rows calculated server-side.
+- Existing-recipient stamp gifts start through
+  `/api/stamps/gifts/checkout`, attach gift sender and recipient metadata to
+  the Autumn checkout, and are credited from the checkout webhook.
+- Gift webhook handling uses `creditGiftStampLot` so recipient
+  `gift_received` credit and sender `gift_sent` history rows are written in
+  one stamp transaction while leaving the sender balance unchanged.
+- Gift purchase UI lives in `GiftStampsPanel` and starts checkout through
+  `State.StartGiftStampCheckout`, keeping stamp checkout state methods on the
+  central State object.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -553,5 +562,56 @@ Thread: https://ampcode.com/threads/unknown
     client does not duplicate refund math.
   - The refund panel is reusable and currently mounted in `/settings`; US-023
     can move or reuse it when adding the dedicated `/settings/stamps` page.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 21:52 PDT - US-017
+Thread: https://ampcode.com/threads/unknown
+- Implemented existing-recipient stamp gifting.
+- Added an authenticated gift checkout endpoint that looks up an existing
+  recipient by email or email username, then creates a stamp pack Autumn
+  checkout with sender and recipient gift metadata.
+- Extended the Autumn stamp webhook to detect gift metadata, credit the
+  recipient with `gift_received` stamps, record the sender's `gift_sent`
+  history row with no balance change, and send the recipient notification
+  email.
+- Added the settings gift form for selecting a stamp pack, entering a
+  recipient, and continuing to checkout.
+- Files changed:
+  - `netlify/functions/stamps/gifts/checkout.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/gift-stamps.ts`
+  - `src/components/gift-stamps.css`
+  - `src/routes/settings.ts`
+  - `src/state.ts`
+  - `test/us017-gift-checkout-api.test.ts`
+  - `test/us017-gift-stamp-webhook.test.ts`
+  - `test/us017-gift-stamps-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us017-gift-checkout-api.test.ts
+    test/us017-gift-stamp-webhook.test.ts
+    test/us017-gift-stamps-ui.test.ts`
+  - `npx vitest run test/us014-billing-store.test.ts
+    test/us014-billing-checkout-api.test.ts
+    test/us006-autumn-stamp-webhook.test.ts
+    test/us002-credit-stamp-lot.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:4444`:
+    gift form rendered on `/settings`, posted the Bundle gift checkout for
+    `friend@example.com`, and redirected to the checkout URL.
+- **Learnings for future iterations:**
+  - Existing-user gift checkout should not upsert recipients; it should
+    require a current session and look up an existing user before calling
+    Autumn.
+  - Autumn gift checkout metadata is the bridge between the UI checkout and
+    webhook fulfillment; pending gifts in US-018 can extend that metadata
+    path without changing pack definitions.
+  - Sender gift history rows use `delta = 0` and `reason = 'gift_sent'`
+    because the gift purchase does not affect the sender's stamp balance.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

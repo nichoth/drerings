@@ -4,6 +4,7 @@ type StampTransactionReason =
     'purchase'|
     'grant'|
     'migration_grant'|
+    'gift_sent'|
     'gift_received'
 
 export interface CreditStampLotOptions {
@@ -19,6 +20,20 @@ export interface CreditStampLotOptions {
 export interface CreditStampLotResult {
     lotId:string;
     balanceAfter:number;
+}
+
+export interface CreditGiftStampLotOptions {
+    senderUserId:string;
+    recipientUserId:string;
+    count:number;
+    priceCents:number;
+    autumnCheckoutId:string;
+}
+
+export interface CreditGiftStampLotResult {
+    lotId:string;
+    recipientBalanceAfter:number;
+    senderBalanceAfter:number;
 }
 
 export interface DebitStampOptions {
@@ -226,6 +241,110 @@ export async function creditStampLot (
         await client.query('COMMIT')
 
         return { lotId, balanceAfter }
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
+export async function creditGiftStampLot (
+    options:CreditGiftStampLotOptions
+):Promise<CreditGiftStampLotResult> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+
+    try {
+        await client.query('BEGIN')
+
+        const lotResult = await client.query<StampLotRow>(`
+            INSERT INTO stamp_lots (
+                user_id,
+                source,
+                original_count,
+                remaining_count,
+                price_paid_cents,
+                autumn_checkout_id,
+                gifted_by_user_id
+            )
+            VALUES ($1, $2, $3, $3, $4, $5, $6)
+            RETURNING id
+        `, [
+            options.recipientUserId,
+            'gift_received',
+            options.count,
+            options.priceCents,
+            options.autumnCheckoutId,
+            options.senderUserId
+        ])
+        const lotId = lotResult.rows[0].id
+
+        const recipientBalance = await client.query<BalanceRow>(`
+            UPDATE users
+            SET stamps_balance = stamps_balance + $1
+            WHERE id = $2
+            RETURNING stamps_balance
+        `, [options.count, options.recipientUserId])
+        const recipientBalanceAfter = Number(
+            recipientBalance.rows[0].stamps_balance
+        )
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            options.recipientUserId,
+            lotId,
+            options.count,
+            'gift_received',
+            options.autumnCheckoutId,
+            recipientBalanceAfter
+        ])
+
+        const senderBalance = await client.query<BalanceRow>(`
+            SELECT stamps_balance
+            FROM users
+            WHERE id = $1
+        `, [options.senderUserId])
+        const senderBalanceAfter = Number(
+            senderBalance.rows[0].stamps_balance
+        )
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            options.senderUserId,
+            null,
+            0,
+            'gift_sent',
+            options.autumnCheckoutId,
+            senderBalanceAfter
+        ])
+
+        await client.query('COMMIT')
+
+        return {
+            lotId,
+            recipientBalanceAfter,
+            senderBalanceAfter
+        }
     } catch (error) {
         await client.query('ROLLBACK')
 

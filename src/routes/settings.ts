@@ -8,6 +8,7 @@ import {
 } from '@simplewebauthn/browser'
 import { type AppState } from '../state.js'
 import { Button } from '../components/button.js'
+import { GiftStampsPanel } from '../components/gift-stamps.js'
 import { StampLotsRefundPanel } from '../components/stamp-lots-refund.js'
 import './settings.css'
 
@@ -104,6 +105,7 @@ export const SettingsRoute:FunctionComponent<{
                     null
                 }
             </section>
+            <${GiftStampsPanel} state=${state} />
             <${StampLotsRefundPanel} state=${state} />` :
             html`<p>
                 <a href="/login">Sign in</a> to manage your account.

@@ -81,6 +81,11 @@ export interface StampRefundResult {
     stamps_balance:number;
 }
 
+export interface GiftStampCheckoutInput {
+    productId:StampPackProductId;
+    recipient:string;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
@@ -598,6 +603,54 @@ State.StartStampCheckout = async function (
         const message = err instanceof Error ?
             err.message :
             'Unable to start checkout right now.'
+
+        state.checkoutError.value = message
+
+        throw err
+    } finally {
+        state.checkoutLoading.value = false
+        state.stampCheckoutProductId.value = null
+    }
+}
+
+State.StartGiftStampCheckout = async function (
+    state:AppState,
+    input:GiftStampCheckoutInput
+):Promise<void> {
+    state.checkoutLoading.value = true
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = input.productId
+
+    try {
+        const response = await fetch('/api/stamps/gifts/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: input.productId,
+                recipient: input.recipient
+            })
+        })
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to start gift checkout right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { url?:unknown }
+
+        if (typeof body.url !== 'string' || body.url.trim() === '') {
+            throw new Error('Unable to start gift checkout right now.')
+        }
+
+        location.assign(body.url)
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to start gift checkout right now.'
 
         state.checkoutError.value = message
 
