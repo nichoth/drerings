@@ -20,7 +20,7 @@
      (e.g., `npx vitest path/to/file.spec.ts`).
    - Run the FULL test suite (`npm test`) ONLY when you believe the task is
      100% complete.
-5. VERIFY: You must run `npm run lint` and `npm test` after any code change.
+5. VERIFY: You must run `npm run lint` after any code change.
 6. DOCUMENT: Update `progress.log` with what was changed and any new
    patterns discovered.
 7. UPDATE: Update the PRD, `specs/prd.json` to set `passes: true` for the completed story
