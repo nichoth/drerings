@@ -2,6 +2,17 @@ import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
 import { creditStampLot } from './stamps.js'
+import {
+    PACK_DEFINITIONS,
+    type StampPackDefinition,
+    type StampPackProductId
+} from '../../src/stamp-packs.js'
+
+export {
+    PACK_DEFINITIONS,
+    type StampPackDefinition,
+    type StampPackProductId
+}
 
 interface CheckoutSession {
     url:string;
@@ -27,17 +38,6 @@ interface AutumnWebhookResult {
     stamp_purchase?:'credited'|'already_credited';
 }
 
-export interface StampPackDefinition {
-    productId:string;
-    name:string;
-    count:number;
-    priceCents:number;
-    metadata:{
-        stamp_count:string;
-        per_stamp_price_cents:string;
-    };
-}
-
 export interface CancelSubscriptionResult {
     subscription_status:'canceled';
     subscription_current_period_end:string|null;
@@ -49,42 +49,10 @@ interface StampCheckoutEvent {
     pack:StampPackDefinition;
 }
 
-export const PACK_DEFINITIONS = {
-    stamps_starter: {
-        productId: 'stamps_starter',
-        name: 'Starter',
-        count: 10,
-        priceCents: 500,
-        metadata: {
-            stamp_count: '10',
-            per_stamp_price_cents: '50'
-        }
-    },
-    stamps_bundle: {
-        productId: 'stamps_bundle',
-        name: 'Bundle',
-        count: 25,
-        priceCents: 1000,
-        metadata: {
-            stamp_count: '25',
-            per_stamp_price_cents: '40'
-        }
-    },
-    stamps_big_bundle: {
-        productId: 'stamps_big_bundle',
-        name: 'Big bundle',
-        count: 60,
-        priceCents: 2000,
-        metadata: {
-            stamp_count: '60',
-            per_stamp_price_cents: '33.33'
-        }
-    }
-} as const satisfies Record<string, StampPackDefinition>
-
 export async function createCheckoutSession (
     user:SessionUser,
-    origin:string
+    origin:string,
+    productId?:StampPackProductId
 ):Promise<CheckoutSession> {
     if (shouldUseMockCheckout()) {
         const checkout = {
@@ -105,7 +73,7 @@ export async function createCheckoutSession (
         },
         body: JSON.stringify({
             customer_id: user.id,
-            product_id: getAutumnProductId(),
+            product_id: getCheckoutProductId(productId),
             success_url: `${origin}/account?status=ok`,
             customer_data: {
                 email: user.email
@@ -360,6 +328,14 @@ function getAutumnSecretKey ():string {
 
 function getAutumnProductId ():string {
     return process.env.AUTUMN_PRODUCT_ID || 'paid'
+}
+
+function getCheckoutProductId (
+    productId?:StampPackProductId
+):string {
+    if (productId && PACK_DEFINITIONS[productId]) return productId
+
+    return getAutumnProductId()
 }
 
 function getAutumnApiUrl ():string {

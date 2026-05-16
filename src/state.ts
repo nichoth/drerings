@@ -7,6 +7,7 @@ import {
 import Route from 'route-event'
 import Debug from '@substrate-system/debug'
 import { RequestState, type RequestFor } from '@substrate-system/state'
+import { type StampPackProductId } from './stamp-packs.js'
 
 const debug = Debug('drerings:state')
 
@@ -77,6 +78,8 @@ export function State (): {
     currentDrawing:Signal<SavedDrawing|null>;
     checkoutLoading:Signal<boolean>;
     checkoutError:Signal<string|null>;
+    buyPackModalOpen:Signal<boolean>;
+    stampCheckoutProductId:Signal<StampPackProductId|null>;
     savedDrawings:Signal<SavedDrawing[]>;
     savedDrawingsLoading:Signal<boolean>;
     savedDrawingsError:Signal<string|null>;
@@ -99,6 +102,8 @@ export function State (): {
         currentDrawing: signal<SavedDrawing|null>(null),
         checkoutLoading: signal<boolean>(false),
         checkoutError: signal<string|null>(null),
+        buyPackModalOpen: signal<boolean>(false),
+        stampCheckoutProductId: signal<StampPackProductId|null>(null),
         savedDrawings: signal<SavedDrawing[]>([]),
         savedDrawingsLoading: signal<boolean>(false),
         savedDrawingsError: signal<string|null>(null),
@@ -424,6 +429,71 @@ State.StartCheckout = async function (
     }
 }
 
+State.OpenBuyPackModal = function (state:AppState):void {
+    state.checkoutError.value = null
+    state.buyPackModalOpen.value = true
+}
+
+State.CloseBuyPackModal = function (state:AppState):void {
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = null
+    state.buyPackModalOpen.value = false
+}
+
+State.StartStampCheckout = async function (
+    state:AppState,
+    productId:StampPackProductId
+):Promise<void> {
+    const email = state.currentUser.value?.email || state.profile.value?.email
+
+    state.checkoutLoading.value = true
+    state.checkoutError.value = null
+    state.stampCheckoutProductId.value = productId
+
+    try {
+        if (!email) {
+            throw new Error('Sign in before buying stamps.')
+        }
+
+        const response = await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                product_id: productId
+            })
+        })
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to start checkout right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { url?:unknown }
+
+        if (typeof body.url !== 'string' || body.url.trim() === '') {
+            throw new Error('Unable to start checkout right now.')
+        }
+
+        location.assign(body.url)
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to start checkout right now.'
+
+        state.checkoutError.value = message
+
+        throw err
+    } finally {
+        state.checkoutLoading.value = false
+        state.stampCheckoutProductId.value = null
+    }
+}
+
 State.FetchAccount = async function (
     state:AppState
 ):Promise<AccountDetails> {
@@ -611,6 +681,8 @@ function clearAuthState (state:AppState):void {
     state.currentUser.value = null
     state.currentDrawing.value = null
     state.checkoutError.value = null
+    state.buyPackModalOpen.value = false
+    state.stampCheckoutProductId.value = null
     state.savedDrawings.value = []
     state.account.value = null
     state.accountError.value = null

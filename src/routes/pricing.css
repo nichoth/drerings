@@ -55,8 +55,114 @@
         padding-top: 1rem;
     }
 
+    & .stamp-pack-cta {
+        border-top: 1px solid var(--input-border);
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        padding-top: 1rem;
+
+        & h3 {
+            margin: 0 0 0.5rem;
+        }
+
+        & p {
+            margin: 0;
+            max-width: 36rem;
+        }
+    }
+
     & .pricing-error {
         color: var(--danger);
+    }
+}
+
+.buy-pack-backdrop {
+    position: fixed;
+    z-index: 10;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background-color: var(--scrim);
+    padding: 1rem;
+}
+
+.buy-pack-modal {
+    width: min(100%, 58rem);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    background-color: var(--surface);
+    border: 2px solid var(--main-text);
+    box-shadow: 0.4rem 0.4rem 0 var(--shadow);
+    padding: 1rem;
+
+    & .buy-pack-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        border-bottom: 1px solid var(--input-border);
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+
+        & h2 {
+            margin: 0;
+        }
+    }
+}
+
+.buy-pack-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.stamp-pack-option {
+    border: 1px solid var(--main-text);
+    padding: 1rem;
+
+    &.recommended {
+        border-width: 2px;
+        background-color: var(--accent-bg);
+        border-color: var(--accent-border);
+    }
+
+    & .stamp-pack-topline {
+        min-height: 3.5rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        align-items: start;
+
+        & h3 {
+            margin: 0;
+        }
+
+        & span {
+            border: 1px solid var(--accent-border);
+            padding: 0.15rem 0.35rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+    }
+
+    & .stamp-pack-count {
+        font-size: 1.35rem;
+        line-height: 1.2;
+        margin: 0 0 0.5rem;
+    }
+
+    & .stamp-pack-price {
+        font-size: 2rem;
+        line-height: 1.1;
+        margin: 0;
+    }
+
+    & .stamp-pack-unit {
+        color: var(--muted-text);
+        margin: 0.25rem 0 1rem;
     }
 }
 
@@ -65,5 +171,17 @@
         & .pricing-tiers {
             grid-template-columns: 1fr;
         }
+
+        & .stamp-pack-cta {
+            display: block;
+
+            & .btn {
+                margin-top: 1rem;
+            }
+        }
+    }
+
+    .buy-pack-options {
+        grid-template-columns: 1fr;
     }
 }

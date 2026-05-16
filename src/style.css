@@ -9,6 +9,11 @@
     --danger: #c00;
     --success: #0c5c33;
     --input-border: #bbb;
+    --surface: #fff;
+    --scrim: #0008;
+    --accent-bg: #f4e6a6;
+    --accent-border: #92720d;
+    --shadow: #0003;
 }
 
 a {
