@@ -65,6 +65,22 @@ export interface PublicPost extends PublishedPost {
     published_at:string;
 }
 
+export type StampLotSource = 'purchase'|'grant'|'gift_received'
+
+export interface StampLotSummary {
+    id:string;
+    source:StampLotSource;
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    created_at:string;
+}
+
+export interface StampRefundResult {
+    refund_cents:number;
+    stamps_balance:number;
+}
+
 export function State (): {
     route:Signal<string>;
     auth:Signal<AuthStatus>;
@@ -84,6 +100,9 @@ export function State (): {
     savedDrawings:Signal<SavedDrawing[]>;
     savedDrawingsLoading:Signal<boolean>;
     savedDrawingsError:Signal<string|null>;
+    stampLots:Signal<StampLotSummary[]>;
+    stampLotsLoading:Signal<boolean>;
+    stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
@@ -108,6 +127,9 @@ export function State (): {
         savedDrawings: signal<SavedDrawing[]>([]),
         savedDrawingsLoading: signal<boolean>(false),
         savedDrawingsError: signal<string|null>(null),
+        stampLots: signal<StampLotSummary[]>([]),
+        stampLotsLoading: signal<boolean>(false),
+        stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
@@ -281,6 +303,92 @@ State.FetchSavedDrawings = async function (
     } finally {
         state.savedDrawingsLoading.value = false
     }
+}
+
+State.FetchStampLots = async function (
+    state:AppState
+):Promise<StampLotSummary[]> {
+    state.stampLotsLoading.value = true
+    state.stampLotsError.value = null
+
+    try {
+        const response = await fetch('/api/stamps/lots')
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load stamp lots right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as { lots?:unknown }
+        const lots = Array.isArray(body.lots) ?
+            body.lots.filter(isStampLotSummary) :
+            []
+
+        state.stampLots.value = lots
+
+        return lots
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load stamp lots right now.'
+
+        state.stampLotsError.value = message
+
+        throw err
+    } finally {
+        state.stampLotsLoading.value = false
+    }
+}
+
+State.RefundStampLot = async function (
+    state:AppState,
+    lotId:string
+):Promise<StampRefundResult> {
+    const response = await fetch(
+        `/api/stamps/refund/${encodeURIComponent(lotId)}`,
+        { method: 'POST' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to refund stamps right now.'
+
+        throw new Error(message)
+    }
+
+    const result = await response.json() as Partial<StampRefundResult>
+
+    if (
+        typeof result.refund_cents !== 'number' ||
+        typeof result.stamps_balance !== 'number'
+    ) {
+        throw new Error('Unable to refund stamps right now.')
+    }
+
+    if (state.currentUser.value) {
+        state.currentUser.value = {
+            ...state.currentUser.value,
+            stamps_balance: result.stamps_balance
+        }
+    }
+
+    state.stampLots.value = state.stampLots.value.map((lot) => {
+        if (lot.id !== lotId) return lot
+
+        return {
+            ...lot,
+            remaining_count: 0,
+            refund_cents: 0
+        }
+    })
+
+    return result as StampRefundResult
 }
 
 State.OpenSavedDrawing = async function (
@@ -690,6 +798,8 @@ function clearAuthState (state:AppState):void {
     state.buyPackModalOpen.value = false
     state.stampCheckoutProductId.value = null
     state.savedDrawings.value = []
+    state.stampLots.value = []
+    state.stampLotsError.value = null
     state.account.value = null
     state.accountError.value = null
     state.profile.value = null
@@ -725,6 +835,24 @@ function isCurrentUser (value:unknown):value is CurrentUser {
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'
         )
+}
+
+function isStampLotSummary (value:unknown):value is StampLotSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeLot = value as Partial<StampLotSummary>
+    const sources:StampLotSource[] = [
+        'purchase',
+        'grant',
+        'gift_received'
+    ]
+
+    return typeof maybeLot.id === 'string' &&
+        sources.includes(maybeLot.source as StampLotSource) &&
+        typeof maybeLot.original_count === 'number' &&
+        typeof maybeLot.remaining_count === 'number' &&
+        typeof maybeLot.refund_cents === 'number' &&
+        typeof maybeLot.created_at === 'string'
 }
 
 function isProtectedRoute (path:string):boolean {

@@ -60,6 +60,15 @@ export interface StampLotRefundRow {
     price_paid_cents:number|string|null;
 }
 
+export interface StampLotSummary {
+    id:string;
+    source:'purchase'|'grant'|'gift_received';
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    created_at:string;
+}
+
 interface QueryResult<Row> {
     rows:Row[];
 }
@@ -83,6 +92,11 @@ interface BalanceRow {
 interface RefundableStampLotRow extends StampLotRefundRow {
     id:string;
     autumn_checkout_id:string|null;
+}
+
+interface StampLotListRow extends StampLotRefundRow {
+    id:string;
+    created_at:string|Date;
 }
 
 export class InsufficientStampsError extends Error {
@@ -120,6 +134,35 @@ export function calculateStampLotRefundCents (
     if (!Number.isFinite(pricePaidCents) || pricePaidCents <= 0) return 0
 
     return Math.floor((remainingCount * pricePaidCents) / originalCount)
+}
+
+export async function listStampLotsForUser (
+    userId:string
+):Promise<StampLotSummary[]> {
+    const db = getDatabase()
+    const result = await db.pool.query<StampLotListRow>(`
+        SELECT
+            id,
+            source,
+            original_count,
+            remaining_count,
+            price_paid_cents,
+            created_at
+        FROM stamp_lots
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+    `, [userId])
+
+    return result.rows.map((lot) => {
+        return {
+            id: lot.id,
+            source: lot.source,
+            original_count: Number(lot.original_count),
+            remaining_count: Number(lot.remaining_count),
+            refund_cents: calculateStampLotRefundCents(lot),
+            created_at: dateString(lot.created_at)
+        }
+    })
 }
 
 export async function creditStampLot (
@@ -423,4 +466,10 @@ export async function refundPurchasedStampLot (
     } finally {
         client.release()
     }
+}
+
+function dateString (value:string|Date):string {
+    if (value instanceof Date) return value.toISOString()
+
+    return value
 }

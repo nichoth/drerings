@@ -49,6 +49,9 @@
   locks the caller-owned lot, writes local refund state in one transaction,
   and receives an injected Autumn refund function so API tests can verify
   rollback behavior without calling Autumn.
+- Stamp lot refund UI should load lots through `State.FetchStampLots`, submit
+  refunds through `State.RefundStampLot`, and use `/api/stamps/lots` for
+  refund preview rows calculated server-side.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -508,5 +511,47 @@ Thread: https://ampcode.com/threads/unknown
     lot id available in `event.path`.
   - Keep Autumn refund calls injectable into stamp refund services so the DB
     transaction can be tested with realistic rollback behavior.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 21:42 PDT - US-016
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp-lot refund UI for authenticated settings users.
+- Added a reusable stamp lot panel that lists purchase date, original count,
+  remaining count, refund preview, confirmation, success messaging, and
+  non-refundable grant/gift explanations.
+- Added `/api/stamps/lots` so the UI can fetch caller-owned stamp lots with
+  server-calculated refund previews.
+- Added signal-backed state methods for fetching lots and submitting refunds,
+  including cached balance and lot updates after a successful refund.
+- Files changed:
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/routes/settings.ts`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us016-stamp-refund-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts`
+  - `npx vitest run test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts test/us005-passkey-ui.test.ts
+    test/us015-stamp-refund-api.test.ts test/us008-zero-balance-send.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    stamp lots rendered on `/settings`, refund confirmation appeared, and a
+    successful refund updated the visible balance message.
+- **Learnings for future iterations:**
+  - Stamp lot rows for UI should come from `/api/stamps/lots`; the server
+    calculates `refund_cents` with `calculateStampLotRefundCents` so the
+    client does not duplicate refund math.
+  - The refund panel is reusable and currently mounted in `/settings`; US-023
+    can move or reuse it when adding the dedicated `/settings/stamps` page.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---
