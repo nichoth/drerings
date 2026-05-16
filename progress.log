@@ -1,1 +1,35 @@
 # Ralph progress: stamps-monetization
+
+## Codebase Patterns
+
+- Netlify Database migrations live in
+  `netlify/database/migrations/<number>_<name>/migration.sql`.
+- Reversible migrations can include a sibling `down.sql` rollback file.
+- Schema tests use Vitest and read migration SQL as text from
+  `netlify/database/migrations`.
+- `tsconfig.json` includes `vitest/globals` because many existing tests use
+  global Vitest APIs such as `expect`.
+
+## 2026-05-15 19:49 PDT - US-001
+Thread: https://ampcode.com/threads/unknown
+- Implemented the stamp accounting schema migration.
+- Added `users.stamps_balance`, `stamp_lots`, and `stamp_transactions`.
+- Added the FIFO consumption index and transaction history index.
+- Added a `down.sql` rollback for the stamp tables and balance column.
+- Files changed:
+  - `netlify/database/migrations/0003_stamp_accounting/migration.sql`
+  - `netlify/database/migrations/0003_stamp_accounting/down.sql`
+  - `test/us001-stamp-schema.test.ts`
+  - `tsconfig.json`
+  - `specs/prd.json`
+  - `progress.log`
+- **Learnings for future iterations:**
+  - The existing `users.id` column is `uuid`, so new stamp references need
+    `uuid` foreign keys instead of the older text sketch in the design doc.
+  - This repo already has text-based migration tests in Vitest; focused
+    schema stories can follow that pattern without spinning up Postgres.
+  - Rollback SQL is not present in older migrations, but stamp accounting
+    uses a sibling `down.sql` to satisfy reversibility.
+  - Typechecking the whole repo requires Vitest global types; existing tests
+    use global `expect`.
+---
