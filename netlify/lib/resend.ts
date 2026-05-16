@@ -13,6 +13,11 @@ export interface PendingGiftInviteEmail extends StampGiftEmail {
     signupUrl:string;
 }
 
+export interface PendingGiftRefundEmail {
+    email:string;
+    recipientEmail:string;
+}
+
 export async function sendMagicLinkEmail ({
     email,
     loginUrl
@@ -111,6 +116,42 @@ export async function sendPendingGiftInviteEmail ({
             html: `<p>${senderName} sent you ${count} Drerings stamps.</p>
                 <p><a href="${signupUrl}">Create an account to claim them</a>
                 </p>`,
+            text: message
+        })
+    })
+
+    if (!response.ok) {
+        throw new Error(`Resend email failed with ${response.status}`)
+    }
+}
+
+export async function sendPendingGiftRefundEmail ({
+    email,
+    recipientEmail
+}:PendingGiftRefundEmail):Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY
+
+    if (!apiKey) {
+        throw new Error('RESEND_API_KEY is required')
+    }
+
+    const message = [
+        `Your gift to ${recipientEmail} was refunded.`,
+        "They didn't claim it within 90 days."
+    ].join('\n\n')
+    const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL ||
+                'Drerings <login@drerings.app>',
+            to: email,
+            subject: 'Your Drerings gift was refunded',
+            html: `<p>Your gift to ${recipientEmail} was refunded.</p>
+                <p>They didn't claim it within 90 days.</p>`,
             text: message
         })
     })

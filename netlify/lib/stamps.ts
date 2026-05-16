@@ -55,6 +55,11 @@ export interface PendingGiftSummary {
     created_at:string;
 }
 
+export interface PendingGiftRefundEmailOptions {
+    email:string;
+    recipientEmail:string;
+}
+
 export interface DebitStampOptions {
     userId:string;
     referenceId?:string;
@@ -73,6 +78,16 @@ export interface RefundFailedSendOptions {
 export interface AutumnRefundRequest {
     checkoutId:string;
     amountCents:number;
+}
+
+export interface RefundExpiredPendingGiftsOptions {
+    issueRefund:(request:AutumnRefundRequest) => Promise<void>;
+    sendRefundEmail:(options:PendingGiftRefundEmailOptions) => Promise<void>;
+}
+
+export interface RefundExpiredPendingGiftsResult {
+    processed:number;
+    refunded:number;
 }
 
 export interface RefundPurchasedStampLotOptions {
@@ -141,6 +156,14 @@ interface PendingGiftRow {
     price_cents:number|string;
     status:'pending'|'claimed'|'refunded';
     created_at:string|Date;
+}
+
+interface ExpiredPendingGiftRow {
+    id:string;
+    sender_email:string;
+    recipient_email:string;
+    autumn_checkout_id:string;
+    price_cents:number|string;
 }
 
 export class InsufficientStampsError extends Error {
@@ -687,6 +710,123 @@ export async function refundPurchasedStampLot (
         throw error
     } finally {
         client.release()
+    }
+}
+
+export async function refundExpiredPendingGifts (
+    options:RefundExpiredPendingGiftsOptions
+):Promise<RefundExpiredPendingGiftsResult> {
+    const db = getDatabase()
+    const result = await db.pool.query<ExpiredPendingGiftRow>(`
+        SELECT
+            pending_gifts.id,
+            users.email AS sender_email,
+            pending_gifts.recipient_email,
+            pending_gifts.autumn_checkout_id,
+            pending_gifts.price_cents
+        FROM pending_gifts
+        JOIN users
+            ON users.id = pending_gifts.sender_user_id
+        WHERE pending_gifts.status = 'pending'
+            AND pending_gifts.created_at < now() - interval '90 days'
+        ORDER BY pending_gifts.created_at ASC
+    `, [])
+
+    let refunded = 0
+
+    for (const gift of result.rows) {
+        const didRefund = await refundExpiredPendingGift(gift, options)
+
+        if (didRefund) refunded += 1
+    }
+
+    return {
+        processed: result.rows.length,
+        refunded
+    }
+}
+
+async function refundExpiredPendingGift (
+    gift:ExpiredPendingGiftRow,
+    options:RefundExpiredPendingGiftsOptions
+):Promise<boolean> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+    let committed = false
+
+    try {
+        await client.query('BEGIN')
+
+        const locked = await client.query<ExpiredPendingGiftRow>(`
+            SELECT
+                pending_gifts.id,
+                users.email AS sender_email,
+                pending_gifts.recipient_email,
+                pending_gifts.autumn_checkout_id,
+                pending_gifts.price_cents
+            FROM pending_gifts
+            JOIN users
+                ON users.id = pending_gifts.sender_user_id
+            WHERE pending_gifts.id = $1
+                AND pending_gifts.status = 'pending'
+                AND pending_gifts.created_at < now() - interval '90 days'
+            FOR UPDATE SKIP LOCKED
+        `, [gift.id])
+        const lockedGift = locked.rows[0]
+
+        if (!lockedGift) {
+            await client.query('ROLLBACK')
+
+            return false
+        }
+
+        await options.issueRefund({
+            checkoutId: lockedGift.autumn_checkout_id,
+            amountCents: Number(lockedGift.price_cents)
+        })
+
+        const updated = await client.query(`
+            UPDATE pending_gifts
+            SET status = 'refunded'
+            WHERE id = $1
+                AND status = 'pending'
+            RETURNING id
+        `, [lockedGift.id])
+
+        if (!updated.rows[0]) {
+            await client.query('ROLLBACK')
+
+            return false
+        }
+
+        await client.query('COMMIT')
+        committed = true
+
+        await sendPendingGiftRefundNotice(lockedGift, options)
+
+        return true
+    } catch (error) {
+        if (!committed) await client.query('ROLLBACK')
+
+        console.error('Expired pending gift refund failed.', error)
+
+        return false
+    } finally {
+        client.release()
+    }
+}
+
+async function sendPendingGiftRefundNotice (
+    gift:ExpiredPendingGiftRow,
+    options:RefundExpiredPendingGiftsOptions
+):Promise<void> {
+    try {
+        await options.sendRefundEmail({
+            email: gift.sender_email,
+            recipientEmail: gift.recipient_email
+        })
+    } catch (error) {
+        console.error('Pending gift refund email failed.', error)
     }
 }
 

@@ -69,6 +69,10 @@
 - Pending gifts are claimed in the checkout signup path for newly inserted
   users; the normal signup grant is applied first, then matching
   `pending_gifts` rows are credited as `gift_received` and marked claimed.
+- Scheduled stamp maintenance jobs can use Netlify's `schedule()` wrapper in
+  `netlify/functions`, while keeping the DB workflow in `netlify/lib/stamps.ts`
+  with injected Autumn and Resend functions to avoid billing/stamp import
+  cycles.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -704,4 +708,40 @@ Thread: https://ampcode.com/threads/unknown
   - The final session balance should come from the last credited gift when
     pending gifts exist, otherwise from the signup grant.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:13 PDT - US-020
+Thread: https://ampcode.com/threads/unknown
+- Implemented the daily expired pending gift refund job.
+- Added a scheduled Netlify function that runs the refund workflow once per
+  day.
+- The job finds pending gifts older than 90 days, locks each row before
+  refunding, calls Autumn for the original gift price, marks the gift
+  refunded, and emails the sender.
+- Files changed:
+  - `netlify/functions/refund-expired-gifts.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us020-expired-pending-gifts.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us020-expired-pending-gifts.test.ts`
+  - `npx vitest run test/us020-expired-pending-gifts.test.ts
+    test/us018-pending-gift-webhook.test.ts
+    test/us018-pending-gift-checkout-api.test.ts
+    test/us019-pending-gift-signup.test.ts
+    test/us015-stamp-refund-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Scheduled maintenance handlers should stay thin and inject external
+    services into library workflows so service tests can avoid live Autumn or
+    Resend calls.
+  - Expired pending gift refunds should lock a pending row with
+    `FOR UPDATE SKIP LOCKED` before calling Autumn so concurrent runs do not
+    process the same gift.
+  - Sender notification emails for expired pending gifts belong in
+    `netlify/lib/resend.ts` next to the existing stamp gift emails.
 ---
