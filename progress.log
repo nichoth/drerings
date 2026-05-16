@@ -80,6 +80,9 @@
 - Gift reclaim refunds write `stamp_transactions.reason = 'gift_reclaimed'`
   against the recipient's lot and balance, while Autumn refunds the original
   gift checkout to the sender's payment method.
+- The app header stamp balance lives in `Nav`, reads the numeric
+  `currentUser.stamps_balance` from `/api/whoami`, and links to the existing
+  stamps section at `/settings#stamps`.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -804,4 +807,41 @@ Thread: https://ampcode.com/threads/unknown
   - The Browser Use Node REPL tool was not exposed in this session; the
     established Vite plus Playwright-core fallback can still verify the
     authenticated settings UI with route-level request mocks.
+---
+
+## 2026-05-15 22:27 PDT - US-022
+Thread: https://ampcode.com/threads/unknown
+- Implemented the authenticated header stamp balance indicator.
+- `Nav` now renders a stamp-icon link when `/api/whoami` has provided a
+  numeric `currentUser.stamps_balance`.
+- The balance link points to `/settings#stamps`, and the settings stamp panel
+  now exposes that anchor.
+- Added focused UI coverage for authenticated visibility, anonymous
+  omission, signal-driven balance updates, and availability on other
+  authenticated routes.
+- Files changed:
+  - `src/index.ts`
+  - `src/style.css`
+  - `src/components/stamp-lots-refund.ts`
+  - `test/us022-balance-indicator.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us022-balance-indicator.test.ts`
+  - `npx vitest run test/us022-balance-indicator.test.ts
+    test/us028-nav-settings-auth.test.ts
+    test/us013-send-stamp-indicator.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    `/drawings` rendered the `5 stamps` header link with href
+    `/settings#stamps` and one `.icon-stamp`.
+- **Learnings for future iterations:**
+  - Header-level stamp affordances should stay in `Nav` and use
+    `currentUser.stamps_balance` instead of introducing a separate balance
+    fetch.
+  - The current stamps management surface is still the settings stamp panel,
+    so header links should target `/settings#stamps` until the dedicated
+    `/settings/stamps` route is added.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

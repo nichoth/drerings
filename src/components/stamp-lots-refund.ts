@@ -81,7 +81,11 @@ export const StampLotsRefundPanel:FunctionComponent<{
         }
     }, [state])
 
-    return html`<section aria-label="Stamp lots" class="stamp-lots">
+    return html`<section
+        id="stamps"
+        aria-label="Stamp lots"
+        class="stamp-lots"
+    >
         <h3>Stamp lots</h3>
         <p class="stamp-lots-balance">
             ${state.currentUser.value?.stamps_balance ?? 0} stamps available
