@@ -25,10 +25,54 @@ interface AutumnWebhookResult {
     subscription_status?:SubscriptionStatus;
 }
 
+export interface StampPackDefinition {
+    productId:string;
+    name:string;
+    count:number;
+    priceCents:number;
+    metadata:{
+        stamp_count:string;
+        per_stamp_price_cents:string;
+    };
+}
+
 export interface CancelSubscriptionResult {
     subscription_status:'canceled';
     subscription_current_period_end:string|null;
 }
+
+export const PACK_DEFINITIONS = {
+    stamps_starter: {
+        productId: 'stamps_starter',
+        name: 'Starter',
+        count: 10,
+        priceCents: 500,
+        metadata: {
+            stamp_count: '10',
+            per_stamp_price_cents: '50'
+        }
+    },
+    stamps_bundle: {
+        productId: 'stamps_bundle',
+        name: 'Bundle',
+        count: 25,
+        priceCents: 1000,
+        metadata: {
+            stamp_count: '25',
+            per_stamp_price_cents: '40'
+        }
+    },
+    stamps_big_bundle: {
+        productId: 'stamps_big_bundle',
+        name: 'Big bundle',
+        count: 60,
+        priceCents: 2000,
+        metadata: {
+            stamp_count: '60',
+            per_stamp_price_cents: '33.33'
+        }
+    }
+} as const satisfies Record<string, StampPackDefinition>
 
 export async function createCheckoutSession (
     user:SessionUser,

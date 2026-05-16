@@ -16,6 +16,8 @@
   with a `stamps_balance > 0` guard in the same transaction.
 - Failed-send refunds re-credit the original `stamp_lots` row and cached
   `users.stamps_balance`, then record a `failed_send_refund` transaction.
+- Autumn stamp pack product ids, counts, prices, and product metadata live in
+  `PACK_DEFINITIONS` in `netlify/lib/billing.ts`.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -107,4 +109,37 @@ Thread: https://ampcode.com/threads/unknown
     send-flow integration can decide whether to add postcard context later.
   - Focused service tests can keep asserting ordered `BEGIN`/write/`COMMIT`
     calls while mocking only the balance `RETURNING` row.
+---
+
+## 2026-05-15 20:12 PDT - US-005
+Thread: https://ampcode.com/threads/unknown
+- Added the Autumn stamp pack configuration contract in code.
+- Exported `PACK_DEFINITIONS` for the Starter, Bundle, and Big bundle
+  products with product ids, counts, prices, and Autumn metadata.
+- Documented the matching Autumn dashboard setup and staging checkout smoke
+  check in the README.
+- Added a focused test that locks the code contract to the configured
+  product tiers.
+- Files changed:
+  - `netlify/lib/billing.ts`
+  - `test/us005-stamp-packs.test.ts`
+  - `README.md`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us005-stamp-packs.test.ts
+    test/us014-billing-store.test.ts
+    test/us020-readme-deployment-notes.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Keep Autumn stamp product ids and metadata centralized in
+    `PACK_DEFINITIONS`; webhook and buy-modal stories should import that
+    constant instead of duplicating pack prices.
+  - The existing billing module remains the right home for Autumn product
+    contracts because checkout, cancellation, and webhook helpers already
+    live there.
+  - README deployment notes are covered by `test/us020-readme-deployment-notes`
+    and should be included in focused checks when billing setup docs change.
 ---
