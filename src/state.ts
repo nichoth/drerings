@@ -27,6 +27,7 @@ export type SubscriptionStatus = 'free'|'active'|'canceled'|'past_due'
 
 export interface CurrentUser extends UserState {
     subscription_status:SubscriptionStatus;
+    stamps_balance?:number;
 }
 
 export interface AccountPasskey {
@@ -349,6 +350,11 @@ State.GoToSendDrawing = function (
     state:AppState,
     drawingId:string
 ):void {
+    if (state.currentUser.value?.stamps_balance === 0) {
+        State.OpenBuyPackModal(state)
+        return
+    }
+
     const path = `/send/${encodeURIComponent(drawingId)}`
 
     state._setRoute(path)
@@ -712,7 +718,13 @@ function isCurrentUser (value:unknown):value is CurrentUser {
 
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
-        statuses.includes(maybeUser.subscription_status as SubscriptionStatus)
+        statuses.includes(
+            maybeUser.subscription_status as SubscriptionStatus
+        ) &&
+        (
+            maybeUser.stamps_balance === undefined ||
+            typeof maybeUser.stamps_balance === 'number'
+        )
 }
 
 function isProtectedRoute (path:string):boolean {

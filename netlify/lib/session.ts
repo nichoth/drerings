@@ -60,7 +60,12 @@ export async function getSession (
 
     const db = getDatabase()
     const result = await db.pool.query<SessionUser>(`
-        SELECT id, email, subscription_status, autumn_customer_id
+        SELECT
+            id,
+            email,
+            subscription_status,
+            stamps_balance,
+            autumn_customer_id
         FROM users
         WHERE id = $1
     `, [signedUser.id])
@@ -164,5 +169,9 @@ function isSessionUser (value:unknown):value is SessionUser {
 
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
-        statuses.includes(String(maybeUser.subscription_status))
+        statuses.includes(String(maybeUser.subscription_status)) &&
+        (
+            maybeUser.stamps_balance === undefined ||
+            typeof maybeUser.stamps_balance === 'number'
+        )
 }

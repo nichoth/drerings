@@ -11,6 +11,7 @@ export interface SessionUser {
     id:string;
     email:string;
     subscription_status:'free'|'active'|'canceled'|'past_due';
+    stamps_balance?:number;
     autumn_customer_id?:string|null;
 }
 

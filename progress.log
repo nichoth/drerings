@@ -22,6 +22,10 @@
 - Autumn webhook processing lives in `applyAutumnWebhookEvent`; stamp pack
   `checkout.completed` events are handled before subscription status events,
   and purchase idempotency checks `stamp_transactions.reference_id`.
+- Stamp pack purchase UI lives in shared `BuyPackModal` under
+  `src/components`; routes should open it via `State.OpenBuyPackModal`.
+- Current user data from `/api/whoami` includes optional `stamps_balance`;
+  send gating should check an explicit zero balance and allow unknown balances.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -210,4 +214,46 @@ Thread: https://ampcode.com/threads/unknown
     `PACK_DEFINITIONS`; US-005 locks that object as billing configuration.
   - Billing checkout can handle both subscriptions and one-time stamp packs by
     passing an optional validated product id to `createCheckoutSession`.
+---
+
+## 2026-05-15 20:39 PDT - US-008
+Thread: https://ampcode.com/threads/unknown
+- Implemented zero-balance send gating on the postcard composer.
+- `State.GoToSendDrawing` now opens the stamp pack modal when
+  `stamps_balance === 0` instead of navigating away from the draft.
+- Moved the buy-pack modal into a shared component so the pricing route and
+  composer use the same checkout UI.
+- Extended session and `/api/whoami` current-user data with
+  `stamps_balance` so refreshed auth state can unlock retry after purchase.
+- Files changed:
+  - `src/components/buy-pack-modal.ts`
+  - `src/components/buy-pack-modal.css`
+  - `src/routes/home.ts`
+  - `src/routes/pricing.ts`
+  - `src/routes/pricing.css`
+  - `src/state.ts`
+  - `netlify/lib/auth-store.ts`
+  - `netlify/lib/session.ts`
+  - `netlify/functions/whoami.ts`
+  - `test/us008-zero-balance-send.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us008-zero-balance-send.test.ts`
+  - `npx vitest run test/us007-buy-pack-modal.test.ts
+    test/us011-send-route-ui.test.ts test/state.flows.test.ts
+    test/us006-session-whoami.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright against `http://127.0.0.1:4444/`:
+    zero-balance Send It opened the buy modal, stayed on `/`, and preserved
+    draft text fields.
+  - `npm test`
+- **Learnings for future iterations:**
+  - Composer send checks belong in `State.GoToSendDrawing`, not directly in
+    route click handlers, so list and canvas send paths stay aligned.
+  - Keep stamp pack checkout UI shared in `src/components/buy-pack-modal.ts`
+    rather than duplicating the pricing modal in composer routes.
+  - `/api/whoami` is the right lightweight refresh path for stamp balances
+    after a purchase webhook credits the account.
 ---
