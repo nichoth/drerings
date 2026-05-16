@@ -32,7 +32,7 @@ export const handler:Handler = async function handler (event) {
 
         return json(200, {
             received: true,
-            subscription_status: result.subscription_status
+            ...getWebhookResultBody(result)
         })
     } catch (err) {
         console.error(err)
@@ -47,4 +47,14 @@ function getRawBody (body:string, isBase64Encoded:boolean):string {
     if (!isBase64Encoded) return body
 
     return Buffer.from(body, 'base64').toString('utf8')
+}
+
+function getWebhookResultBody (
+    result:Awaited<ReturnType<typeof applyAutumnWebhookEvent>>
+):Record<string, unknown> {
+    if (result.stamp_purchase) {
+        return { stamp_purchase: result.stamp_purchase }
+    }
+
+    return { subscription_status: result.subscription_status }
 }

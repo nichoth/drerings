@@ -18,6 +18,9 @@
   `users.stamps_balance`, then record a `failed_send_refund` transaction.
 - Autumn stamp pack product ids, counts, prices, and product metadata live in
   `PACK_DEFINITIONS` in `netlify/lib/billing.ts`.
+- Autumn webhook processing lives in `applyAutumnWebhookEvent`; stamp pack
+  `checkout.completed` events are handled before subscription status events,
+  and purchase idempotency checks `stamp_transactions.reference_id`.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -142,4 +145,27 @@ Thread: https://ampcode.com/threads/unknown
     live there.
   - README deployment notes are covered by `test/us020-readme-deployment-notes`
     and should be included in focused checks when billing setup docs change.
+---
+
+## 2026-05-15 20:18 PDT - US-006
+Thread: https://ampcode.com/threads/unknown
+- Implemented the Autumn stamp purchase webhook branch.
+- `checkout.completed` events for configured `stamps_*` products now verify
+  idempotency by checkout id, then credit the matching pack with
+  `creditStampLot`.
+- The signed Netlify webhook response reports stamp purchase processing while
+  keeping existing subscription webhook behavior intact.
+- Files changed:
+  - `netlify/lib/billing.ts`
+  - `netlify/functions/billing/webhook.ts`
+  - `test/us006-autumn-stamp-webhook.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- **Learnings for future iterations:**
+  - Stamp purchase webhooks should use `stamp_transactions.reference_id` as
+    the idempotency key before calling `creditStampLot`.
+  - Autumn checkout payloads can be normalized through local helper functions
+    in `billing.ts`, matching the existing customer-id extraction style.
+  - Handler response bodies are derived from `applyAutumnWebhookEvent` results,
+    so adding new Autumn event families should extend that result contract.
 ---

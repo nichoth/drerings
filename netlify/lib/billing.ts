@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
+import { creditStampLot } from './stamps.js'
 
 interface CheckoutSession {
     url:string;
@@ -23,6 +24,7 @@ interface AutumnWebhookEvent {
 interface AutumnWebhookResult {
     handled:boolean;
     subscription_status?:SubscriptionStatus;
+    stamp_purchase?:'credited'|'already_credited';
 }
 
 export interface StampPackDefinition {
@@ -39,6 +41,12 @@ export interface StampPackDefinition {
 export interface CancelSubscriptionResult {
     subscription_status:'canceled';
     subscription_current_period_end:string|null;
+}
+
+interface StampCheckoutEvent {
+    userId:string;
+    checkoutId:string;
+    pack:StampPackDefinition;
 }
 
 export const PACK_DEFINITIONS = {
@@ -190,6 +198,12 @@ export function verifyAutumnWebhookPayload (
 export async function applyAutumnWebhookEvent (
     event:AutumnWebhookEvent
 ):Promise<AutumnWebhookResult> {
+    const stampCheckout = getStampCheckoutEvent(event)
+
+    if (stampCheckout) {
+        return applyStampCheckout(stampCheckout)
+    }
+
     const subscriptionStatus = getWebhookSubscriptionStatus(event)
     const customerId = getWebhookCustomerId(event)
 
@@ -211,6 +225,43 @@ export async function applyAutumnWebhookEvent (
         handled: true,
         subscription_status: subscriptionStatus
     }
+}
+
+async function applyStampCheckout (
+    checkout:StampCheckoutEvent
+):Promise<AutumnWebhookResult> {
+    if (await hasStampPurchase(checkout.checkoutId)) {
+        return {
+            handled: true,
+            stamp_purchase: 'already_credited'
+        }
+    }
+
+    await creditStampLot({
+        userId: checkout.userId,
+        source: 'purchase',
+        count: checkout.pack.count,
+        priceCents: checkout.pack.priceCents,
+        autumnCheckoutId: checkout.checkoutId
+    })
+
+    return {
+        handled: true,
+        stamp_purchase: 'credited'
+    }
+}
+
+async function hasStampPurchase (checkoutId:string):Promise<boolean> {
+    const db = getDatabase()
+    const result = await db.pool.query(`
+        SELECT 1
+        FROM stamp_transactions
+        WHERE reference_id = $1
+            AND reason = 'purchase'
+        LIMIT 1
+    `, [checkoutId])
+
+    return result.rows.length > 0
 }
 
 async function updateAutumnCustomerId (
@@ -277,6 +328,28 @@ function shouldUseMockCheckout ():boolean {
     return false
 }
 
+function getStampCheckoutEvent (
+    event:AutumnWebhookEvent
+):StampCheckoutEvent|null {
+    const type = getString(event.type)
+
+    if (type !== 'checkout.completed') return null
+
+    const productId = getWebhookProductId(event)
+
+    if (!productId.startsWith('stamps_')) return null
+
+    const pack = PACK_DEFINITIONS[
+        productId as keyof typeof PACK_DEFINITIONS
+    ]
+    const checkoutId = getWebhookCheckoutId(event)
+    const userId = getWebhookCustomerId(event)
+
+    if (!pack || !checkoutId || !userId) return null
+
+    return { userId, checkoutId, pack }
+}
+
 function getAutumnSecretKey ():string {
     const key = process.env.AUTUMN_SECRET_KEY
 
@@ -340,6 +413,35 @@ function getWebhookCustomerId (event:AutumnWebhookEvent):string|null {
         getString(customer?.id) ||
         getString(customer?.customer_id) ||
         null
+    )
+}
+
+function getWebhookCheckoutId (event:AutumnWebhookEvent):string|null {
+    const data = isRecord(event.data) ? event.data : {}
+    const checkout = getRecord(data.checkout)
+
+    return (
+        getString(event.checkout_id) ||
+        getString(event.checkoutId) ||
+        getString(data.checkout_id) ||
+        getString(data.checkoutId) ||
+        getString(checkout?.id) ||
+        getString(checkout?.checkout_id) ||
+        null
+    )
+}
+
+function getWebhookProductId (event:AutumnWebhookEvent):string {
+    const data = isRecord(event.data) ? event.data : {}
+    const product = getRecord(data.product)
+
+    return (
+        getString(event.product_id) ||
+        getString(event.productId) ||
+        getString(data.product_id) ||
+        getString(data.productId) ||
+        getString(product?.id) ||
+        getString(product?.product_id)
     )
 }
 
