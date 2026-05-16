@@ -9,6 +9,8 @@
   `netlify/database/migrations`.
 - `tsconfig.json` includes `vitest/globals` because many existing tests use
   global Vitest APIs such as `expect`.
+- Stamp accounting services use `getDatabase().pool.connect()` and explicit
+  `BEGIN`/`COMMIT` transactions when multiple writes must stay consistent.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -32,4 +34,25 @@ Thread: https://ampcode.com/threads/unknown
     uses a sibling `down.sql` to satisfy reversibility.
   - Typechecking the whole repo requires Vitest global types; existing tests
     use global `expect`.
+---
+
+## 2026-05-15 19:54 PDT - US-002
+Thread: https://ampcode.com/threads/unknown
+- Implemented `creditStampLot` as the credit chokepoint for purchases,
+  grants, and received gifts.
+- The service inserts a stamp lot, increments `users.stamps_balance`, and
+  writes the positive transaction row inside one explicit DB transaction.
+- Added rollback handling so failed writes release the client cleanly.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `test/us002-credit-stamp-lot.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- **Learnings for future iterations:**
+  - Stamp services should use a connected DB client for multi-write
+    operations instead of separate `pool.query` calls.
+  - `stamp_transactions.reference_id` can carry the Autumn checkout id for
+    purchase credits, which future webhook idempotency can query.
+  - Focused service tests can mock `@netlify/database` with `vi.doMock` and
+    inspect the ordered transaction queries without requiring Postgres.
 ---
