@@ -36,11 +36,11 @@ implemented and verified independently.
 There is no scaffolding to add — this feature is a pure UI gating
 change.
 
-- [ ] T001 Confirm working tree is on branch `001-settings-link-auth`
+- [X] T001 Confirm working tree is on branch `001-settings-link-auth`
   with a clean status (`git status` from the repo root).
-- [ ] T002 [P] Run `npm install` from the repo root to ensure deps are
+- [X] T002 [P] Run `npm install` from the repo root to ensure deps are
   resolved (no `package.json` change is planned in this feature).
-- [ ] T003 [P] Verify the baseline checks pass before any edit: run
+- [X] T003 [P] Verify the baseline checks pass before any edit: run
   `npm test`, `npm run test:e2e`, and `npm run lint` from the repo
   root; record any pre-existing failures so they are not attributed
   to this feature.
@@ -58,7 +58,7 @@ mocks/helpers it needs to drive the three contract states.
 complete — all three stories use the same component signature and
 the same test harness.
 
-- [ ] T004 Update the `Nav` component signature in
+- [X] T004 Update the `Nav` component signature in
   `/Users/nick/code/drerings/src/index.ts` to accept the new auth
   inputs alongside the existing `route` prop. Add `isAuthed:boolean`
   and `authLoading:boolean` to its props (per
@@ -66,13 +66,13 @@ the same test harness.
   "Existing entities"). Do NOT change the rendered output yet — the
   filter behavior comes in the per-story tasks. Keep the existing
   `routes` import; do NOT mutate the array.
-- [ ] T005 Wire the new `Nav` props from the parent `Drerings`
+- [X] T005 Wire the new `Nav` props from the parent `Drerings`
   component in `/Users/nick/code/drerings/src/index.ts`. Pass
   `isAuthed=${isAuthed.value}` (the existing local `useComputed`)
   and `authLoading=${state.authLoading.value}` to `<${Nav} />`. Do
   not introduce a new signal; reuse `state.authLoading` and the
   existing local `isAuthed`. Confirm `npm run lint` still passes.
-- [ ] T006 [P] Create the empty Vitest test file
+- [X] T006 [P] Create the empty Vitest test file
   `/Users/nick/code/drerings/test/us028-nav-settings-auth.test.ts`
   modeled on `test/us017-account-ui.test.ts`: import `h` from
   `preact`, `render`/`screen` from `@testing-library/preact`,
@@ -81,7 +81,7 @@ the same test harness.
   `describe('US-028 nav settings link visibility', ...)` block. Do
   not yet add the three contract test bodies — those land in their
   story phases.
-- [ ] T007 [P] In the same test file, add two private helpers (kept
+- [X] T007 [P] In the same test file, add two private helpers (kept
   inside the file, not exported): (a) `mountApp(state)` that imports
   `Drerings` from `../src/index` and renders `h(Drerings, {})` after
   attaching the `state` to `window.state` only for the test
@@ -120,7 +120,7 @@ must still render.
 
 ### Tests for User Story 1 (write FIRST, must FAIL before implementation)
 
-- [ ] T008 [P] [US1] In
+- [X] T008 [P] [US1] In
   `/Users/nick/code/drerings/test/us028-nav-settings-auth.test.ts`,
   add an `it('omits Settings while auth is loading', async () =>
   {...})` block. Render the Nav with `authLoading=true` and
@@ -131,14 +131,14 @@ must still render.
   by role/name; do NOT assert specific text of unrelated header
   links beyond presence-by-role. Run the test and confirm it FAILS
   before T011 lands.
-- [ ] T009 [P] [US1] In the same test file, add an `it('omits
+- [X] T009 [P] [US1] In the same test file, add an `it('omits
   Settings for an anonymous viewer', async () => {...})` block.
   Stub `fetch('/api/whoami')` via the T007 helper to return
   `{ authenticated: false }`, drive the app to resolved state
   (`authLoading=false`, `isAuthed=false`), and assert
   `screen.queryByRole('link', { name: /settings/i })` is `null`.
   Run the test and confirm it FAILS before T011 lands.
-- [ ] T010 [P] [US1] In the same test file, add an `it('does not
+- [X] T010 [P] [US1] In the same test file, add an `it('does not
   visually hide a Settings link — it is absent from the DOM',
   async () => {...})` block to enforce contract C-004 / FR-002.
   After the unauthenticated render, assert
@@ -148,7 +148,7 @@ must still render.
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Update the `Nav` body in
+- [X] T011 [US1] Update the `Nav` body in
   `/Users/nick/code/drerings/src/index.ts` to filter the routes
   array before rendering: replace `routes.map(...)` with
   `routes.filter(r => r.href !== '/settings' || (!authLoading &&
@@ -158,7 +158,7 @@ must still render.
   truthy (anti-flash). Do NOT add CSS, `display:none`,
   `aria-hidden`, or a `hidden` attribute — the entry must be
   omitted from the rendered list (FR-002).
-- [ ] T012 [US1] Re-run the three US1 tests (T008, T009, T010) and
+- [X] T012 [US1] Re-run the three US1 tests (T008, T009, T010) and
   confirm they now PASS. Also re-run `npm run lint` and `npm test`
   from the repo root and confirm zero new failures.
 
@@ -189,7 +189,7 @@ entries remain unchanged.
 
 ### Tests for User Story 2 (write FIRST, must FAIL before implementation)
 
-- [ ] T013 [P] [US2] In
+- [X] T013 [P] [US2] In
   `/Users/nick/code/drerings/test/us028-nav-settings-auth.test.ts`,
   add an `it('shows Settings for an authenticated viewer', async ()
   => {...})` block. Stub `fetch('/api/whoami')` via the T007 helper
@@ -202,7 +202,7 @@ entries remain unchanged.
   byproduct because the filter only omits when the gate is true.
   Note that intent: this test exists to lock in C-002 against
   regressions in subsequent edits.
-- [ ] T014 [P] [US2] In the same test file, add an `it('renders the
+- [X] T014 [P] [US2] In the same test file, add an `it('renders the
   Settings link in its canonical position', async () => {...})`
   block. With the authenticated stub, render the Nav, query
   `screen.getAllByRole('link')` inside the `nav[aria-label="Main
@@ -213,7 +213,7 @@ entries remain unchanged.
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] No additional production code change is expected:
+- [X] T015 [US2] No additional production code change is expected:
   if T011 is implemented as a `routes.filter(...)` that only omits
   `/settings` when the auth gate is false, the authenticated path
   already passes the entry through. Re-read
@@ -224,7 +224,7 @@ entries remain unchanged.
   the canonical routes array so the label remains "Settings". If
   any of those is false, fix it inside `Nav` only — do NOT touch
   `src/routes/index.ts`.
-- [ ] T016 [US2] Run T013 and T014 and confirm both PASS. Run
+- [X] T016 [US2] Run T013 and T014 and confirm both PASS. Run
   `npm run lint` and `npm test` from the repo root and confirm no
   new failures.
 
@@ -252,7 +252,7 @@ disappears.
 
 ### Tests for User Story 3 (write FIRST, must FAIL before implementation)
 
-- [ ] T017 [P] [US3] In
+- [X] T017 [P] [US3] In
   `/Users/nick/code/drerings/test/us028-nav-settings-auth.test.ts`,
   add an `it('reveals Settings on sign-in without reload', async ()
   => {...})` block. Create a `State()` instance, render via the
@@ -263,7 +263,7 @@ disappears.
   registered: true } })` (or call the equivalent setter), and
   `await screen.findByRole('link', { name: /settings/i })` resolves
   truthy without any manual re-render or reload.
-- [ ] T018 [P] [US3] In the same test file, add an `it('hides
+- [X] T018 [P] [US3] In the same test file, add an `it('hides
   Settings on sign-out without reload', async () => {...})` block:
   start authenticated (link present), then clear the auth signal
   (`state.auth.value = { authenticated: false, registered: true }`
@@ -274,7 +274,7 @@ disappears.
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] No additional production code change is expected
+- [X] T019 [US3] No additional production code change is expected
   if T005 wired the `Nav` to read from `state.authLoading.value`
   and from the `isAuthed` computed: Preact signals already trigger
   a re-render on signal change, and the filter re-runs each render.
@@ -287,7 +287,7 @@ disappears.
   happen each render — but do NOT introduce a new effect, listener,
   or manual subscription; the existing signal reactivity is the
   contract per `research.md` R-001.
-- [ ] T020 [US3] Run T017 and T018 and confirm both PASS. Run the
+- [X] T020 [US3] Run T017 and T018 and confirm both PASS. Run the
   full suite once more (`npm test`, `npm run test:e2e`,
   `npm run lint`) from the repo root and confirm zero new failures.
 
@@ -302,25 +302,25 @@ new state within one render cycle") is satisfied.
 **Purpose**: Final validation, lint/format hygiene, and manual
 smoke-test against `quickstart.md`. No new features.
 
-- [ ] T021 [P] Manually run the smoke test from
+- [ ] T021 [P] (MANUAL) Manually run the smoke test from
   `/Users/nick/code/drerings/specs/001-settings-link-auth/quickstart.md`
   (US-1 fresh private window, US-2 sign-in, US-3 logout/login
   toggle). Confirm in DevTools that
   `document.querySelector('nav a[href="/settings"]')` returns
   `null` for the unauthenticated case (FR-002 / C-004).
-- [ ] T022 [P] Confirm zero CSS changes in this branch: run
+- [X] T022 [P] Confirm zero CSS changes in this branch: run
   `git diff --stat main -- src/style.css src/**/*.css` from the
   repo root and confirm the output is empty. Per the user's global
   CLAUDE.md, CSS changes unrelated to the task are forbidden.
-- [ ] T023 [P] Confirm zero changes to `src/routes/index.ts`:
+- [X] T023 [P] Confirm zero changes to `src/routes/index.ts`:
   `git diff --stat main -- src/routes/index.ts` from the repo root
   must be empty (per `research.md` R-003: filtering happens at the
   view layer; the canonical `routes` array stays intact so the
   router still matches `/settings`).
-- [ ] T024 Run the full automated suite one last time:
+- [X] T024 Run the full automated suite one last time:
   `npm test && npm run test:e2e -- us028-nav-settings-auth &&
   npm run lint`. All must pass.
-- [ ] T025 Re-read
+- [X] T025 Re-read
   `/Users/nick/code/drerings/specs/001-settings-link-auth/spec.md`
   Functional Requirements (FR-001..FR-005) and Success Criteria
   (SC-001..SC-004) and check each off against the implemented
