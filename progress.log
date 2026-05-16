@@ -87,6 +87,9 @@
 - Stamp transaction history loads through
   `State.FetchStampTransactions` and `/api/stamps/transactions`, which return
   50 rows plus a `next_before` cursor for older history.
+- Stamp invariant verification lives in `verifyStampInvariants`; it uses
+  read-only aggregate subqueries, logs drift for human investigation, and is
+  run by a daily scheduled function without automatic reconciliation.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -411,6 +414,7 @@ Thread: https://ampcode.com/threads/unknown
     test/us011-publish-post-store.test.ts`
   - `npm run lint`
   - `npx tsc --noEmit`
+  - `npm test`
 - **Learnings for future iterations:**
   - `publishDrawing` previously combined ownership validation with the
     public post write; stamp debits need a separate `userOwnsDrawing` check
@@ -934,4 +938,33 @@ Thread: https://ampcode.com/threads/unknown
     product copy in source should use generic device share-sheet wording.
   - Public-post failures should return the generic publish error because no
     stamp was consumed and no refund is owed.
+---
+
+## 2026-05-15 22:52 PDT - US-025
+Thread: https://ampcode.com/threads/unknown
+- Implemented the daily stamp invariant verification job.
+- Added `verifyStampInvariants`, which compares every user's cached stamp
+  balance with both remaining lot totals and transaction delta totals.
+- Drift is logged with user id, invariant name, expected value, and actual
+  value, followed by a log-based alert summary when any drift is found.
+- Added a scheduled Netlify function that runs the verifier daily.
+- Files changed:
+  - `netlify/functions/verify-stamp-invariants.ts`
+  - `netlify/lib/stamps.ts`
+  - `test/us025-stamp-invariants.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us025-stamp-invariants.test.ts`
+  - `npx vitest run test/us025-stamp-invariants.test.ts
+    test/us020-expired-pending-gifts.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+- **Learnings for future iterations:**
+  - Invariant checks should aggregate lots and transactions in separate
+    subqueries before joining to users, avoiding duplicated sums from
+    cross-products.
+  - The v1 verification job intentionally does not update balances; log drift
+    for human investigation instead of automatically reconciling data.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

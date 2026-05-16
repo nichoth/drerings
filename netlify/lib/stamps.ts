@@ -108,6 +108,21 @@ export interface RefundExpiredPendingGiftsResult {
     refunded:number;
 }
 
+export type StampInvariantName = 'lot_balance'|'transaction_balance'
+
+export interface StampInvariantDrift {
+    userId:string;
+    invariant:StampInvariantName;
+    expected:number;
+    actual:number;
+}
+
+export interface VerifyStampInvariantsResult {
+    usersChecked:number;
+    driftCount:number;
+    drifts:StampInvariantDrift[];
+}
+
 export interface RefundPurchasedStampLotOptions {
     userId:string;
     lotId:string;
@@ -230,6 +245,13 @@ interface ExpiredPendingGiftRow {
     recipient_email:string;
     autumn_checkout_id:string;
     price_cents:number|string;
+}
+
+interface StampInvariantRow {
+    user_id:string;
+    cached_balance:number|string;
+    lot_balance:number|string|null;
+    transaction_balance:number|string|null;
 }
 
 export class InsufficientStampsError extends Error {
@@ -388,6 +410,62 @@ export async function listStampTransactionsForUser (
             }
         }),
         next_before: nextRow ? dateString(nextRow.created_at) : null
+    }
+}
+
+export async function verifyStampInvariants (
+):Promise<VerifyStampInvariantsResult> {
+    const db = getDatabase()
+    const result = await db.pool.query<StampInvariantRow>(`
+        SELECT
+            users.id AS user_id,
+            users.stamps_balance AS cached_balance,
+            COALESCE(lots.lot_balance, 0) AS lot_balance,
+            COALESCE(transactions.transaction_balance, 0)
+                AS transaction_balance
+        FROM users
+        LEFT JOIN (
+            SELECT
+                user_id,
+                SUM(remaining_count) AS lot_balance
+            FROM stamp_lots
+            GROUP BY user_id
+        ) lots
+            ON lots.user_id = users.id
+        LEFT JOIN (
+            SELECT
+                user_id,
+                SUM(delta) AS transaction_balance
+            FROM stamp_transactions
+            GROUP BY user_id
+        ) transactions
+            ON transactions.user_id = users.id
+        ORDER BY users.id ASC
+    `, [])
+
+    const drifts = result.rows.flatMap((row) => {
+        return stampInvariantDriftsForRow(row)
+    })
+
+    for (const drift of drifts) {
+        console.error('Stamp invariant drift detected.', {
+            user_id: drift.userId,
+            invariant: drift.invariant,
+            expected: drift.expected,
+            actual: drift.actual
+        })
+    }
+
+    if (drifts.length > 0) {
+        console.error('Stamp invariant verification alert.', {
+            driftCount: drifts.length
+        })
+    }
+
+    return {
+        usersChecked: result.rows.length,
+        driftCount: drifts.length,
+        drifts
     }
 }
 
@@ -1097,6 +1175,35 @@ function sentGiftStatus (
     if (!isInWindow) return 'expired'
 
     return 'unused'
+}
+
+function stampInvariantDriftsForRow (
+    row:StampInvariantRow
+):StampInvariantDrift[] {
+    const cachedBalance = Number(row.cached_balance)
+    const lotBalance = Number(row.lot_balance ?? 0)
+    const transactionBalance = Number(row.transaction_balance ?? 0)
+    const drifts:StampInvariantDrift[] = []
+
+    if (lotBalance !== cachedBalance) {
+        drifts.push({
+            userId: row.user_id,
+            invariant: 'lot_balance',
+            expected: lotBalance,
+            actual: cachedBalance
+        })
+    }
+
+    if (transactionBalance !== cachedBalance) {
+        drifts.push({
+            userId: row.user_id,
+            invariant: 'transaction_balance',
+            expected: transactionBalance,
+            actual: cachedBalance
+        })
+    }
+
+    return drifts
 }
 
 function addUtcDays (date:Date, days:number):Date {
