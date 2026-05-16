@@ -35,7 +35,7 @@ async function callHandler (
 }
 
 describe('US-012 failed-send refund path', () => {
-    it('refunds the debited lot when delivery fails after debit', async () => {
+    it('does not refund stamps when public post publishing fails', async () => {
         vi.resetModules()
 
         const debitStamp = vi.fn(async () => ({
@@ -72,13 +72,10 @@ describe('US-012 failed-send refund path', () => {
 
         expect(response.statusCode).toBe(500)
         expect(JSON.parse(response.body || '{}')).toEqual({
-            error: "Couldn't deliver to that address — your stamp has " +
-                'been refunded.'
+            error: 'Unable to publish the drawing right now.'
         })
-        expect(refundFailedSend).toHaveBeenCalledWith({
-            userId: 'user-1',
-            lotId: 'lot-1'
-        })
+        expect(debitStamp).not.toHaveBeenCalled()
+        expect(refundFailedSend).not.toHaveBeenCalled()
         expect(consoleError).toHaveBeenCalledWith(expect.any(Error))
     })
 })

@@ -66,7 +66,7 @@ describe('US-011 publish post API', () => {
         expect(publishDrawing).toHaveBeenCalledWith('user-1', 'drawing-1')
     })
 
-    it('debits one stamp before publishing the drawing', async () => {
+    it('publishes the drawing without a stamp debit', async () => {
         vi.resetModules()
 
         const calls:string[] = []
@@ -103,14 +103,11 @@ describe('US-011 publish post API', () => {
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(200)
-        expect(debitStamp).toHaveBeenCalledWith({
-            userId: 'user-1',
-            referenceId: 'drawing-1'
-        })
-        expect(calls).toEqual(['authorize', 'debit', 'publish'])
+        expect(debitStamp).not.toHaveBeenCalled()
+        expect(calls).toEqual(['authorize', 'publish'])
     })
 
-    it('returns payment required before publishing when stamps are empty',
+    it('publishes public posts even when stamps are empty',
         async () => {
             vi.resetModules()
 
@@ -118,7 +115,7 @@ describe('US-011 publish post API', () => {
             const debitStamp = vi.fn(async () => {
                 throw new MockInsufficientStampsError()
             })
-            const publishDrawing = vi.fn()
+            const publishDrawing = vi.fn(async () => ({ id: 42 }))
 
             vi.doMock('../netlify/lib/session', () => {
                 return { getSession: async () => activeSession() }
@@ -136,10 +133,13 @@ describe('US-011 publish post API', () => {
             const { handler } = await import('../netlify/functions/posts')
             const response = await callHandler(handler, baseEvent)
 
-            expect(response.statusCode).toBe(402)
-            expect(JSON.parse(response.body || '{}').error)
-                .toMatch(/buy stamps/i)
-            expect(publishDrawing).not.toHaveBeenCalled()
+            expect(response.statusCode).toBe(200)
+            expect(JSON.parse(response.body || '{}')).toEqual({ id: 42 })
+            expect(debitStamp).not.toHaveBeenCalled()
+            expect(publishDrawing).toHaveBeenCalledWith(
+                'user-1',
+                'drawing-1'
+            )
         })
 
     it('returns the existing post id when the drawing was already published',

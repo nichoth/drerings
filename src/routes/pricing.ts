@@ -54,7 +54,9 @@ export const PricingRoute:FunctionComponent<{
                     <li>Save drawings to your account.</li>
                     <li>Reopen and edit saved drawings.</li>
                     <li>Publish drawings to stable public URLs.</li>
-                    <li>Share your drawings via SMS, email, or Bluesky</li>
+                    <li>
+                        Share your drawings through your device share sheet.
+                    </li>
                 </ul>
             </article>
         </section>

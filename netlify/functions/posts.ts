@@ -3,14 +3,6 @@ import { json, parseJsonBody } from '../lib/http.js'
 import { getSession } from '../lib/session.js'
 import { isPaid } from '../lib/paid.js'
 import * as postStore from '../lib/posts.js'
-import {
-    debitStamp,
-    InsufficientStampsError,
-    refundFailedSend
-} from '../lib/stamps.js'
-
-const failedDeliveryMessage =
-    "Couldn't deliver to that address — your stamp has been refunded."
 
 export const handler:Handler = async function handler (event) {
     if (!['GET', 'POST'].includes(event.httpMethod)) {
@@ -59,8 +51,6 @@ export const handler:Handler = async function handler (event) {
         return json(400, { error: 'Include drawing_id.' })
     }
 
-    let debitedLotId:string|null = null
-
     try {
         const ownsDrawing = await postStore.userOwnsDrawing(
             session.user.id,
@@ -73,12 +63,6 @@ export const handler:Handler = async function handler (event) {
             })
         }
 
-        const debitedStamp = await debitStamp({
-            userId: session.user.id,
-            referenceId: input.drawing_id
-        })
-        debitedLotId = debitedStamp.lotId
-
         const post = await postStore.publishDrawing(
             session.user.id,
             input.drawing_id
@@ -86,31 +70,12 @@ export const handler:Handler = async function handler (event) {
 
         if (!post) {
             throw new Error(
-                `Drawing disappeared after debiting lot ${debitedLotId}`
+                `Drawing disappeared while publishing ${input.drawing_id}`
             )
         }
 
         return json(200, { id: post.id })
     } catch (err) {
-        if (err instanceof InsufficientStampsError) {
-            return json(402, {
-                error: 'Buy stamps before sending this postcard.'
-            })
-        }
-
-        if (debitedLotId) {
-            await refundFailedSend({
-                userId: session.user.id,
-                lotId: debitedLotId
-            })
-
-            console.error(err)
-
-            return json(500, {
-                error: failedDeliveryMessage
-            })
-        }
-
         console.error(err)
 
         return json(500, {

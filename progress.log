@@ -32,13 +32,11 @@
 - One-time stamp backfills live in `netlify/lib/stamp-backfill.ts`, check
   `stamp_transactions.reason = 'migration_grant'` per user for idempotency,
   and call `creditStampLot` with `transactionReason: 'migration_grant'`.
-- The postcard send route uses `POST /api/posts`: validate drawing
-  ownership with `userOwnsDrawing`, then call `debitStamp` before
-  `publishDrawing`; the stamp transaction reference currently uses the
-  drawing id as the send reference.
-- Post-debit failures in `POST /api/posts` should call `refundFailedSend`
-  with the debited lot id and return the delivery refund message from the
-  API response so the send route can show it as an alert.
+- Public broadcast publishing uses `POST /api/posts`: validate drawing
+  ownership with `userOwnsDrawing`, then call `publishDrawing` without stamp
+  debits or failed-send refunds.
+- Paid postcard delivery needs a separate debit/refund integration point from
+  public post publishing; do not attach `debitStamp` to `/api/posts`.
 - Stamp UI should use the shared `IconStamp` component from
   `src/components/icon-stamp.ts` so later balance, send-cost, and stamp page
   treatments share the same icon language.
@@ -896,4 +894,44 @@ Thread: https://ampcode.com/threads/unknown
   - Stamp history uses `/api/stamps/transactions` and appends older pages via
     the `next_before` cursor in `State.FetchStampTransactions`.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:46 PDT - US-024
+Thread: https://ampcode.com/threads/unknown
+- Verified public broadcast posting stays unmetered.
+- Removed stamp debit and failed-send refund calls from `POST /api/posts`, so
+  publishing public posts no longer consumes stamps or blocks zero-balance
+  users.
+- Added regression coverage that public post publishing does not call
+  `debitStamp` and that the published-post share button remains enabled when
+  `stamps_balance = 0`.
+- Updated pricing copy to avoid a literal Bluesky source reference while
+  keeping the share-sheet positioning.
+- Files changed:
+  - `netlify/functions/posts.ts`
+  - `src/routes/pricing.ts`
+  - `test/us011-publish-post-api.test.ts`
+  - `test/us012-failed-send-refund.test.ts`
+  - `test/us024-bluesky-free-posting.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us024-bluesky-free-posting.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us012-failed-send-refund.test.ts test/us001-no-atproto.test.ts`
+  - `npx vitest run test/us024-bluesky-free-posting.test.ts
+    test/us011-publish-post-api.test.ts
+    test/us012-failed-send-refund.test.ts test/us001-no-atproto.test.ts
+    test/us025-share-button-ui.test.ts test/us026-native-share.test.ts
+    test/us027-share-fallback.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - `npm test`
+- **Learnings for future iterations:**
+  - `/api/posts` is the public broadcast path and should stay free of stamp
+    debit/refund concerns.
+  - The legacy AT Proto guard still rejects literal Bluesky source references;
+    product copy in source should use generic device share-sheet wording.
+  - Public-post failures should return the generic publish error because no
+    stamp was consumed and no refund is owed.
 ---
