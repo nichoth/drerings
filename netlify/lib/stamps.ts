@@ -1,11 +1,14 @@
 import { getDatabase } from '@netlify/database'
 
-type StampTransactionReason =
+export type StampTransactionReason =
     'purchase'|
     'grant'|
     'migration_grant'|
+    'send'|
+    'refund'|
     'gift_sent'|
     'gift_received'|
+    'failed_send_refund'|
     'gift_reclaimed'
 
 export interface CreditStampLotOptions {
@@ -146,6 +149,19 @@ export interface StampLotSummary {
     created_at:string;
 }
 
+export interface StampTransactionSummary {
+    id:string;
+    delta:number;
+    reason:StampTransactionReason;
+    balance_after:number;
+    created_at:string;
+}
+
+export interface StampTransactionPage {
+    transactions:StampTransactionSummary[];
+    next_before:string|null;
+}
+
 interface QueryResult<Row> {
     rows:Row[];
 }
@@ -173,6 +189,14 @@ interface RefundableStampLotRow extends StampLotRefundRow {
 
 interface StampLotListRow extends StampLotRefundRow {
     id:string;
+    created_at:string|Date;
+}
+
+interface StampTransactionRow {
+    id:string;
+    delta:number|string;
+    reason:StampTransactionReason;
+    balance_after:number|string;
     created_at:string|Date;
 }
 
@@ -329,6 +353,42 @@ export async function listSentGiftsForSender (
     return result.rows.map((gift) => {
         return sentGiftSummary(gift, now)
     })
+}
+
+export async function listStampTransactionsForUser (
+    userId:string,
+    before:string|null = null,
+    limit = 50
+):Promise<StampTransactionPage> {
+    const db = getDatabase()
+    const result = await db.pool.query<StampTransactionRow>(`
+        SELECT
+            id,
+            delta,
+            reason,
+            balance_after,
+            created_at
+        FROM stamp_transactions
+        WHERE user_id = $1
+            AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
+        ORDER BY created_at DESC
+        LIMIT $3
+    `, [userId, before, limit + 1])
+    const rows = result.rows.slice(0, limit)
+    const nextRow = result.rows[limit]
+
+    return {
+        transactions: rows.map((transaction) => {
+            return {
+                id: transaction.id,
+                delta: Number(transaction.delta),
+                reason: transaction.reason,
+                balance_after: Number(transaction.balance_after),
+                created_at: dateString(transaction.created_at)
+            }
+        }),
+        next_before: nextRow ? dateString(nextRow.created_at) : null
+    }
 }
 
 export async function creditStampLot (

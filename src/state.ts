@@ -102,6 +102,30 @@ export interface SentGiftSummary {
     created_at:string;
 }
 
+export type StampTransactionReason =
+    'purchase'|
+    'grant'|
+    'migration_grant'|
+    'send'|
+    'refund'|
+    'gift_sent'|
+    'gift_received'|
+    'failed_send_refund'|
+    'gift_reclaimed'
+
+export interface StampTransactionSummary {
+    id:string;
+    delta:number;
+    reason:StampTransactionReason;
+    balance_after:number;
+    created_at:string;
+}
+
+export interface StampTransactionPage {
+    transactions:StampTransactionSummary[];
+    next_before:string|null;
+}
+
 export interface StampRefundResult {
     refund_cents:number;
     stamps_balance:number;
@@ -139,6 +163,10 @@ export function State (): {
     stampLots:Signal<StampLotSummary[]>;
     pendingGifts:Signal<PendingGiftSummary[]>;
     sentGifts:Signal<SentGiftSummary[]>;
+    stampTransactions:Signal<StampTransactionSummary[]>;
+    stampTransactionsNextBefore:Signal<string|null>;
+    stampTransactionsLoading:Signal<boolean>;
+    stampTransactionsError:Signal<string|null>;
     stampLotsLoading:Signal<boolean>;
     stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
@@ -168,6 +196,10 @@ export function State (): {
         stampLots: signal<StampLotSummary[]>([]),
         pendingGifts: signal<PendingGiftSummary[]>([]),
         sentGifts: signal<SentGiftSummary[]>([]),
+        stampTransactions: signal<StampTransactionSummary[]>([]),
+        stampTransactionsNextBefore: signal<string|null>(null),
+        stampTransactionsLoading: signal<boolean>(false),
+        stampTransactionsError: signal<string|null>(null),
         stampLotsLoading: signal<boolean>(false),
         stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
@@ -480,6 +512,58 @@ State.RefundSentGift = async function (
     })
 
     return result as SentGiftRefundResult
+}
+
+State.FetchStampTransactions = async function (
+    state:AppState,
+    before?:string|null
+):Promise<StampTransactionPage> {
+    state.stampTransactionsLoading.value = true
+    state.stampTransactionsError.value = null
+
+    try {
+        const url = before ?
+            `/api/stamps/transactions?before=${encodeURIComponent(before)}` :
+            '/api/stamps/transactions'
+        const response = await fetch(url)
+
+        if (!response.ok) {
+            const errorBody = await maybeJson(response)
+            const message = typeof errorBody?.error === 'string' ?
+                errorBody.error :
+                'Unable to load stamp history right now.'
+
+            throw new Error(message)
+        }
+
+        const body = await response.json() as Partial<StampTransactionPage>
+        const transactions = Array.isArray(body.transactions) ?
+            body.transactions.filter(isStampTransactionSummary) :
+            []
+        const page = {
+            transactions,
+            next_before: typeof body.next_before === 'string' ?
+                body.next_before :
+                null
+        }
+
+        state.stampTransactions.value = before ?
+            state.stampTransactions.value.concat(page.transactions) :
+            page.transactions
+        state.stampTransactionsNextBefore.value = page.next_before
+
+        return page
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to load stamp history right now.'
+
+        state.stampTransactionsError.value = message
+
+        throw err
+    } finally {
+        state.stampTransactionsLoading.value = false
+    }
 }
 
 State.OpenSavedDrawing = async function (
@@ -941,6 +1025,9 @@ function clearAuthState (state:AppState):void {
     state.pendingGifts.value = []
     state.sentGifts.value = []
     state.stampLotsError.value = null
+    state.stampTransactions.value = []
+    state.stampTransactionsNextBefore.value = null
+    state.stampTransactionsError.value = null
     state.account.value = null
     state.accountError.value = null
     state.profile.value = null
@@ -1037,6 +1124,34 @@ function isSentGiftSummary (value:unknown):value is SentGiftSummary {
         typeof maybeGift.created_at === 'string'
 }
 
+function isStampTransactionSummary (
+    value:unknown
+):value is StampTransactionSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeTransaction = value as Partial<StampTransactionSummary>
+
+    return typeof maybeTransaction.id === 'string' &&
+        typeof maybeTransaction.delta === 'number' &&
+        isStampTransactionReason(maybeTransaction.reason) &&
+        typeof maybeTransaction.balance_after === 'number' &&
+        typeof maybeTransaction.created_at === 'string'
+}
+
+function isStampTransactionReason (
+    value:unknown
+):value is StampTransactionReason {
+    return value === 'purchase' ||
+        value === 'grant' ||
+        value === 'migration_grant' ||
+        value === 'send' ||
+        value === 'refund' ||
+        value === 'gift_sent' ||
+        value === 'gift_received' ||
+        value === 'failed_send_refund' ||
+        value === 'gift_reclaimed'
+}
+
 function isStampPackProductId (
     value:unknown
 ):value is StampPackProductId {
@@ -1049,5 +1164,6 @@ function isProtectedRoute (path:string):boolean {
     return path === '/account' ||
         path === '/drawings' ||
         path === '/settings' ||
+        path === '/settings/stamps' ||
         path.startsWith('/send/')
 }

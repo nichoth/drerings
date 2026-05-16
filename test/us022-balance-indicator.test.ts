@@ -17,7 +17,7 @@ describe('US-022 balance indicator in app header', () => {
 
         const link = await screen.findByRole('link', { name: '5 stamps' })
 
-        expect(link.getAttribute('href')).toBe('/settings#stamps')
+        expect(link.getAttribute('href')).toBe('/settings/stamps')
         expect(within(link).getByText('5 stamps')).toBeTruthy()
         expect(link.querySelector('.icon-stamp')).toBeTruthy()
         expect(container.querySelector('.stamp-balance-link')).toBe(link)

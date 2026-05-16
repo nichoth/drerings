@@ -7,6 +7,12 @@
         margin: 1rem 0;
     }
 
+    & .settings-nav {
+        border-block: 1px solid var(--input-border);
+        margin: 1.5rem 0;
+        padding: 1rem 0;
+    }
+
     & .settings-success {
         color: var(--success);
         margin-top: 1rem;

@@ -1,0 +1,60 @@
+.route.stamps-page {
+    max-width: 48rem;
+    margin: 0 auto;
+    margin-top: 2rem;
+
+    & .stamps-page-header {
+        align-items: center;
+        border-bottom: 1px solid var(--input-border);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    & .stamps-page-header h2 {
+        margin-bottom: 0.25rem;
+    }
+
+    & .stamps-page-balance {
+        color: var(--muted-text);
+        margin: 0;
+    }
+
+    & .stamp-history {
+        border-bottom: 1px solid var(--input-border);
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    & .stamp-history-list {
+        display: grid;
+        gap: 0.75rem;
+        list-style: none;
+        padding: 0;
+    }
+
+    & .stamp-history-item {
+        align-items: center;
+        border-left: 4px solid var(--accent-border);
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: minmax(9rem, 1fr) 1fr auto auto;
+        padding-left: 1rem;
+    }
+
+    & .stamp-history-error {
+        color: var(--danger);
+    }
+}
+
+@media (max-width: 42rem) {
+    .route.stamps-page {
+        & .stamp-history-item {
+            align-items: start;
+            grid-template-columns: 1fr;
+        }
+    }
+}

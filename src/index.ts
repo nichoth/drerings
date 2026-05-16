@@ -177,7 +177,7 @@ export function Nav (props:{
                 html`<li class="nav stamp-balance">
                     <a
                         class="stamp-balance-link"
-                        href="/settings#stamps"
+                        href="/settings/stamps"
                     >
                         <${IconStamp} />
                         <span>${stampsBalanceLabel(stampsBalance)}</span>

@@ -105,6 +105,9 @@ export const SettingsRoute:FunctionComponent<{
                     null
                 }
             </section>
+            <nav aria-label="Settings navigation" class="settings-nav">
+                <a href="/settings/stamps">Stamps</a>
+            </nav>
             <${GiftStampsPanel} state=${state} />
             <${StampLotsRefundPanel} state=${state} />` :
             html`<p>
