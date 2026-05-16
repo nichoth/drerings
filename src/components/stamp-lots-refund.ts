@@ -5,6 +5,7 @@ import { useSignal } from '@preact/signals'
 import {
     State,
     type AppState,
+    type PendingGiftSummary,
     type StampLotSummary
 } from '../state.js'
 import { Button } from './button.js'
@@ -63,6 +64,8 @@ export const StampLotsRefundPanel:FunctionComponent<{
             stampLotsView()
         }
 
+        ${pendingGiftsView()}
+
         ${state.stampLotsError.value ?
             html`<p role="alert" class="stamp-lots-error">
                 ${state.stampLotsError.value}
@@ -117,6 +120,28 @@ export const StampLotsRefundPanel:FunctionComponent<{
         </ul>`
     }
 
+    function pendingGiftsView () {
+        if (!state.pendingGifts.value.length) return null
+
+        return html`<div class="pending-gifts">
+            <h4>Pending gifts</h4>
+            <ul class="pending-gifts-list">
+                ${state.pendingGifts.value.map((gift) => {
+                    return html`<li
+                        key=${gift.id}
+                        class="pending-gift"
+                        aria-label=${pendingGiftLabel(gift)}
+                    >
+                        <span>${gift.recipient_email}</span>
+                        <span>${gift.count} stamps</span>
+                        <span>${formatMoney(gift.price_cents)}</span>
+                        <span>${statusLabel(gift.status)}</span>
+                    </li>`
+                })}
+            </ul>
+        </div>`
+    }
+
     function lotActions (lot:StampLotSummary) {
         if (!isRefundable(lot)) {
             return html`<span
@@ -146,6 +171,14 @@ export const StampLotsRefundPanel:FunctionComponent<{
             <${Button} type="button" onClick=${cancelRefund}>Cancel<//>
         </div>`
     }
+}
+
+function pendingGiftLabel (gift:PendingGiftSummary):string {
+    return `${gift.recipient_email} ${gift.count} stamp gift`
+}
+
+function statusLabel (status:PendingGiftSummary['status']):string {
+    return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
 function isRefundable (lot:StampLotSummary):boolean {

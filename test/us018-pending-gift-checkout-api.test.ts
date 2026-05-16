@@ -13,37 +13,23 @@ type Query = (
 
 const context = {} as HandlerContext
 
-describe('US-017 gift checkout API', () => {
+describe('US-018 pending gift checkout API', () => {
     afterEach(() => {
         vi.unstubAllEnvs()
         vi.unstubAllGlobals()
         vi.restoreAllMocks()
     })
 
-    it('creates a stamp checkout for an existing gift recipient',
+    it('starts checkout for an email recipient without an account',
         async () => {
             vi.resetModules()
             vi.stubEnv('AUTUMN_SECRET_KEY', 'autumn-sk-test')
             vi.stubEnv('AUTUMN_API_URL', 'https://api.useautumn.test')
 
-            const query = vi.fn<Query>(async (sql) => {
-                if (
-                    sql.includes('FROM users') &&
-                    sql.includes('lower(email)')
-                ) {
-                    return {
-                        rows: [{
-                            id: 'recipient-1',
-                            email: 'friend@example.com'
-                        }]
-                    }
-                }
-
-                return { rows: [] }
-            })
+            const query = vi.fn<Query>(async () => ({ rows: [] }))
             const fetcher = vi.fn(async () => {
                 return new Response(JSON.stringify({
-                    url: 'https://checkout.stripe.com/pay/gift-1',
+                    url: 'https://checkout.stripe.com/pay/pending-gift-1',
                     customer_id: 'autumn-sender-1'
                 }), {
                     status: 200,
@@ -68,25 +54,20 @@ describe('US-017 gift checkout API', () => {
             )
             const response = await callHandler(handler, event({
                 product_id: 'stamps_bundle',
-                recipient: ' Friend@Example.COM '
+                recipient: 'new-friend@example.com'
             }))
 
             expect(response.statusCode).toBe(200)
             expect(JSON.parse(response.body || '{}')).toEqual({
-                url: 'https://checkout.stripe.com/pay/gift-1',
+                url: 'https://checkout.stripe.com/pay/pending-gift-1',
                 recipient: {
-                    id: 'recipient-1',
-                    email: 'friend@example.com'
+                    email: 'new-friend@example.com',
+                    pending: true
                 }
             })
-            expect(query).toHaveBeenCalledWith(
-                expect.stringContaining('lower(email) = $1'),
-                ['friend@example.com', 'friend']
-            )
             expect(fetcher).toHaveBeenCalledWith(
                 'https://api.useautumn.test/checkout',
                 expect.objectContaining({
-                    method: 'POST',
                     body: JSON.stringify({
                         customer_id: 'sender-1',
                         product_id: 'stamps_bundle',
@@ -98,8 +79,8 @@ describe('US-017 gift checkout API', () => {
                         metadata: {
                             gift_sender_user_id: 'sender-1',
                             gift_sender_email: 'sender@example.com',
-                            gift_recipient_user_id: 'recipient-1',
-                            gift_recipient_email: 'friend@example.com'
+                            gift_pending_recipient_email:
+                                'new-friend@example.com'
                         },
                         checkout_session_params: {
                             cancel_url:
@@ -108,39 +89,6 @@ describe('US-017 gift checkout API', () => {
                     })
                 })
             )
-        })
-
-    it('rejects gift checkout when the recipient username does not exist',
-        async () => {
-            vi.resetModules()
-
-            const query = vi.fn<Query>(async () => ({ rows: [] }))
-            const fetcher = vi.fn()
-
-            vi.stubGlobal('fetch', fetcher)
-            vi.doMock('@netlify/database', () => {
-                return {
-                    getDatabase: () => ({
-                        pool: { query }
-                    })
-                }
-            })
-            vi.doMock('../netlify/lib/session', () => {
-                return { getSession: async () => ({ user: sender() }) }
-            })
-
-            const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
-            )
-            const response = await callHandler(handler, event({
-                product_id: 'stamps_bundle',
-                recipient: 'missing-user'
-            }))
-
-            expect(response.statusCode).toBe(404)
-            expect(JSON.parse(response.body || '{}').error)
-                .toMatch(/recipient/i)
-            expect(fetcher).not.toHaveBeenCalled()
         })
 })
 

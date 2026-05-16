@@ -76,6 +76,18 @@ export interface StampLotSummary {
     created_at:string;
 }
 
+export type PendingGiftStatus = 'pending'|'claimed'|'refunded'
+
+export interface PendingGiftSummary {
+    id:string;
+    recipient_email:string;
+    pack_id:StampPackProductId;
+    count:number;
+    price_cents:number;
+    status:PendingGiftStatus;
+    created_at:string;
+}
+
 export interface StampRefundResult {
     refund_cents:number;
     stamps_balance:number;
@@ -106,6 +118,7 @@ export function State (): {
     savedDrawingsLoading:Signal<boolean>;
     savedDrawingsError:Signal<string|null>;
     stampLots:Signal<StampLotSummary[]>;
+    pendingGifts:Signal<PendingGiftSummary[]>;
     stampLotsLoading:Signal<boolean>;
     stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
@@ -133,6 +146,7 @@ export function State (): {
         savedDrawingsLoading: signal<boolean>(false),
         savedDrawingsError: signal<string|null>(null),
         stampLots: signal<StampLotSummary[]>([]),
+        pendingGifts: signal<PendingGiftSummary[]>([]),
         stampLotsLoading: signal<boolean>(false),
         stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
@@ -328,12 +342,19 @@ State.FetchStampLots = async function (
             throw new Error(message)
         }
 
-        const body = await response.json() as { lots?:unknown }
+        const body = await response.json() as {
+            lots?:unknown;
+            pending_gifts?:unknown;
+        }
         const lots = Array.isArray(body.lots) ?
             body.lots.filter(isStampLotSummary) :
             []
+        const pendingGifts = Array.isArray(body.pending_gifts) ?
+            body.pending_gifts.filter(isPendingGiftSummary) :
+            []
 
         state.stampLots.value = lots
+        state.pendingGifts.value = pendingGifts
 
         return lots
     } catch (err) {
@@ -852,6 +873,7 @@ function clearAuthState (state:AppState):void {
     state.stampCheckoutProductId.value = null
     state.savedDrawings.value = []
     state.stampLots.value = []
+    state.pendingGifts.value = []
     state.stampLotsError.value = null
     state.account.value = null
     state.accountError.value = null
@@ -906,6 +928,33 @@ function isStampLotSummary (value:unknown):value is StampLotSummary {
         typeof maybeLot.remaining_count === 'number' &&
         typeof maybeLot.refund_cents === 'number' &&
         typeof maybeLot.created_at === 'string'
+}
+
+function isPendingGiftSummary (value:unknown):value is PendingGiftSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeGift = value as Partial<PendingGiftSummary>
+    const statuses:PendingGiftStatus[] = [
+        'pending',
+        'claimed',
+        'refunded'
+    ]
+
+    return typeof maybeGift.id === 'string' &&
+        typeof maybeGift.recipient_email === 'string' &&
+        isStampPackProductId(maybeGift.pack_id) &&
+        typeof maybeGift.count === 'number' &&
+        typeof maybeGift.price_cents === 'number' &&
+        statuses.includes(maybeGift.status as PendingGiftStatus) &&
+        typeof maybeGift.created_at === 'string'
+}
+
+function isStampPackProductId (
+    value:unknown
+):value is StampPackProductId {
+    return value === 'stamps_starter' ||
+        value === 'stamps_bundle' ||
+        value === 'stamps_big_bundle'
 }
 
 function isProtectedRoute (path:string):boolean {

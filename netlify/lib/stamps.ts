@@ -36,6 +36,25 @@ export interface CreditGiftStampLotResult {
     senderBalanceAfter:number;
 }
 
+export interface CreatePendingGiftOptions {
+    senderUserId:string;
+    recipientEmail:string;
+    packId:string;
+    count:number;
+    priceCents:number;
+    autumnCheckoutId:string;
+}
+
+export interface PendingGiftSummary {
+    id:string;
+    recipient_email:string;
+    pack_id:string;
+    count:number;
+    price_cents:number;
+    status:'pending'|'claimed'|'refunded';
+    created_at:string;
+}
+
 export interface DebitStampOptions {
     userId:string;
     referenceId?:string;
@@ -114,6 +133,16 @@ interface StampLotListRow extends StampLotRefundRow {
     created_at:string|Date;
 }
 
+interface PendingGiftRow {
+    id:string;
+    recipient_email:string;
+    pack_id:string;
+    count:number|string;
+    price_cents:number|string;
+    status:'pending'|'claimed'|'refunded';
+    created_at:string|Date;
+}
+
 export class InsufficientStampsError extends Error {
     constructor () {
         super('Insufficient stamps.')
@@ -176,6 +205,37 @@ export async function listStampLotsForUser (
             remaining_count: Number(lot.remaining_count),
             refund_cents: calculateStampLotRefundCents(lot),
             created_at: dateString(lot.created_at)
+        }
+    })
+}
+
+export async function listPendingGiftsForSender (
+    userId:string
+):Promise<PendingGiftSummary[]> {
+    const db = getDatabase()
+    const result = await db.pool.query<PendingGiftRow>(`
+        SELECT
+            id,
+            recipient_email,
+            pack_id,
+            count,
+            price_cents,
+            status,
+            created_at
+        FROM pending_gifts
+        WHERE sender_user_id = $1
+        ORDER BY created_at DESC
+    `, [userId])
+
+    return result.rows.map((gift) => {
+        return {
+            id: gift.id,
+            recipient_email: gift.recipient_email,
+            pack_id: gift.pack_id,
+            count: Number(gift.count),
+            price_cents: Number(gift.price_cents),
+            status: gift.status,
+            created_at: dateString(gift.created_at)
         }
     })
 }
@@ -247,6 +307,49 @@ export async function creditStampLot (
         throw error
     } finally {
         client.release()
+    }
+}
+
+export async function createPendingGift (
+    options:CreatePendingGiftOptions
+):Promise<PendingGiftSummary> {
+    const db = getDatabase()
+    const result = await db.pool.query<PendingGiftRow>(`
+        INSERT INTO pending_gifts (
+            sender_user_id,
+            recipient_email,
+            pack_id,
+            count,
+            price_cents,
+            autumn_checkout_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING
+            id,
+            recipient_email,
+            pack_id,
+            count,
+            price_cents,
+            status,
+            created_at
+    `, [
+        options.senderUserId,
+        options.recipientEmail,
+        options.packId,
+        options.count,
+        options.priceCents,
+        options.autumnCheckoutId
+    ])
+    const gift = result.rows[0]
+
+    return {
+        id: gift.id,
+        recipient_email: gift.recipient_email,
+        pack_id: gift.pack_id,
+        count: Number(gift.count),
+        price_cents: Number(gift.price_cents),
+        status: gift.status,
+        created_at: dateString(gift.created_at)
     }
 }
 

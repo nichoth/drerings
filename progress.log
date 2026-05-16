@@ -61,6 +61,11 @@
 - Gift purchase UI lives in `GiftStampsPanel` and starts checkout through
   `State.StartGiftStampCheckout`, keeping stamp checkout state methods on the
   central State object.
+- Pending non-user gifts are stored in `pending_gifts`, created from the
+  Autumn checkout webhook, and loaded with stamp lots through
+  `/api/stamps/lots` so the sender stamps panel can show them.
+- Non-user gift checkout uses `gift_pending_recipient_email` metadata while
+  existing-user gifts continue to use `gift_recipient_user_id` metadata.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -613,5 +618,59 @@ Thread: https://ampcode.com/threads/unknown
     path without changing pack definitions.
   - Sender gift history rows use `delta = 0` and `reason = 'gift_sent'`
     because the gift purchase does not affect the sender's stamp balance.
+  - No repo-local `AGENTS.md` files exist under the edited paths today.
+---
+
+## 2026-05-15 22:02 PDT - US-018
+Thread: https://ampcode.com/threads/unknown
+- Implemented pending stamp gifts for recipients without accounts.
+- Added the `pending_gifts` migration with rollback, status constraints, and
+  lookup indexes.
+- Gift checkout now starts Autumn checkout for non-user email recipients using
+  pending gift metadata, while unresolved usernames still fail.
+- The stamp checkout webhook now records pending gifts idempotently and sends
+  invitation emails with claim signup links.
+- `/api/stamps/lots` now returns pending gifts, and the settings stamps panel
+  displays pending recipient, count, price, and status for the sender.
+- Files changed:
+  - `netlify/database/migrations/0004_pending_gifts/migration.sql`
+  - `netlify/database/migrations/0004_pending_gifts/down.sql`
+  - `netlify/functions/stamps/gifts/checkout.ts`
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/billing.ts`
+  - `netlify/lib/resend.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us017-gift-checkout-api.test.ts`
+  - `test/us018-pending-gift-checkout-api.test.ts`
+  - `test/us018-pending-gift-webhook.test.ts`
+  - `test/us018-pending-gifts-schema.test.ts`
+  - `test/us018-pending-gifts-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us018-pending-gifts-schema.test.ts
+    test/us018-pending-gift-checkout-api.test.ts
+    test/us018-pending-gift-webhook.test.ts
+    test/us018-pending-gifts-ui.test.ts`
+  - `npx vitest run test/us017-gift-checkout-api.test.ts
+    test/us017-gift-stamp-webhook.test.ts test/us017-gift-stamps-ui.test.ts
+    test/us016-stamp-lots-api.test.ts test/us016-stamp-refund-ui.test.ts
+    test/us006-autumn-stamp-webhook.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:4444`:
+    pending gift recipient, count, price, and status rendered on `/settings`.
+- **Learnings for future iterations:**
+  - Pending gift fulfillment should happen in the Autumn webhook, not during
+    checkout creation, so only successful checkouts create `pending_gifts`.
+  - `/api/stamps/lots` is now the sender stamps-panel aggregate endpoint; it
+    returns both refundable lots and pending gifts.
+  - Gift checkout distinguishes non-user email recipients from missing
+    usernames: email addresses can become pending gifts, usernames still
+    require an existing account.
   - No repo-local `AGENTS.md` files exist under the edited paths today.
 ---

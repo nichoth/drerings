@@ -1,8 +1,15 @@
 import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
-import { sendStampGiftEmail } from './resend.js'
-import { creditGiftStampLot, creditStampLot } from './stamps.js'
+import {
+    sendPendingGiftInviteEmail,
+    sendStampGiftEmail
+} from './resend.js'
+import {
+    createPendingGift,
+    creditGiftStampLot,
+    creditStampLot
+} from './stamps.js'
 import {
     PACK_DEFINITIONS,
     type StampPackDefinition,
@@ -36,7 +43,11 @@ interface AutumnWebhookEvent {
 interface AutumnWebhookResult {
     handled:boolean;
     subscription_status?:SubscriptionStatus;
-    stamp_purchase?:'credited'|'already_credited'|'gift_credited';
+    stamp_purchase?:
+        'credited'|
+        'already_credited'|
+        'gift_credited'|
+        'pending_gift_created';
 }
 
 export interface CancelSubscriptionResult {
@@ -56,16 +67,28 @@ interface StampGiftMetadata {
     recipientEmail:string;
 }
 
+interface PendingGiftMetadata {
+    senderUserId:string;
+    senderEmail:string;
+    recipientEmail:string;
+}
+
 interface StampCheckoutEvent {
     userId:string;
     checkoutId:string;
     pack:StampPackDefinition;
     gift?:StampGiftMetadata;
+    pendingGift?:PendingGiftMetadata;
 }
 
 export interface GiftRecipient {
     id:string;
     email:string;
+}
+
+export interface PendingGiftRecipient {
+    email:string;
+    pending:true;
 }
 
 interface CheckoutOptions {
@@ -177,6 +200,21 @@ export async function createGiftCheckoutSession (
             gift_sender_email: sender.email,
             gift_recipient_user_id: recipient.id,
             gift_recipient_email: recipient.email
+        }
+    })
+}
+
+export async function createPendingGiftCheckoutSession (
+    sender:SessionUser,
+    origin:string,
+    productId:StampPackProductId,
+    recipientEmail:string
+):Promise<CheckoutSession> {
+    return createCheckoutSession(sender, origin, productId, {
+        metadata: {
+            gift_sender_user_id: sender.id,
+            gift_sender_email: sender.email,
+            gift_pending_recipient_email: recipientEmail
         }
     })
 }
@@ -319,6 +357,28 @@ async function applyStampCheckout (
         }
     }
 
+    if (checkout.pendingGift) {
+        await createPendingGift({
+            senderUserId: checkout.pendingGift.senderUserId,
+            recipientEmail: checkout.pendingGift.recipientEmail,
+            packId: checkout.pack.productId,
+            count: checkout.pack.count,
+            priceCents: checkout.pack.priceCents,
+            autumnCheckoutId: checkout.checkoutId
+        })
+        await sendPendingGiftInviteEmail({
+            email: checkout.pendingGift.recipientEmail,
+            senderEmail: checkout.pendingGift.senderEmail,
+            count: checkout.pack.count,
+            signupUrl: getPendingGiftSignupUrl(checkout.checkoutId)
+        })
+
+        return {
+            handled: true,
+            stamp_purchase: 'pending_gift_created'
+        }
+    }
+
     await creditStampLot({
         userId: checkout.userId,
         source: 'purchase',
@@ -340,6 +400,10 @@ async function hasStampCheckout (checkoutId:string):Promise<boolean> {
         FROM stamp_transactions
         WHERE reference_id = $1
             AND reason IN ('purchase', 'gift_sent', 'gift_received')
+        UNION
+        SELECT 1
+        FROM pending_gifts
+        WHERE autumn_checkout_id = $1
         LIMIT 1
     `, [checkoutId])
 
@@ -433,7 +497,8 @@ function getStampCheckoutEvent (
         userId,
         checkoutId,
         pack,
-        gift: getWebhookGiftMetadata(event)
+        gift: getWebhookGiftMetadata(event),
+        pendingGift: getWebhookPendingGiftMetadata(event)
     }
 }
 
@@ -461,6 +526,36 @@ function getWebhookGiftMetadata (
         recipientUserId,
         recipientEmail
     }
+}
+
+function getWebhookPendingGiftMetadata (
+    event:AutumnWebhookEvent
+):PendingGiftMetadata|undefined {
+    const metadata = getWebhookMetadata(event)
+    const senderUserId = getString(metadata.gift_sender_user_id)
+    const senderEmail = getString(metadata.gift_sender_email)
+    const recipientEmail = getString(metadata.gift_pending_recipient_email)
+
+    if (!senderUserId || !senderEmail || !recipientEmail) {
+        return undefined
+    }
+
+    return {
+        senderUserId,
+        senderEmail,
+        recipientEmail
+    }
+}
+
+function getPendingGiftSignupUrl (checkoutId:string):string {
+    const origin = (
+        process.env.URL ||
+        process.env.DEPLOY_PRIME_URL ||
+        'https://drerings.app'
+    ).replace(/\/$/, '')
+    const params = new URLSearchParams({ gift: checkoutId })
+
+    return `${origin}/login?${params.toString()}`
 }
 
 function getWebhookMetadata (

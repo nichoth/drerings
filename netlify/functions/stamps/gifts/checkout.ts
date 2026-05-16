@@ -3,6 +3,7 @@ import { getRequestOrigin, json, parseJsonBody } from '../../../lib/http.js'
 import { getSession } from '../../../lib/session.js'
 import {
     createGiftCheckoutSession,
+    createPendingGiftCheckoutSession,
     findGiftRecipient,
     PACK_DEFINITIONS,
     type StampPackProductId
@@ -34,20 +35,41 @@ export const handler:Handler = async function handler (event) {
     try {
         const recipient = await findGiftRecipient(recipientHandle)
 
-        if (!recipient || recipient.id === session.user.id) {
+        if (recipient?.id === session.user.id) {
             return json(404, { error: 'Recipient account was not found.' })
         }
 
-        const checkout = await createGiftCheckoutSession(
+        if (recipient) {
+            const checkout = await createGiftCheckoutSession(
+                session.user,
+                getRequestOrigin(event),
+                productId,
+                recipient
+            )
+
+            return json(200, {
+                url: checkout.url,
+                recipient
+            })
+        }
+
+        if (!isEmail(recipientHandle)) {
+            return json(404, { error: 'Recipient account was not found.' })
+        }
+
+        const checkout = await createPendingGiftCheckoutSession(
             session.user,
             getRequestOrigin(event),
             productId,
-            recipient
+            recipientHandle
         )
 
         return json(200, {
             url: checkout.url,
-            recipient
+            recipient: {
+                email: recipientHandle,
+                pending: true
+            }
         })
     } catch (err) {
         console.error(err)
@@ -74,4 +96,8 @@ function normalizeRecipient (value:unknown):string|null {
     const recipient = value.trim().toLowerCase()
 
     return recipient || null
+}
+
+function isEmail (value:string):boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }

@@ -9,6 +9,10 @@ export interface StampGiftEmail {
     count:number;
 }
 
+export interface PendingGiftInviteEmail extends StampGiftEmail {
+    signupUrl:string;
+}
+
 export async function sendMagicLinkEmail ({
     email,
     loginUrl
@@ -66,6 +70,47 @@ export async function sendStampGiftEmail ({
             to: email,
             subject: 'You received Drerings stamps',
             html: `<p>${message}</p>`,
+            text: message
+        })
+    })
+
+    if (!response.ok) {
+        throw new Error(`Resend email failed with ${response.status}`)
+    }
+}
+
+export async function sendPendingGiftInviteEmail ({
+    email,
+    senderEmail,
+    count,
+    signupUrl
+}:PendingGiftInviteEmail):Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY
+
+    if (!apiKey) {
+        throw new Error('RESEND_API_KEY is required')
+    }
+
+    const senderName = senderEmail.split('@')[0] || senderEmail
+    const message = [
+        `${senderName} sent you ${count} Drerings stamps.`,
+        'Create an account to claim them:',
+        signupUrl
+    ].join('\n\n')
+    const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL ||
+                'Drerings <login@drerings.app>',
+            to: email,
+            subject: 'Claim your Drerings stamps',
+            html: `<p>${senderName} sent you ${count} Drerings stamps.</p>
+                <p><a href="${signupUrl}">Create an account to claim them</a>
+                </p>`,
             text: message
         })
     })

@@ -70,4 +70,24 @@
     & .stamp-lots-error {
         color: var(--danger);
     }
+
+    & .pending-gifts {
+        margin-top: 1.5rem;
+    }
+
+    & .pending-gifts-list {
+        display: grid;
+        gap: 0.75rem;
+        list-style: none;
+        padding: 0;
+    }
+
+    & .pending-gift {
+        align-items: center;
+        border-left: 4px solid var(--accent-border);
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: minmax(10rem, 1fr) auto auto auto;
+        padding-left: 1rem;
+    }
 }
