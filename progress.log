@@ -29,6 +29,9 @@
 - Checkout account creation is centralized in
   `upsertCheckoutUser`; signup-only side effects should use its
   insert-or-select result so existing checkout users are not reprocessed.
+- One-time stamp backfills live in `netlify/lib/stamp-backfill.ts`, check
+  `stamp_transactions.reason = 'migration_grant'` per user for idempotency,
+  and call `creditStampLot` with `transactionReason: 'migration_grant'`.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -290,4 +293,43 @@ Thread: https://ampcode.com/threads/unknown
   - Signup grants should return `creditStampLot().balanceAfter` as the
     current user's `stamps_balance`, because the initial insert row still has
     the default zero balance before the grant transaction runs.
+---
+
+## 2026-05-15 20:52 PDT - US-010
+Thread: https://ampcode.com/threads/unknown
+- Implemented the existing-user migration grant backfill.
+- Added `backfillExistingUserStamps`, which reads all users, skips users with
+  an existing `migration_grant` transaction, and grants 10 stamps to the
+  remaining users through `creditStampLot`.
+- Added dry-run support and summary logging for users processed, users
+  skipped, stamps granted, and dry-run status.
+- Extended `creditStampLot` with a transaction reason override so migration
+  grants can keep `stamp_lots.source = 'grant'` while recording
+  `stamp_transactions.reason = 'migration_grant'`.
+- Files changed:
+  - `netlify/lib/stamps.ts`
+  - `netlify/lib/stamp-backfill.ts`
+  - `scripts/backfill-existing-stamp-grants.ts`
+  - `test/us010-stamp-backfill.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us010-stamp-backfill.test.ts`
+  - `npx vitest run test/us010-stamp-backfill.test.ts
+    test/us002-credit-stamp-lot.test.ts test/us009-signup-grant.test.ts`
+  - `npx esbuild scripts/backfill-existing-stamp-grants.ts --bundle
+    --platform=node --format=esm
+    --outfile=.netlify/backfill-existing-stamp-grants.mjs`
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+- **Learnings for future iterations:**
+  - Migration grants need a transaction reason override instead of a new lot
+    source, because `stamp_lots.source` remains limited to purchase, grant,
+    and gift received.
+  - The backfill idempotency key is the per-user
+    `stamp_transactions.reason = 'migration_grant'` row.
+  - The backfill CLI is a thin wrapper around
+    `backfillExistingUserStamps`; test behavior in the library and bundle the
+    script as a smoke check.
 ---

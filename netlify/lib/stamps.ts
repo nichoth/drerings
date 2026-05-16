@@ -1,5 +1,11 @@
 import { getDatabase } from '@netlify/database'
 
+type StampTransactionReason =
+    'purchase'|
+    'grant'|
+    'migration_grant'|
+    'gift_received'
+
 export interface CreditStampLotOptions {
     userId:string;
     source:'purchase'|'grant'|'gift_received';
@@ -7,6 +13,7 @@ export interface CreditStampLotOptions {
     priceCents?:number|null;
     autumnCheckoutId?:string;
     giftedByUserId?:string;
+    transactionReason?:StampTransactionReason;
 }
 
 export interface CreditStampLotResult {
@@ -109,7 +116,7 @@ export async function creditStampLot (
             options.userId,
             lotId,
             options.count,
-            options.source,
+            options.transactionReason ?? options.source,
             options.autumnCheckoutId,
             balanceAfter
         ])
