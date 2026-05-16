@@ -6,6 +6,7 @@ import {
     State,
     type AppState,
     type PendingGiftSummary,
+    type SentGiftSummary,
     type StampLotSummary
 } from '../state.js'
 import { Button } from './button.js'
@@ -15,6 +16,7 @@ export const StampLotsRefundPanel:FunctionComponent<{
     state:AppState;
 }> = function StampLotsRefundPanel ({ state }) {
     const confirmLotId = useSignal<string>('')
+    const confirmGiftId = useSignal<string>('')
     const message = useSignal<string>('')
     const error = useSignal<string>('')
 
@@ -32,6 +34,7 @@ export const StampLotsRefundPanel:FunctionComponent<{
 
     const cancelRefund = useCallback(() => {
         confirmLotId.value = ''
+        confirmGiftId.value = ''
     }, [])
 
     const confirmRefund = useCallback(async (lot:StampLotSummary) => {
@@ -53,6 +56,31 @@ export const StampLotsRefundPanel:FunctionComponent<{
         }
     }, [state])
 
+    const requestGiftRefund = useCallback((gift:SentGiftSummary) => {
+        confirmGiftId.value = gift.id
+        confirmLotId.value = ''
+        message.value = ''
+        error.value = ''
+    }, [])
+
+    const confirmGiftRefund = useCallback(async (gift:SentGiftSummary) => {
+        message.value = ''
+        error.value = ''
+
+        try {
+            const result = await State.RefundSentGift(state, gift.id)
+
+            confirmGiftId.value = ''
+            message.value = `Gift refunded ${formatMoney(
+                result.refund_cents
+            )}.`
+        } catch (err) {
+            error.value = err instanceof Error ?
+                err.message :
+                'Unable to refund gift right now.'
+        }
+    }, [state])
+
     return html`<section aria-label="Stamp lots" class="stamp-lots">
         <h3>Stamp lots</h3>
         <p class="stamp-lots-balance">
@@ -65,6 +93,8 @@ export const StampLotsRefundPanel:FunctionComponent<{
         }
 
         ${pendingGiftsView()}
+
+        ${sentGiftsView()}
 
         ${state.stampLotsError.value ?
             html`<p role="alert" class="stamp-lots-error">
@@ -142,6 +172,54 @@ export const StampLotsRefundPanel:FunctionComponent<{
         </div>`
     }
 
+    function sentGiftsView () {
+        if (!state.sentGifts.value.length) return null
+
+        return html`<div class="sent-gifts">
+            <h4>Sent gifts</h4>
+            <ul class="sent-gifts-list">
+                ${state.sentGifts.value.map((gift) => {
+                    return html`<li
+                        key=${gift.id}
+                        class="sent-gift"
+                        aria-label=${sentGiftLabel(gift)}
+                    >
+                        <span>${gift.recipient_email}</span>
+                        <span>${gift.original_count} stamps</span>
+                        <span>${sentGiftStatusLabel(gift)}</span>
+                        ${sentGiftActions(gift)}
+                    </li>`
+                })}
+            </ul>
+        </div>`
+    }
+
+    function sentGiftActions (gift:SentGiftSummary) {
+        if (!gift.refundable) return null
+
+        if (confirmGiftId.value !== gift.id) {
+            return html`<${Button}
+                type="button"
+                onClick=${() => requestGiftRefund(gift)}
+            >
+                Refund gift
+            <//>`
+        }
+
+        return html`<div class="stamp-lot-actions">
+            <p class="stamp-lot-confirm">
+                ${sentGiftConfirmLabel(gift)}
+            </p>
+            <${Button}
+                type="button"
+                onClick=${() => confirmGiftRefund(gift)}
+            >
+                Confirm gift refund
+            <//>
+            <${Button} type="button" onClick=${cancelRefund}>Cancel<//>
+        </div>`
+    }
+
     function lotActions (lot:StampLotSummary) {
         if (!isRefundable(lot)) {
             return html`<span
@@ -173,12 +251,29 @@ export const StampLotsRefundPanel:FunctionComponent<{
     }
 }
 
+function sentGiftLabel (gift:SentGiftSummary):string {
+    return `${gift.recipient_email} ${gift.original_count} stamp gift`
+}
+
 function pendingGiftLabel (gift:PendingGiftSummary):string {
     return `${gift.recipient_email} ${gift.count} stamp gift`
 }
 
 function statusLabel (status:PendingGiftSummary['status']):string {
     return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+function sentGiftStatusLabel (gift:SentGiftSummary):string {
+    if (gift.status === 'unused' && gift.refundable) {
+        return `Unused (refundable until ${formatDate(
+            gift.refundable_until
+        )})`
+    }
+
+    if (gift.status === 'in_use') return 'In use (final)'
+    if (gift.status === 'refunded') return 'Refunded'
+
+    return 'Unused (final)'
 }
 
 function isRefundable (lot:StampLotSummary):boolean {
@@ -223,6 +318,12 @@ function refundPreviewLabel (lot:StampLotSummary):string {
 
 function refundConfirmLabel (lot:StampLotSummary):string {
     return `Refund ${formatMoney(lot.refund_cents)} to your card?`
+}
+
+function sentGiftConfirmLabel (gift:SentGiftSummary):string {
+    return `Refund ${formatMoney(
+        gift.refund_cents
+    )} for ${gift.recipient_email}?`
 }
 
 function formatMoney (cents:number):string {

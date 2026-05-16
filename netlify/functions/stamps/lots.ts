@@ -3,6 +3,7 @@ import { json } from '../../lib/http.js'
 import { getSession } from '../../lib/session.js'
 import {
     listPendingGiftsForSender,
+    listSentGiftsForSender,
     listStampLotsForUser
 } from '../../lib/stamps.js'
 
@@ -16,14 +17,16 @@ export const handler:Handler = async function handler (event) {
     if (!session) return json(401, { error: 'Please sign in.' })
 
     try {
-        const [lots, pendingGifts] = await Promise.all([
+        const [lots, pendingGifts, sentGifts] = await Promise.all([
             listStampLotsForUser(session.user.id),
-            listPendingGiftsForSender(session.user.id)
+            listPendingGiftsForSender(session.user.id),
+            listSentGiftsForSender(session.user.id)
         ])
 
         return json(200, {
             lots,
-            pending_gifts: pendingGifts
+            pending_gifts: pendingGifts,
+            sent_gifts: sentGifts
         })
     } catch (error) {
         console.error(error)

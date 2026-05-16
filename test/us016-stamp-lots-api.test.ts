@@ -65,7 +65,8 @@ describe('US-016 stamp lots API', () => {
                     created_at: '2026-05-02T00:00:00.000Z'
                 }
             ],
-            pending_gifts: []
+            pending_gifts: [],
+            sent_gifts: []
         })
         expect(db.query).toHaveBeenCalledWith(
             expect.stringContaining('FROM stamp_lots'),
@@ -91,7 +92,10 @@ async function callHandler (
 
 function mockDatabase () {
     const query = vi.fn<Query>(async (sql) => {
-        if (sql.includes('FROM pending_gifts')) {
+        if (
+            sql.includes('FROM pending_gifts') ||
+            sql.includes('gifted_by_user_id')
+        ) {
             return { rows: [] }
         }
 

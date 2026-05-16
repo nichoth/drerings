@@ -88,9 +88,28 @@ export interface PendingGiftSummary {
     created_at:string;
 }
 
+export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
+
+export interface SentGiftSummary {
+    id:string;
+    recipient_email:string;
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    refundable:boolean;
+    refundable_until:string;
+    status:SentGiftStatus;
+    created_at:string;
+}
+
 export interface StampRefundResult {
     refund_cents:number;
     stamps_balance:number;
+}
+
+export interface SentGiftRefundResult {
+    refund_cents:number;
+    recipient_stamps_balance?:number;
 }
 
 export interface GiftStampCheckoutInput {
@@ -119,6 +138,7 @@ export function State (): {
     savedDrawingsError:Signal<string|null>;
     stampLots:Signal<StampLotSummary[]>;
     pendingGifts:Signal<PendingGiftSummary[]>;
+    sentGifts:Signal<SentGiftSummary[]>;
     stampLotsLoading:Signal<boolean>;
     stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
@@ -147,6 +167,7 @@ export function State (): {
         savedDrawingsError: signal<string|null>(null),
         stampLots: signal<StampLotSummary[]>([]),
         pendingGifts: signal<PendingGiftSummary[]>([]),
+        sentGifts: signal<SentGiftSummary[]>([]),
         stampLotsLoading: signal<boolean>(false),
         stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
@@ -345,6 +366,7 @@ State.FetchStampLots = async function (
         const body = await response.json() as {
             lots?:unknown;
             pending_gifts?:unknown;
+            sent_gifts?:unknown;
         }
         const lots = Array.isArray(body.lots) ?
             body.lots.filter(isStampLotSummary) :
@@ -352,9 +374,13 @@ State.FetchStampLots = async function (
         const pendingGifts = Array.isArray(body.pending_gifts) ?
             body.pending_gifts.filter(isPendingGiftSummary) :
             []
+        const sentGifts = Array.isArray(body.sent_gifts) ?
+            body.sent_gifts.filter(isSentGiftSummary) :
+            []
 
         state.stampLots.value = lots
         state.pendingGifts.value = pendingGifts
+        state.sentGifts.value = sentGifts
 
         return lots
     } catch (err) {
@@ -415,6 +441,45 @@ State.RefundStampLot = async function (
     })
 
     return result as StampRefundResult
+}
+
+State.RefundSentGift = async function (
+    state:AppState,
+    lotId:string
+):Promise<SentGiftRefundResult> {
+    const response = await fetch(
+        `/api/stamps/gifts/refund/${encodeURIComponent(lotId)}`,
+        { method: 'POST' }
+    )
+
+    if (!response.ok) {
+        const errorBody = await maybeJson(response)
+        const message = typeof errorBody?.error === 'string' ?
+            errorBody.error :
+            'Unable to refund gift right now.'
+
+        throw new Error(message)
+    }
+
+    const result = await response.json() as Partial<SentGiftRefundResult>
+
+    if (typeof result.refund_cents !== 'number') {
+        throw new Error('Unable to refund gift right now.')
+    }
+
+    state.sentGifts.value = state.sentGifts.value.map((gift) => {
+        if (gift.id !== lotId) return gift
+
+        return {
+            ...gift,
+            remaining_count: 0,
+            refund_cents: 0,
+            refundable: false,
+            status: 'refunded'
+        }
+    })
+
+    return result as SentGiftRefundResult
 }
 
 State.OpenSavedDrawing = async function (
@@ -874,6 +939,7 @@ function clearAuthState (state:AppState):void {
     state.savedDrawings.value = []
     state.stampLots.value = []
     state.pendingGifts.value = []
+    state.sentGifts.value = []
     state.stampLotsError.value = null
     state.account.value = null
     state.accountError.value = null
@@ -946,6 +1012,28 @@ function isPendingGiftSummary (value:unknown):value is PendingGiftSummary {
         typeof maybeGift.count === 'number' &&
         typeof maybeGift.price_cents === 'number' &&
         statuses.includes(maybeGift.status as PendingGiftStatus) &&
+        typeof maybeGift.created_at === 'string'
+}
+
+function isSentGiftSummary (value:unknown):value is SentGiftSummary {
+    if (!value || typeof value !== 'object') return false
+
+    const maybeGift = value as Partial<SentGiftSummary>
+    const statuses:SentGiftStatus[] = [
+        'unused',
+        'in_use',
+        'expired',
+        'refunded'
+    ]
+
+    return typeof maybeGift.id === 'string' &&
+        typeof maybeGift.recipient_email === 'string' &&
+        typeof maybeGift.original_count === 'number' &&
+        typeof maybeGift.remaining_count === 'number' &&
+        typeof maybeGift.refund_cents === 'number' &&
+        typeof maybeGift.refundable === 'boolean' &&
+        typeof maybeGift.refundable_until === 'string' &&
+        statuses.includes(maybeGift.status as SentGiftStatus) &&
         typeof maybeGift.created_at === 'string'
 }
 

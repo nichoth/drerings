@@ -73,6 +73,13 @@
   `netlify/functions`, while keeping the DB workflow in `netlify/lib/stamps.ts`
   with injected Autumn and Resend functions to avoid billing/stamp import
   cycles.
+- Sender gift management uses recipient `stamp_lots` rows with
+  `source = 'gift_received'` and `gifted_by_user_id` set to the sender; the
+  sender stamps panel loads those rows through `/api/stamps/lots` as
+  `sent_gifts`.
+- Gift reclaim refunds write `stamp_transactions.reason = 'gift_reclaimed'`
+  against the recipient's lot and balance, while Autumn refunds the original
+  gift checkout to the sender's payment method.
 
 ## 2026-05-15 19:49 PDT - US-001
 Thread: https://ampcode.com/threads/unknown
@@ -744,4 +751,57 @@ Thread: https://ampcode.com/threads/unknown
     process the same gift.
   - Sender notification emails for expired pending gifts belong in
     `netlify/lib/resend.ts` next to the existing stamp gift emails.
+---
+
+## 2026-05-15 22:23 PDT - US-021
+Thread: https://ampcode.com/threads/unknown
+- Implemented the sender refund window for unused stamp gifts.
+- `/api/stamps/lots` now includes sent gift summaries with unused, in-use,
+  expired, and refunded status data plus refund eligibility.
+- Added `refundSentGiftStampLot`, which locks a sender-owned gift lot,
+  verifies the recipient has not used any gifted stamps and the lot is still
+  inside the 30-day window, zeroes the recipient lot, decrements the
+  recipient balance, writes a `gift_reclaimed` transaction, and calls Autumn
+  for the sender refund.
+- Added a nested gift refund endpoint and wired the settings stamps panel to
+  show sent gift statuses, restrict refund buttons to eligible gifts, confirm
+  the refund, and show the result.
+- Added a reversible migration for the `gift_reclaimed` transaction reason.
+- Files changed:
+  - `netlify/database/migrations/0005_gift_reclaimed_reason/migration.sql`
+  - `netlify/database/migrations/0005_gift_reclaimed_reason/down.sql`
+  - `netlify/functions/stamps/gifts/refund.ts`
+  - `netlify/functions/stamps/lots.ts`
+  - `netlify/lib/stamps.ts`
+  - `src/components/stamp-lots-refund.ts`
+  - `src/components/stamp-lots-refund.css`
+  - `src/state.ts`
+  - `test/us016-stamp-lots-api.test.ts`
+  - `test/us021-sent-gift-refund.test.ts`
+  - `test/us021-sent-gifts-ui.test.ts`
+  - `specs/prd.json`
+  - `progress.log`
+- Verification:
+  - `npx vitest run test/us021-sent-gift-refund.test.ts
+    test/us021-sent-gifts-ui.test.ts`
+  - `npx vitest run test/us021-sent-gift-refund.test.ts
+    test/us021-sent-gifts-ui.test.ts test/us016-stamp-lots-api.test.ts
+    test/us016-stamp-refund-ui.test.ts test/us017-gift-stamp-webhook.test.ts
+    test/us020-expired-pending-gifts.test.ts
+    test/us015-stamp-refund-api.test.ts`
+  - `npm run lint`
+  - `npx tsc --noEmit`
+  - Browser fallback via Playwright-core against `http://127.0.0.1:5173`:
+    sent gifts rendered, only the unused recent gift exposed a refund button,
+    confirmation appeared, and the mocked refund success message rendered.
+- **Learnings for future iterations:**
+  - `/api/stamps/lots` is the aggregate endpoint for the settings stamp
+    panel; adding sender-side gift data should extend that response instead
+    of creating a separate page fetch.
+  - Gift refunds operate on the recipient's credited lot and cached balance,
+    not the sender's balance, because gift purchase never debits sender
+    stamps.
+  - The Browser Use Node REPL tool was not exposed in this session; the
+    established Vite plus Playwright-core fallback can still verify the
+    authenticated settings UI with route-level request mocks.
 ---

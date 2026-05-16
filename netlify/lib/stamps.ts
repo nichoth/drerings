@@ -5,7 +5,8 @@ type StampTransactionReason =
     'grant'|
     'migration_grant'|
     'gift_sent'|
-    'gift_received'
+    'gift_received'|
+    'gift_reclaimed'
 
 export interface CreditStampLotOptions {
     userId:string;
@@ -55,6 +56,20 @@ export interface PendingGiftSummary {
     created_at:string;
 }
 
+export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
+
+export interface SentGiftSummary {
+    id:string;
+    recipient_email:string;
+    original_count:number;
+    remaining_count:number;
+    refund_cents:number;
+    refundable:boolean;
+    refundable_until:string;
+    status:SentGiftStatus;
+    created_at:string;
+}
+
 export interface PendingGiftRefundEmailOptions {
     email:string;
     recipientEmail:string;
@@ -100,6 +115,19 @@ export interface RefundPurchasedStampLotResult {
     lotId:string;
     refundCents:number;
     balanceAfter:number;
+}
+
+export interface RefundSentGiftStampLotOptions {
+    senderUserId:string;
+    lotId:string;
+    issueRefund:(request:AutumnRefundRequest) => Promise<void>;
+    now?:Date;
+}
+
+export interface RefundSentGiftStampLotResult {
+    lotId:string;
+    refundCents:number;
+    recipientBalanceAfter:number;
 }
 
 export interface StampLotRefundRow {
@@ -156,6 +184,20 @@ interface PendingGiftRow {
     price_cents:number|string;
     status:'pending'|'claimed'|'refunded';
     created_at:string|Date;
+}
+
+interface SentGiftRow {
+    id:string;
+    recipient_email:string;
+    original_count:number|string;
+    remaining_count:number|string;
+    price_paid_cents:number|string|null;
+    created_at:string|Date;
+}
+
+interface RefundableSentGiftRow extends SentGiftRow {
+    user_id:string;
+    autumn_checkout_id:string|null;
 }
 
 interface ExpiredPendingGiftRow {
@@ -260,6 +302,32 @@ export async function listPendingGiftsForSender (
             status: gift.status,
             created_at: dateString(gift.created_at)
         }
+    })
+}
+
+export async function listSentGiftsForSender (
+    userId:string,
+    now:Date = new Date()
+):Promise<SentGiftSummary[]> {
+    const db = getDatabase()
+    const result = await db.pool.query<SentGiftRow>(`
+        SELECT
+            stamp_lots.id,
+            users.email AS recipient_email,
+            stamp_lots.original_count,
+            stamp_lots.remaining_count,
+            stamp_lots.price_paid_cents,
+            stamp_lots.created_at
+        FROM stamp_lots
+        JOIN users
+            ON users.id = stamp_lots.user_id
+        WHERE stamp_lots.gifted_by_user_id = $1
+            AND stamp_lots.source = 'gift_received'
+        ORDER BY stamp_lots.created_at DESC
+    `, [userId])
+
+    return result.rows.map((gift) => {
+        return sentGiftSummary(gift, now)
     })
 }
 
@@ -713,6 +781,109 @@ export async function refundPurchasedStampLot (
     }
 }
 
+export async function refundSentGiftStampLot (
+    options:RefundSentGiftStampLotOptions
+):Promise<RefundSentGiftStampLotResult> {
+    const db = getDatabase()
+    const client = await db.pool.connect() as DatabaseClient
+
+    try {
+        await client.query('BEGIN')
+
+        const lotResult = await client.query<RefundableSentGiftRow>(`
+            SELECT
+                stamp_lots.id,
+                stamp_lots.user_id,
+                users.email AS recipient_email,
+                stamp_lots.original_count,
+                stamp_lots.remaining_count,
+                stamp_lots.price_paid_cents,
+                stamp_lots.autumn_checkout_id,
+                stamp_lots.created_at
+            FROM stamp_lots
+            JOIN users
+                ON users.id = stamp_lots.user_id
+            WHERE stamp_lots.id = $1
+                AND stamp_lots.gifted_by_user_id = $2
+                AND stamp_lots.source = 'gift_received'
+            FOR UPDATE
+        `, [options.lotId, options.senderUserId])
+        const lot = lotResult.rows[0]
+
+        if (!lot) throw new StampLotNotFoundError()
+
+        const gift = sentGiftSummary(lot, options.now ?? new Date())
+
+        if (
+            !gift.refundable ||
+            !lot.autumn_checkout_id
+        ) {
+            throw new StampLotNotRefundableError()
+        }
+
+        await client.query(`
+            UPDATE stamp_lots
+            SET remaining_count = 0
+            WHERE id = $1
+                AND user_id = $2
+        `, [options.lotId, lot.user_id])
+
+        const balanceResult = await client.query<BalanceRow>(`
+            UPDATE users
+            SET stamps_balance = stamps_balance - $1
+            WHERE id = $2
+                AND stamps_balance >= $1
+            RETURNING stamps_balance
+        `, [gift.remaining_count, lot.user_id])
+
+        if (!balanceResult.rows[0]) {
+            throw new StampLotNotRefundableError()
+        }
+
+        const recipientBalanceAfter = Number(
+            balanceResult.rows[0].stamps_balance
+        )
+
+        await client.query(`
+            INSERT INTO stamp_transactions (
+                user_id,
+                lot_id,
+                delta,
+                reason,
+                reference_id,
+                balance_after
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+            lot.user_id,
+            options.lotId,
+            -gift.remaining_count,
+            'gift_reclaimed',
+            lot.autumn_checkout_id,
+            recipientBalanceAfter
+        ])
+
+        await options.issueRefund({
+            checkoutId: lot.autumn_checkout_id,
+            amountCents: gift.refund_cents
+        })
+
+        await client.query('COMMIT')
+
+        return {
+            lotId: options.lotId,
+            refundCents: gift.refund_cents,
+            recipientBalanceAfter
+        }
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
 export async function refundExpiredPendingGifts (
     options:RefundExpiredPendingGiftsOptions
 ):Promise<RefundExpiredPendingGiftsResult> {
@@ -828,6 +999,52 @@ async function sendPendingGiftRefundNotice (
     } catch (error) {
         console.error('Pending gift refund email failed.', error)
     }
+}
+
+function sentGiftSummary (
+    gift:SentGiftRow,
+    now:Date
+):SentGiftSummary {
+    const originalCount = Number(gift.original_count)
+    const remainingCount = Number(gift.remaining_count)
+    const pricePaidCents = Number(gift.price_paid_cents)
+    const createdAt = new Date(gift.created_at)
+    const refundableUntil = addUtcDays(createdAt, 30)
+    const hasFullLot = remainingCount === originalCount && remainingCount > 0
+    const isInWindow = now.getTime() <= refundableUntil.getTime()
+    const isPriceRefundable = Number.isFinite(pricePaidCents) &&
+        pricePaidCents > 0
+    const refundable = hasFullLot && isInWindow && isPriceRefundable
+
+    return {
+        id: gift.id,
+        recipient_email: gift.recipient_email,
+        original_count: originalCount,
+        remaining_count: remainingCount,
+        refund_cents: refundable ? pricePaidCents : 0,
+        refundable,
+        refundable_until: refundableUntil.toISOString(),
+        status: sentGiftStatus(hasFullLot, isInWindow),
+        created_at: dateString(gift.created_at)
+    }
+}
+
+function sentGiftStatus (
+    hasFullLot:boolean,
+    isInWindow:boolean
+):SentGiftStatus {
+    if (!hasFullLot) return 'in_use'
+    if (!isInWindow) return 'expired'
+
+    return 'unused'
+}
+
+function addUtcDays (date:Date, days:number):Date {
+    const copy = new Date(date)
+
+    copy.setUTCDate(copy.getUTCDate() + days)
+
+    return copy
 }
 
 function dateString (value:string|Date):string {
