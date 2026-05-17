@@ -171,11 +171,3 @@ Run lint and the full browser test bundle before committing:
 npm run lint
 npm test
 ```
-
-------------------------------------------------------
-
-
-
-```
-/ed3d-plan-and-execute:execute-implementation-plan docs/implementation-plans/2026-05-16-stamps/ .
-```
