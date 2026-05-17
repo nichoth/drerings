@@ -42,19 +42,19 @@ describe('US-036 refund formula edge cases (60 / $20.00)', () => {
         expect(calculateStampLotRefundCents(bigBundleLot(0))).toBe(0)
     })
 
-    it('rounding never overpays the seller', () => {
-        // If a user buys 60, sends 30, refunds the rest, then somehow
-        // (impossible today, but proves the invariant) the system could
-        // never have paid out more than 2000c total.
-        const usedRefund = calculateStampLotRefundCents(bigBundleLot(30))
-        const remainingRefund = calculateStampLotRefundCents(
-            bigBundleLot(30)
-        )
-        // 30 stamps "spent" + 30 stamps refunded = 30 * (2000/60) = 1000;
-        // our refund formula returns 1000 for both halves, total 2000.
-        // This is exact for this case but the inequality is the invariant.
-        expect(usedRefund + remainingRefund).toBeLessThanOrEqual(2000)
-    })
+    it('floor-rounding never overpays across any 60-bundle split',
+        () => {
+            for (let k = 1; k < 60; k++) {
+                const refundLeft = calculateStampLotRefundCents(
+                    bigBundleLot(k)
+                )
+                const refundRight = calculateStampLotRefundCents(
+                    bigBundleLot(60 - k)
+                )
+                expect(refundLeft + refundRight)
+                    .toBeLessThanOrEqual(2000)
+            }
+        })
 
     it('grant lots return 0 regardless of price field', () => {
         const grantLot:StampLotRefundRow = {

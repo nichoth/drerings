@@ -297,20 +297,14 @@ export async function issueAutumnStampRefund (
     // Branch on prior outcome per AC15.5.
     if (attempt.status === 'succeeded') return
 
-    if (attempt.status === 'attempted') {
-        if (attempt.just_inserted === true) {
-            // Row was freshly inserted by THIS call. Proceed to Autumn.
-        } else {
-            const ageMs = Date.now() - Date.parse(attempt.attempted_at)
-            // Previous attempt in-flight: retry too soon
-            if (ageMs < 60_000) {
-                throw new InFlightRefundAttemptError()
-            }
-            // Orphaned: previous attempt never finished
-            if (ageMs >= 60_000) {
-                throw new OrphanedRefundAttemptError()
-            }
-        }
+    if (
+        attempt.status === 'attempted' &&
+        attempt.just_inserted !== true
+    ) {
+        // Row was inserted by a PRIOR call. Decide based on age.
+        const ageMs = Date.now() - Date.parse(attempt.attempted_at)
+        if (ageMs < 60_000) throw new InFlightRefundAttemptError()
+        throw new OrphanedRefundAttemptError()
     }
 
     if (attempt.status === 'failed') {
