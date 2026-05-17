@@ -66,13 +66,13 @@ flow (canvas, form, controls) renders unchanged for all states.
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] Remove the subscription warning aside (the
+- [X] T001 [US1] Remove the subscription warning aside (the
   `${state.isPaid.value ? null : html\`<aside class="free-account-warning"
   role="status" aria-label="Save warning">…</aside>\`}` block, currently
   lines ~181–192, including the surrounding blank line on the trailing
   side) from `src/routes/home.ts`. Leave all other `state.isPaid`
   branches in the file intact (per `research.md` D3).
-- [ ] T002 [P] [US1] Remove the `& .free-account-warning { … }` rule
+- [X] T002 [P] [US1] Remove the `& .free-account-warning { … }` rule
   (currently lines ~13–22) from `src/routes/home.css`. Do not touch any
   other rule in the file (per global CLAUDE.md: "NEVER change CSS that
   is not related to the task").
@@ -88,12 +88,12 @@ phase is verification only.
 **Purpose**: Verification that the deletion is complete, nothing else
 regressed, and the contract in `contracts/home-route-ui.md` holds.
 
-- [ ] T003 Run static grep checks from `quickstart.md` §1 at the repo
+- [X] T003 Run static grep checks from `quickstart.md` §1 at the repo
   root: `grep -rn "Drawings aren't saved" src/`, `grep -rn "Subscribe to
   keep them" src/`, `grep -rn "free-account-warning" src/`, and
   `grep -rn "Save warning" src/`. Each must exit with status `1` (no
   matches).
-- [ ] T004 Run `npm test && npm run lint` from the repo root per
+- [X] T004 Run `npm test && npm run lint` from the repo root per
   `quickstart.md` §2. Both must pass with the same outcomes as before
   the edit (no tests added or removed, no new lint findings).
 - [ ] T005 Run the manual smoke from `quickstart.md` §3: `npm start`,
