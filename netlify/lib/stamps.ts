@@ -458,16 +458,16 @@ export async function verifyStampInvariants (
 
     // Persist each drift to stamp_invariant_alerts. The partial unique
     // index on (user_id, invariant) WHERE resolved_at IS NULL silently
-    // de-dupes against existing open alerts (AC10.3).
+    // de-dupes against existing open alerts (AC10.3). Note: ON CONFLICT
+    // works with partial indexes automatically — the WHERE in the index
+    // definition is sufficient; we don't repeat it here.
     let alertsRecorded = 0
     for (const drift of drifts) {
         const inserted = await db.pool.query<{id:string}>(`
             INSERT INTO stamp_invariant_alerts
                 (user_id, invariant, expected, actual)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (user_id, invariant)
-            WHERE resolved_at IS NULL
-            DO NOTHING
+            ON CONFLICT (user_id, invariant) DO NOTHING
             RETURNING id
         `, [drift.userId, drift.invariant,
             drift.expected, drift.actual])
