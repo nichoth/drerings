@@ -52,9 +52,9 @@
 
                     &:focus {
                         outline: none;
-                        border-color: var(--primary);
+                        border-color: var(--focus-color);
                         box-shadow: 0 0 0 2px
-                            rgba(var(--primary-rgb), 0.1);
+                            rgba(0, 200, 255, 0.1);
                     }
                 }
             }
@@ -69,14 +69,14 @@
 
         & .send-success {
             padding: 1rem;
-            background-color: var(--success-bg);
+            background-color: var(--accent-bg);
             border-radius: 4px;
             display: grid;
             gap: 1rem;
 
             & p {
                 margin: 0;
-                color: var(--text);
+                color: var(--main-text);
             }
         }
 
@@ -85,7 +85,6 @@
             gap: 0.4rem;
             align-items: center;
             color: var(--muted-text);
-            font-size: 0.95rem;
         }
 
         & .icon-stamp {
