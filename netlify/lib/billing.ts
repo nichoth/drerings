@@ -244,24 +244,177 @@ export async function cancelAutumnSubscription (
     }
 }
 
+export class InFlightRefundAttemptError extends Error {
+    constructor () {
+        super('Autumn refund attempt in flight.')
+    }
+}
+
+export class OrphanedRefundAttemptError extends Error {
+    constructor () {
+        super('Previous Autumn refund attempt orphaned; operator must '
+            + 'resolve.')
+    }
+}
+
+export class AmbiguousRefundAttemptError extends Error {
+    constructor (cause:string) {
+        super('Previous Autumn refund attempt outcome ambiguous: ' + cause)
+    }
+}
+
 export async function issueAutumnStampRefund (
     options:AutumnStampRefundOptions
 ):Promise<void> {
+    // AC15.7: mock mode is a no-op; no attempt row written
     if (shouldUseMockCheckout()) return
 
-    const response = await fetch(`${getAutumnApiUrl()}/refunds`, {
-        method: 'POST',
-        headers: {
-            authorization: `Bearer ${getAutumnSecretKey()}`,
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-            checkout_id: options.checkoutId,
-            amount_cents: options.amountCents
-        })
-    })
+    const requestId = `${options.checkoutId}:${options.amountCents}`
+    const db = getDatabase()
 
-    if (!response.ok) throw new Error('Autumn refund failed.')
+    // AC15.6: this query goes through db.pool directly — NOT inside
+    // any caller transaction. The attempt row survives caller ROLLBACK.
+    // AC15.5: lookup-or-insert the attempt row. Behavior depends on
+    // the prior status (decision table in the AC).
+    const upsert = await db.pool.query<{
+        id:string;
+        status:string;
+        http_status:number|null;
+        response_body:string|null;
+        attempted_at:string;
+    }>(`
+        INSERT INTO autumn_refund_attempts
+            (checkout_id, amount_cents, request_id, status)
+        VALUES ($1, $2, $3, 'attempted')
+        ON CONFLICT (request_id) DO UPDATE
+            SET status = autumn_refund_attempts.status
+        RETURNING id, status, http_status, response_body, attempted_at
+    `, [options.checkoutId, options.amountCents, requestId])
+    const attempt = upsert.rows[0]
+
+    // Branch on prior outcome per AC15.5.
+    if (attempt.status === 'succeeded') return
+
+    if (attempt.status === 'attempted') {
+        const ageMs = Date.now() - Date.parse(attempt.attempted_at)
+        // If age > 1s and < 60s: previous attempt in-flight (retry too soon)
+        // If age >= 60s: orphaned (previous attempt never finished)
+        // If age < 1s: fresh insert (this is the first call, proceed)
+        if (ageMs > 1_000 && ageMs < 60_000) {
+            throw new InFlightRefundAttemptError()
+        }
+        if (ageMs >= 60_000) throw new OrphanedRefundAttemptError()
+        // else: age < 1s, fresh insert from this call, proceed
+    }
+
+    if (attempt.status === 'failed') {
+        const http = attempt.http_status
+        // Safe to retry: Autumn rejected without processing.
+        const isSafeToRetry = (
+            http !== null && http >= 400 && http < 500
+        )
+        if (!isSafeToRetry) {
+            const cause = http === null ?
+                'network error - autumn may have processed' :
+                `http ${http} - autumn may have processed`
+            throw new AmbiguousRefundAttemptError(cause)
+        }
+        // Reset the row to 'attempted' so we don't carry forward stale
+        // http_status / response_body from the previous failure.
+        await db.pool.query(`
+            UPDATE autumn_refund_attempts
+            SET status = 'attempted',
+                attempted_at = now(),
+                http_status = NULL,
+                response_body = NULL,
+                error_message = NULL,
+                responded_at = NULL
+            WHERE id = $1
+        `, [attempt.id])
+        // Fall through to the HTTP call below.
+    }
+
+    let httpStatus:number|null = null
+    let responseBodyTruncated:string|null = null
+    let errorMessage:string|null = null
+
+    try {
+        const response = await fetch(`${getAutumnApiUrl()}/refunds`, {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${getAutumnSecretKey()}`,
+                'content-type': 'application/json',
+                'idempotency-key': requestId
+            },
+            body: JSON.stringify({
+                checkout_id: options.checkoutId,
+                amount_cents: options.amountCents
+            })
+        })
+
+        httpStatus = response.status
+        const bodyText = await response.text()
+        responseBodyTruncated = bodyText.slice(0, 2000)
+
+        if (!response.ok) {
+            await markAttemptFailed(
+                attempt.id,
+                httpStatus,
+                responseBodyTruncated,
+                null
+            )
+            throw new Error('Autumn refund failed.')
+        }
+
+        await markAttemptSucceeded(
+            attempt.id,
+            httpStatus,
+            responseBodyTruncated
+        )
+    } catch (err) {
+        // Network error or thrown after marking failed above.
+        if (httpStatus === null) {
+            errorMessage = err instanceof Error ?
+                err.message :
+                String(err)
+            await markAttemptFailed(attempt.id, null, null, errorMessage)
+        }
+        throw err
+    }
+}
+
+async function markAttemptSucceeded (
+    attemptId:string,
+    httpStatus:number,
+    body:string|null
+):Promise<void> {
+    const db = getDatabase()
+    await db.pool.query(`
+        UPDATE autumn_refund_attempts
+        SET status = 'succeeded',
+            http_status = $2,
+            response_body = $3,
+            responded_at = now()
+        WHERE id = $1
+    `, [attemptId, httpStatus, body])
+}
+
+async function markAttemptFailed (
+    attemptId:string,
+    httpStatus:number|null,
+    body:string|null,
+    errorMessage:string|null
+):Promise<void> {
+    const db = getDatabase()
+    await db.pool.query(`
+        UPDATE autumn_refund_attempts
+        SET status = 'failed',
+            http_status = $2,
+            response_body = $3,
+            error_message = $4,
+            responded_at = now()
+        WHERE id = $1
+    `, [attemptId, httpStatus, body, errorMessage])
 }
 
 export function verifyAutumnWebhookPayload (
