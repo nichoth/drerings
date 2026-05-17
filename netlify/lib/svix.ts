@@ -1,3 +1,4 @@
+// pattern: Functional Core
 import crypto from 'node:crypto'
 
 export interface SvixHeaders {

@@ -28,7 +28,7 @@ export const handler:Handler = async function handler (event) {
 
     try {
         const result = await handleResendEvent(payload)
-        return json(200, result as unknown as Record<string, unknown>)
+        return json(200, { ...result })
     } catch (err) {
         console.error('resend webhook processing failed', err)
         return json(500, { error: 'webhook_processing_failed' })

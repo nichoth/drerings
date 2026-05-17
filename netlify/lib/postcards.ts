@@ -110,7 +110,7 @@ export async function markFailedRefunded (
         UPDATE postcards
         SET status = 'failed_refunded',
             updated_at = now()
-        WHERE id = $1
+        WHERE id = $1 AND status = 'sent'
     `, [postcardId])
 }
 
