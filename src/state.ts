@@ -23,10 +23,7 @@ export interface UserState {
     email:string;
 }
 
-export type SubscriptionStatus = 'free'|'active'|'canceled'|'past_due'
-
 export interface CurrentUser extends UserState {
-    subscription_status:SubscriptionStatus;
     stamps_balance?:number;
 }
 
@@ -36,7 +33,6 @@ export interface AccountPasskey {
 }
 
 export interface AccountDetails extends CurrentUser {
-    subscription_current_period_end:string|null;
     passkeys:AccountPasskey[];
 }
 
@@ -154,7 +150,6 @@ export function State (): {
     auth:Signal<AuthStatus>;
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
-    isPaid:ReadonlySignal<boolean>;
     canShare:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
     account:Signal<AccountDetails|null>;
@@ -215,11 +210,8 @@ export function State (): {
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
         }),
-        isPaid: computed<boolean>(() => {
-            return state.currentUser.value?.subscription_status === 'active'
-        }),
         canShare: computed<boolean>(() => {
-            return state.currentUser.value?.subscription_status === 'active'
+            return !!state.auth.value?.authenticated
         })
     }
 
@@ -739,49 +731,6 @@ State.SendPostcard = async function (
     }
 }
 
-State.StartCheckout = async function (
-    state:AppState,
-    email:string
-):Promise<void> {
-    state.checkoutLoading.value = true
-    state.checkoutError.value = null
-
-    try {
-        const response = await fetch('/api/billing/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        })
-
-        if (!response.ok) {
-            const errorBody = await maybeJson(response)
-            const message = typeof errorBody?.error === 'string' ?
-                errorBody.error :
-                'Unable to start checkout right now.'
-
-            throw new Error(message)
-        }
-
-        const body = await response.json() as { url?:unknown }
-
-        if (typeof body.url !== 'string' || body.url.trim() === '') {
-            throw new Error('Unable to start checkout right now.')
-        }
-
-        location.assign(body.url)
-    } catch (err) {
-        const message = err instanceof Error ?
-            err.message :
-            'Unable to start checkout right now.'
-
-        state.checkoutError.value = message
-
-        throw err
-    } finally {
-        state.checkoutLoading.value = false
-    }
-}
-
 State.OpenBuyPackModal = function (state:AppState):void {
     state.checkoutError.value = null
     state.buyPackModalOpen.value = true
@@ -918,8 +867,7 @@ State.FetchAccount = async function (
         state.account.value = account
         state.currentUser.value = {
             id: account.id,
-            email: account.email,
-            subscription_status: account.subscription_status
+            email: account.email
         }
 
         return account
@@ -955,40 +903,6 @@ State.RequestEmailUpdate = async function (
             'Unable to send the update link right now.'
 
         throw new Error(message)
-    }
-}
-
-State.CancelSubscription = async function (
-    state:AppState
-):Promise<void> {
-    const response = await fetch('/api/billing/cancel', { method: 'POST' })
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to cancel subscription right now.'
-
-        throw new Error(message)
-    }
-
-    const body = await response.json() as Partial<AccountDetails>
-    const account = state.account.value
-
-    if (account) {
-        state.account.value = {
-            ...account,
-            subscription_status: 'canceled',
-            subscription_current_period_end:
-                body.subscription_current_period_end || null
-        }
-    }
-
-    if (state.currentUser.value) {
-        state.currentUser.value = {
-            ...state.currentUser.value,
-            subscription_status: 'canceled'
-        }
     }
 }
 
@@ -1111,18 +1025,9 @@ function isCurrentUser (value:unknown):value is CurrentUser {
     if (!value || typeof value !== 'object') return false
 
     const maybeUser = value as Partial<CurrentUser>
-    const statuses:SubscriptionStatus[] = [
-        'free',
-        'active',
-        'canceled',
-        'past_due'
-    ]
 
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
-        statuses.includes(
-            maybeUser.subscription_status as SubscriptionStatus
-        ) &&
         (
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'
