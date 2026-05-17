@@ -102,6 +102,21 @@ Copy that endpoint's Svix signing secret into `AUTUMN_WEBHOOK_SECRET`. The
 Netlify Function validates `svix-id`, `svix-timestamp`, and `svix-signature`
 before updating `users.subscription_status`.
 
+### Resend Webhook (postcard bounces)
+
+The `/api/webhooks/resend` endpoint expects an Svix-signed payload from
+Resend. To enable it:
+
+1. In the Resend dashboard, add a webhook endpoint with URL
+   `https://<your-host>/api/webhooks/resend`.
+2. Subscribe to the `email.bounced` event only. (Other events are
+   silently no-op'd, but subscribing to fewer events reduces noise.)
+3. Copy the signing secret (`whsec_…`) and set it as
+   `RESEND_WEBHOOK_SECRET` in Netlify env.
+4. The "Send a test" button in the Resend dashboard exercises the
+   `400 invalid_signature` path with a synthetic payload — it's expected
+   to NOT succeed in production until subscribed.
+
 Configure these one-time stamp pack products in Autumn for prepaid
 postcard sends. The product ids and metadata values must match
 `PACK_DEFINITIONS` in `netlify/lib/billing.ts`.
@@ -155,4 +170,12 @@ Run lint and the full browser test bundle before committing:
 ```sh
 npm run lint
 npm test
+```
+
+------------------------------------------------------
+
+
+
+```
+/ed3d-plan-and-execute:execute-implementation-plan docs/implementation-plans/2026-05-16-stamps/ .
 ```
