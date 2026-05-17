@@ -178,19 +178,6 @@ export const HomeRoute:FunctionComponent<{
             Draw things, then show people the drawings.
         </p>
 
-        ${state.isPaid.value ? null : html`
-            <aside
-                class="free-account-warning"
-                role="status"
-                aria-label="Save warning"
-            >
-                Drawings aren't saved without a subscription.${' '}
-                <a href="/pricing">
-                    Subscribe to keep them and share them with the world
-                </a>.
-            </aside>
-        `}
-
         <div class="composer-layout">
             <div class="canvas-column">
                 <canvas ref=${sketchpad} id="sketchpad"></canvas>
