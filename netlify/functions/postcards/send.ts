@@ -27,15 +27,12 @@ export const handler:Handler = async function handler (event) {
     }
 
     const body = parseJsonBody(event)
-    const input = parseSendInput(body)
+    const inputResult = parseSendInputWithReason(body)
 
-    if (!input) {
+    if (!inputResult.ok) {
         console.warn(
-            'parseSendInput failed',
-            {
-                drawing_id: body?.drawing_id,
-                recipient_email: body?.recipient_email
-            }
+            'parseSendInput validation failed:',
+            inputResult.reason
         )
         return json(400, {
             error: 'Include drawing_id and recipient_email.'
@@ -43,6 +40,7 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
+        const input = inputResult.input
         const ownsDrawing = await postStore.userOwnsDrawing(
             session.user.id,
             input.drawing_id
@@ -139,6 +137,7 @@ export const handler:Handler = async function handler (event) {
                 to: input.recipient_email,
                 senderHandle: session.user.email,
                 text: drawingRow.text,
+                altText: drawingRow.alt_text,
                 pngBase64: Buffer.from(png).toString('base64'),
                 postcardId: postcard.id
             })
@@ -227,36 +226,54 @@ type SendInput = {
     idempotency_key:string|null;
 }
 
-function parseSendInput (
+type ParseResult =
+    | { ok:true; input:SendInput }
+    | { ok:false; reason:string }
+
+function parseSendInputWithReason (
     body:Record<string, unknown>|null
-):SendInput|null {
-    if (!body) return null
+):ParseResult {
+    if (!body) {
+        return { ok: false, reason: 'body parse failed' }
+    }
 
     const drawingId = body.drawing_id
     const recipientEmail = body.recipient_email
 
     if (typeof drawingId !== 'string' || !drawingId.trim()) {
-        return null
+        return {
+            ok: false,
+            reason: 'drawing_id missing or invalid'
+        }
     }
 
     if (typeof recipientEmail !== 'string' ||
         !isValidEmail(recipientEmail.trim())) {
-        return null
+        return {
+            ok: false,
+            reason: 'recipient_email missing or invalid'
+        }
     }
 
     const idempotencyKey = body.idempotency_key
 
     if (idempotencyKey !== undefined &&
         typeof idempotencyKey !== 'string') {
-        return null
+        return {
+            ok: false,
+            reason: 'idempotency_key invalid type'
+        }
     }
 
     return {
-        drawing_id: drawingId.trim(),
-        recipient_email: recipientEmail.trim(),
-        idempotency_key: typeof idempotencyKey === 'string' ?
-            idempotencyKey :
-            null
+        ok: true,
+        input: {
+            drawing_id: drawingId.trim(),
+            recipient_email: recipientEmail.trim(),
+            idempotency_key: typeof idempotencyKey === 'string' ?
+                idempotencyKey :
+                null
+        }
     }
 }
 
