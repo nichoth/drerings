@@ -163,6 +163,59 @@ WHERE id = $2;
 If the same drift recurs on the next run, a new row is inserted — the
 unique index excludes already-resolved alerts.
 
+### Reconciling failed Autumn refunds
+
+The refund code path throws one of four errors that need different operator
+responses:
+
+- **"Autumn refund failed."** — Autumn rejected the request, no money moved.
+  Auto-retried on the next refund attempt for the same lot.
+- **`InFlightRefundAttemptError`** — Another refund is in flight (started in
+  the last 60 seconds). Wait and retry; no operator action needed.
+- **`OrphanedRefundAttemptError`** — A previous attempt started >60s ago and
+  never recorded an outcome (function timed out / crashed). Check Autumn's
+  dashboard for the request — if it processed, mark the row succeeded
+  manually (steps below); if not, mark it failed.
+- **`AmbiguousRefundAttemptError`** — A previous attempt got a 5xx or
+  network error. Autumn may or may not have processed it. Check Autumn's
+  dashboard and reconcile.
+
+For the last two: find the orphaned/ambiguous attempts:
+
+```sql
+SELECT id, checkout_id, amount_cents, http_status,
+       response_body, error_message, attempted_at, responded_at
+FROM autumn_refund_attempts
+WHERE status = 'failed'
+  AND attempted_at > now() - interval '30 days'
+ORDER BY attempted_at DESC;
+```
+
+Cross-reference each failed attempt against the stamp_transactions
+ledger:
+
+```sql
+SELECT * FROM stamp_transactions
+WHERE reason = 'refund'
+  AND reference_id = '<checkout_id from the attempt row>'
+ORDER BY created_at DESC;
+```
+
+If a stamp_transactions row exists for that checkout_id, the local
+state matches Autumn (good — the catch-and-rollback path worked). If
+NO row exists but Autumn shows the refund in their dashboard, you
+have an orphaned external refund; the local lot still shows stamps
+as refundable and a customer could refund again. Manual steps:
+
+1. INSERT the missing 'refund' stamp_transactions row.
+2. UPDATE stamp_lots SET remaining_count = 0 for the affected lot.
+3. UPDATE users SET stamps_balance to match.
+4. UPDATE autumn_refund_attempts SET status = 'succeeded' for the
+   attempt row.
+
+The scheduled invariant check (Phase 3) will catch the drift on the
+next run and write to stamp_invariant_alerts — that's your tripwire.
+
 ### Local Provider Behavior
 
 Run the Netlify Functions and Vite dev server together:
