@@ -164,7 +164,8 @@ export function Nav (props:{
         <ul>
             ${routes
                 .filter(r =>
-                    r.href !== '/settings' || (!authLoading && isAuthed)
+                    (r.href !== '/settings' && r.href !== '/account') ||
+                    (!authLoading && isAuthed)
                 )
                 .map(r => {
                     const className = `nav${route === r.href ? ' active' : ''}`

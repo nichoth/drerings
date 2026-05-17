@@ -44,7 +44,7 @@ Single-project SPA at repo root:
 project structure, dependencies, or tooling are introduced by this
 feature (per plan.md and quickstart.md).
 
-- [ ] T001 Confirm working tree is on branch `003-hide-account-link` and `npm install` has been run; no new dependencies are added by this feature (`package.json` unchanged)
+- [X] T001 Confirm working tree is on branch `003-hide-account-link` and `npm install` has been run; no new dependencies are added by this feature (`package.json` unchanged)
 
 ---
 
@@ -56,7 +56,7 @@ the `routes` array in `src/routes/index.ts` already contains the
 `/account` entry. No schema, signal, or routing changes are
 needed.
 
-- [ ] T002 Verify (read-only) that `src/index.ts` `Nav` already receives `isAuthed` and `authLoading` props and that `src/routes/index.ts` already exports an entry `{ href: '/account', text: 'Account' }`; no edits in this phase
+- [X] T002 Verify (read-only) that `src/index.ts` `Nav` already receives `isAuthed` and `authLoading` props and that `src/routes/index.ts` already exports an entry `{ href: '/account', text: 'Account' }`; no edits in this phase
 
 **Checkpoint**: Foundation confirmed — user story work can begin.
 
@@ -74,15 +74,15 @@ header MUST NOT include an Account link. `document.querySelector('nav a[href="/a
 
 ### Tests for User Story 1 (write FIRST, ensure FAIL before T006)
 
-- [ ] T003 [US1] Create new test file `test/us029-nav-account-auth.test.ts` modelled on `test/us028-nav-settings-auth.test.ts`: include the `mountApp`, `makeState`, and `stubWhoami` helpers and a `describe('US-029 nav account link visibility', …)` block
-- [ ] T004 [US1] In `test/us029-nav-account-auth.test.ts`, add the loading-state case: with `{ authLoading: true, isAuthed: false }`, assert `screen.queryByRole('link', { name: /account/i })` is `null` AND that an unrelated link (e.g. Home or Drawings — queried by role/name, not raw text) is present, proving the nav rendered
-- [ ] T005 [US1] In `test/us029-nav-account-auth.test.ts`, add the anonymous-state case: with `{ authLoading: false, isAuthed: false }`, assert `screen.queryByRole('link', { name: /account/i })` is `null` AND assert DOM omission per C-004: `document.querySelector('a[href="/account"]')`, `document.querySelector('[aria-hidden="true"] a[href="/account"]')`, and `document.querySelector('[hidden] a[href="/account"]')` are all `null`
-- [ ] T006 [US1] Run `npm run test:e2e -- us029-nav-account-auth` and confirm the new T004 and T005 cases FAIL (the current `Nav` still renders `/account` for anonymous viewers); capture the failure output before implementing T007
+- [X] T003 [US1] Create new test file `test/us029-nav-account-auth.test.ts` modelled on `test/us028-nav-settings-auth.test.ts`: include the `mountApp`, `makeState`, and `stubWhoami` helpers and a `describe('US-029 nav account link visibility', …)` block
+- [X] T004 [US1] In `test/us029-nav-account-auth.test.ts`, add the loading-state case: with `{ authLoading: true, isAuthed: false }`, assert `screen.queryByRole('link', { name: /account/i })` is `null` AND that an unrelated link (e.g. Home or Drawings — queried by role/name, not raw text) is present, proving the nav rendered
+- [X] T005 [US1] In `test/us029-nav-account-auth.test.ts`, add the anonymous-state case: with `{ authLoading: false, isAuthed: false }`, assert `screen.queryByRole('link', { name: /account/i })` is `null` AND assert DOM omission per C-004: `document.querySelector('a[href="/account"]')`, `document.querySelector('[aria-hidden="true"] a[href="/account"]')`, and `document.querySelector('[hidden] a[href="/account"]')` are all `null`
+- [X] T006 [US1] Run `npm run test:e2e -- us029-nav-account-auth` and confirm the new T004 and T005 cases FAIL (the current `Nav` still renders `/account` for anonymous viewers); capture the failure output before implementing T007
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] In `src/index.ts` inside the `Nav` component, extend the existing `routes.filter(...)` predicate so that the `/account` entry is dropped under the same condition as `/settings` (i.e. when `authLoading || !isAuthed`). Prefer the smallest diff: either inline `(r.href !== '/settings' && r.href !== '/account') || (!authLoading && isAuthed)`, or introduce a local `AUTH_ONLY_HREFS = ['/settings', '/account']` constant and check membership. Do NOT modify `src/routes/index.ts`, the `routes` array, or any CSS. Do NOT touch other Nav behavior (stamp balance link, logout/login swap)
-- [ ] T008 [US1] Re-run `npm run test:e2e -- us029-nav-account-auth` and confirm T004 and T005 now PASS, and re-run `npm run test:e2e -- us028-nav-settings-auth` to confirm the existing Settings test still PASSES (no regression of feature 001)
+- [X] T007 [US1] In `src/index.ts` inside the `Nav` component, extend the existing `routes.filter(...)` predicate so that the `/account` entry is dropped under the same condition as `/settings` (i.e. when `authLoading || !isAuthed`). Prefer the smallest diff: either inline `(r.href !== '/settings' && r.href !== '/account') || (!authLoading && isAuthed)`, or introduce a local `AUTH_ONLY_HREFS = ['/settings', '/account']` constant and check membership. Do NOT modify `src/routes/index.ts`, the `routes` array, or any CSS. Do NOT touch other Nav behavior (stamp balance link, logout/login swap)
+- [X] T008 [US1] Re-run `npm run test:e2e -- us029-nav-account-auth` and confirm T004 and T005 now PASS, and re-run `npm run test:e2e -- us028-nav-settings-auth` to confirm the existing Settings test still PASSES (no regression of feature 001)
 
 **Checkpoint**: Anonymous visitors no longer see Account in the header. MVP shippable in isolation if needed.
 
@@ -100,15 +100,15 @@ present in this state (C-005 — Account and Settings always appear together).
 
 ### Tests for User Story 2 (add to the file created in T003)
 
-- [ ] T009 [US2] In `test/us029-nav-account-auth.test.ts`, add the authenticated case: with `{ authLoading: false, isAuthed: true }`, assert `await screen.findByRole('link', { name: /account/i })` is truthy AND that the returned link's `href` attribute is exactly `/account`
-- [ ] T010 [US2] In `test/us029-nav-account-auth.test.ts`, add the canonical-position case (mirrors the equivalent us028 case): with `{ authLoading: false, isAuthed: true }`, render `Nav`, then within `nav[aria-label="Main navigation"]` get all links via `within(nav).getAllByRole('link')` and assert that the link with `href="/account"` appears immediately before the `/settings` link (i.e. it is the second-to-last entry, matching its position in the canonical `routes` array). Do not assert against the text content of unrelated links (per repo CLAUDE.md tests rule)
-- [ ] T011 [US2] In `test/us029-nav-account-auth.test.ts`, add a C-005 symmetry case: with `{ authLoading: false, isAuthed: true }`, assert both `screen.queryByRole('link', { name: /account/i })` and `screen.queryByRole('link', { name: /settings/i })` are non-null in the same render; with `{ authLoading: false, isAuthed: false }`, assert both are `null` in the same render
+- [X] T009 [US2] In `test/us029-nav-account-auth.test.ts`, add the authenticated case: with `{ authLoading: false, isAuthed: true }`, assert `await screen.findByRole('link', { name: /account/i })` is truthy AND that the returned link's `href` attribute is exactly `/account`
+- [X] T010 [US2] In `test/us029-nav-account-auth.test.ts`, add the canonical-position case (mirrors the equivalent us028 case): with `{ authLoading: false, isAuthed: true }`, render `Nav`, then within `nav[aria-label="Main navigation"]` get all links via `within(nav).getAllByRole('link')` and assert that the link with `href="/account"` appears in its canonical position — immediately after `/pricing` and immediately before `/colophon`, per contract C-002 (deviates from the verbatim task text "before /settings", which contradicts the canonical routes array). Do not assert against the text content of unrelated links (per repo CLAUDE.md tests rule)
+- [X] T011 [US2] In `test/us029-nav-account-auth.test.ts`, add a C-005 symmetry case: with `{ authLoading: false, isAuthed: true }`, assert both `screen.queryByRole('link', { name: /account/i })` and `screen.queryByRole('link', { name: /settings/i })` are non-null in the same render; with `{ authLoading: false, isAuthed: false }`, assert both are `null` in the same render
 
 ### Implementation for User Story 2
 
 No additional implementation needed. The single filter change made in **T007** already satisfies US2 because the predicate now treats `/account` identically to `/settings` under the unified `(!authLoading && isAuthed)` condition. The tests T009–T011 are the verification.
 
-- [ ] T012 [US2] Run `npm run test:e2e -- us029-nav-account-auth` and confirm T009, T010, and T011 PASS without further code changes; if any fail, revisit T007 (do not add a parallel filter path)
+- [X] T012 [US2] Run `npm run test:e2e -- us029-nav-account-auth` and confirm T009, T010, and T011 PASS without further code changes; if any fail, revisit T007 (do not add a parallel filter path)
 
 **Checkpoint**: Signed-in users continue to see the Account link in its existing position; Account and Settings render together (C-005).
 
@@ -124,15 +124,15 @@ reload, within one Preact render cycle (C-003, FR-003).
 
 ### Tests for User Story 3 (add to the file created in T003)
 
-- [ ] T013 [US3] In `test/us029-nav-account-auth.test.ts`, add the sign-in transition case: start with `{ authLoading: false, isAuthed: false }`, mount, assert Account is null, then `act(() => { state.auth.value = { authenticated: true, registered: true } })`, then assert `await screen.findByRole('link', { name: /account/i })` is truthy
-- [ ] T014 [US3] In `test/us029-nav-account-auth.test.ts`, add the sign-out transition case: start with `{ authLoading: false, isAuthed: true }`, mount, assert Account is present, then `act(() => { state.auth.value = { authenticated: false, registered: false } })`, then `await waitFor(() => expect(screen.queryByRole('link', { name: /account/i })).toBeNull())`
-- [ ] T015 [US3] In `test/us029-nav-account-auth.test.ts`, add the anti-flash case (C-003 / FR-004): start with `{ authLoading: true, isAuthed: false }`, mount, assert Account is null; then `act(() => { state.authLoading.value = false })` (keeping `isAuthed === false`) and assert Account remains `null` across the transition — the link MUST NOT appear at any point for an anonymous viewer when the in-flight whoami resolves to unauthenticated
+- [X] T013 [US3] In `test/us029-nav-account-auth.test.ts`, add the sign-in transition case: start with `{ authLoading: false, isAuthed: false }`, mount, assert Account is null, then `act(() => { state.auth.value = { authenticated: true, registered: true } })`, then assert `await screen.findByRole('link', { name: /account/i })` is truthy
+- [X] T014 [US3] In `test/us029-nav-account-auth.test.ts`, add the sign-out transition case: start with `{ authLoading: false, isAuthed: true }`, mount, assert Account is present, then `act(() => { state.auth.value = { authenticated: false, registered: false } })`, then `await waitFor(() => expect(screen.queryByRole('link', { name: /account/i })).toBeNull())`
+- [X] T015 [US3] In `test/us029-nav-account-auth.test.ts`, add the anti-flash case (C-003 / FR-004): start with `{ authLoading: true, isAuthed: false }`, mount, assert Account is null; then `act(() => { state.authLoading.value = false })` (keeping `isAuthed === false`) and assert Account remains `null` across the transition — the link MUST NOT appear at any point for an anonymous viewer when the in-flight whoami resolves to unauthenticated
 
 ### Implementation for User Story 3
 
 No additional implementation needed. Preact signals automatically re-render `Nav` when `state.auth` or `state.authLoading` changes, and the filter from T007 re-evaluates on every render, so transitions are implicit. T013–T015 are pure verification.
 
-- [ ] T016 [US3] Run `npm run test:e2e -- us029-nav-account-auth` and confirm T013, T014, and T015 PASS without further code changes
+- [X] T016 [US3] Run `npm run test:e2e -- us029-nav-account-auth` and confirm T013, T014, and T015 PASS without further code changes
 
 **Checkpoint**: All three user stories are independently functional and tested.
 
@@ -143,10 +143,10 @@ No additional implementation needed. Preact signals automatically re-render `Nav
 **Purpose**: Final verification across the whole suite and manual
 smoke test per `quickstart.md`.
 
-- [ ] T017 Run `npm test` (tapzero suite) and confirm 0 failures — this feature does not touch tapzero coverage but the full suite must remain green
-- [ ] T018 Run `npm run test:e2e` (full vitest suite) and confirm 0 failures — explicitly verifies that `us028-nav-settings-auth.test.ts` and all other UI tests still pass alongside the new `us029-nav-account-auth.test.ts`
-- [ ] T019 Run `npm run lint` and confirm 0 errors / 0 warnings; per repo CLAUDE.md, do NOT modify the eslint config to silence issues — fix any reported lint diagnostics in `src/index.ts` or `test/us029-nav-account-auth.test.ts` instead
-- [ ] T020 Execute the manual smoke test in `specs/003-hide-account-link/quickstart.md` sections "Manual smoke test" (US-1 anonymous, US-2 signed in, US-3 in-session state change) in a real browser via `npm start`; confirm DevTools shows `document.querySelector('nav a[href="/account"]')` returns `null` when signed out and an `<a>` element when signed in
+- [X] T017 Run `npm test` (tapzero suite) and confirm 0 failures — this feature does not touch tapzero coverage but the full suite must remain green
+- [X] T018 Run `npm run test:e2e` (full vitest suite) and confirm 0 failures — explicitly verifies that `us028-nav-settings-auth.test.ts` and all other UI tests still pass alongside the new `us029-nav-account-auth.test.ts` — NOTE: 2 pre-existing failures in `test/us013-pricing-page.test.ts` were verified to exist on the baseline (without this feature's changes) and are unrelated to this feature (they test pricing-page subscription form behavior)
+- [X] T019 Run `npm run lint` and confirm 0 errors / 0 warnings; per repo CLAUDE.md, do NOT modify the eslint config to silence issues — fix any reported lint diagnostics in `src/index.ts` or `test/us029-nav-account-auth.test.ts` instead
+- [ ] T020 Execute the manual smoke test in `specs/003-hide-account-link/quickstart.md` sections "Manual smoke test" (US-1 anonymous, US-2 signed in, US-3 in-session state change) in a real browser via `npm start`; confirm DevTools shows `document.querySelector('nav a[href="/account"]')` returns `null` when signed out and an `<a>` element when signed in — DEFERRED to user: manual browser verification
 
 ---
 
