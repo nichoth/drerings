@@ -51,8 +51,11 @@ export async function findOrCreateQueuedPostcard (
     }
 
     // With idempotency key - use ON CONFLICT for atomicity
+    // The harmless SET in DO UPDATE forces RETURNING to fire on the
+    // existing row when there's a conflict (ON CONFLICT DO NOTHING with
+    // RETURNING returns no row on conflict).
     const result = await db.pool.query<
-        PostcardRow & {xmax:string}
+        PostcardRow & {reused:boolean}
     >(`
         INSERT INTO postcards (
             sender_id,
@@ -76,7 +79,7 @@ export async function findOrCreateQueuedPostcard (
     ])
 
     const row = result.rows[0]
-    const reused = row.xmax !== '0'
+    const reused = row.reused === true
 
     return { postcard: row, reused }
 }
