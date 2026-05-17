@@ -9,8 +9,14 @@ type Query = (
     params?:unknown[]
 ) => Promise<QueryResult>
 
-function createDbMock () {
+function createDbMock (
+    options:{
+        insufficientStamps?:boolean
+        balanceAfter?:number
+    } = {}
+) {
     const release = vi.fn()
+    const stampTransactionInserts:Array<Array<unknown>> = []
     const query = vi.fn<Query>(async (sql:string, params?:unknown[]) => {
         if (sql.includes('SELECT *') &&
             sql.includes('FROM postcards')) {
@@ -49,9 +55,15 @@ function createDbMock () {
             return { rows: [{ 1: 1 }] }
         }
 
-        if (sql.includes('UPDATE users') &&
-            sql.includes('stamps_balance = stamps_balance - 1')) {
-            return { rows: [{ stamps_balance: 4 }] }
+        if (
+            sql.includes('UPDATE users') &&
+            sql.includes('stamps_balance = stamps_balance - 1')
+        ) {
+            if (options.insufficientStamps) {
+                return { rows: [] }
+            }
+            const bal = options.balanceAfter ?? 4
+            return { rows: [{ stamps_balance: bal }] }
         }
 
         if (sql.includes('SELECT stamps_balance')) {
@@ -59,10 +71,20 @@ function createDbMock () {
         }
 
         if (sql.includes('UPDATE stamp_lots')) {
-            return { rows: [] }
+            return {
+                rows: [
+                    {
+                        id: 'lot-1',
+                        remaining_count: 9
+                    }
+                ]
+            }
         }
 
         if (sql.includes('INSERT INTO stamp_transactions')) {
+            if (params) {
+                stampTransactionInserts.push(params)
+            }
             return { rows: [] }
         }
 
@@ -89,20 +111,28 @@ function createDbMock () {
     vi.doMock('@netlify/database', () => {
         return {
             getDatabase: () => ({
-                pool: { connect }
+                pool: { connect, query }
             })
         }
     })
+
+    const blobStore = {
+        get: vi.fn(async () => Buffer.from('fake-png-data'))
+    }
 
     vi.doMock('@netlify/blobs', () => {
         return {
-            getStore: () => ({
-                get: vi.fn(async () => Buffer.from('fake-png-data'))
-            })
+            getStore: () => blobStore
         }
     })
 
-    return { connect, query, release }
+    return {
+        connect,
+        query,
+        release,
+        stampTransactionInserts,
+        blobStore
+    }
 }
 
 describe('US-030 POST /api/postcards/send', () => {
@@ -135,6 +165,10 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => null
+        }))
+
         const event = {
             httpMethod: 'POST',
             headers: {},
@@ -157,10 +191,24 @@ describe('US-030 POST /api/postcards/send', () => {
         }
     })
 
-    it('parses valid email addresses', async () => {
+    it('AC1.1: success path debits one stamp and sends email', async () => {
         vi.resetModules()
 
-        createDbMock()
+        const _db = createDbMock()
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => Buffer.from('fake-png')
+        }))
+
+        vi.doMock('../netlify/lib/resend.js', () => ({
+            sendPostcardEmail: async () => 're_test'
+        }))
 
         const event = {
             httpMethod: 'POST',
@@ -179,8 +227,484 @@ describe('US-030 POST /api/postcards/send', () => {
 
         const response = await handler(event, {} as any)
 
-        if (response) {
-            expect(response.statusCode).toBe(401)
-        }
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body || '')
+        expect(body.id).toBe('postcard-1')
+        expect(body.balance_after).toBe(4)
+    })
+
+    it('AC1.2: idempotent retry returns same id, debits once', async () => {
+        vi.resetModules()
+
+        createDbMock()
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/stamps.js', async () => {
+            const mod = await vi.importActual(
+                '../netlify/lib/stamps.js'
+            )
+            return {
+                ...mod,
+                debitStamp: async () => ({
+                    lotId: 'lot-1',
+                    balanceAfter: 4
+                }),
+                InsufficientStampsError:
+                    (mod as any).InsufficientStampsError
+            }
+        })
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => Buffer.from('fake-png')
+        }))
+
+        vi.doMock('../netlify/lib/resend.js', () => ({
+            sendPostcardEmail: async () => 're_test'
+        }))
+
+        vi.doMock('@netlify/database', () => {
+            const mockQuery = vi.fn<Query>(
+                async (sql:string, _params?:unknown[]) => {
+                    if (sql.includes('SELECT *') &&
+                        sql.includes('FROM postcards')) {
+                        return {
+                            rows: [{
+                                id: 'postcard-1',
+                                status: 'sent',
+                                created_at:
+                                    new Date().toISOString()
+                            }]
+                        }
+                    }
+                    return { rows: [] }
+                }
+            )
+
+            return {
+                getDatabase: () => ({
+                    pool: {
+                        connect: vi.fn(async () => ({
+                            query: mockQuery,
+                            release: vi.fn()
+                        }))
+                    }
+                })
+            }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const idempotencyKey = 'idempotent-key-1'
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com',
+                idempotency_key: idempotencyKey
+            })
+        } as any
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body || '')
+        expect(body.id).toBe('postcard-1')
+    })
+
+    it('AC2.1: insufficient stamps returns 402', async () => {
+        vi.resetModules()
+
+        createDbMock({
+            insufficientStamps: true
+        })
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/stamps.js', async () => {
+            const mod = await vi.importActual(
+                '../netlify/lib/stamps.js'
+            )
+            return {
+                ...mod,
+                debitStamp: async () => {
+                    throw new (mod as any).InsufficientStampsError()
+                },
+                InsufficientStampsError:
+                    (mod as any).InsufficientStampsError
+            }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com'
+            })
+        } as any
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(402)
+        const body = JSON.parse(response.body || '')
+        expect(body.error).toBe('insufficient_stamps')
+    })
+
+    it('AC2.3: free user with stamps can send', async () => {
+        vi.resetModules()
+
+        createDbMock()
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: {
+                    id: 'user-1',
+                    email: 'sender@example.com',
+                    subscription_status: 'free'
+                }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => Buffer.from('fake-png')
+        }))
+
+        vi.doMock('../netlify/lib/resend.js', () => ({
+            sendPostcardEmail: async () => 're_test'
+        }))
+
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com'
+            })
+        } as any
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(200)
+    })
+
+    it('AC3.1: blob write fail refunds stamp', async () => {
+        vi.resetModules()
+
+        createDbMock()
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => {
+                throw new Error('blob unavailable')
+            }
+        }))
+
+        vi.doMock('../netlify/lib/stamps.js', async () => {
+            const mod = await vi.importActual(
+                '../netlify/lib/stamps.js'
+            )
+            return {
+                ...mod,
+                refundFailedSend: vi.fn(async () => ({
+                    lotId: 'lot-1',
+                    balanceAfter: 5
+                })),
+                InsufficientStampsError:
+                    (mod as any).InsufficientStampsError
+            }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com'
+            })
+        } as any
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(502)
+        const body = JSON.parse(response.body || '')
+        expect(body.error).toBe('send_failed')
+    })
+
+    it('AC3.2: Resend rejects synchronously', async () => {
+        vi.resetModules()
+
+        createDbMock()
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => Buffer.from('fake-png')
+        }))
+
+        vi.doMock('../netlify/lib/resend.js', () => ({
+            sendPostcardEmail: async () => {
+                throw new Error('Resend failed')
+            }
+        }))
+
+        vi.doMock('../netlify/lib/stamps.js', async () => {
+            const mod = await vi.importActual(
+                '../netlify/lib/stamps.js'
+            )
+            return {
+                ...mod,
+                refundFailedSend: vi.fn(async () => ({
+                    lotId: 'lot-1',
+                    balanceAfter: 5
+                })),
+                InsufficientStampsError:
+                    (mod as any).InsufficientStampsError
+            }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com'
+            })
+        } as any
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(502)
+        const body = JSON.parse(response.body || '')
+        expect(body.error).toBe('send_failed')
+    })
+
+    it('AC3.3: audit trail on failure', async () => {
+        vi.resetModules()
+
+        const transactionInserts:Array<
+            {reason:string}
+        > = []
+
+        vi.doMock('@netlify/database', () => {
+            return {
+                getDatabase: () => ({
+                    pool: {
+                        connect: vi.fn(async () => ({
+                            query: vi.fn<Query>(
+                                async (
+                                    sql:string,
+                                    params?:unknown[]
+                                ) => {
+                                    if (
+                                        sql.includes(
+                                            'INSERT INTO ' +
+                                            'stamp_transactions'
+                                        )
+                                    ) {
+                                        const idx =
+                                            params?.indexOf(
+                                                'send'
+                                            ) ?? -1
+                                        const idx2 =
+                                            params?.indexOf(
+                                                'failed_send_refund'
+                                            ) ?? -1
+                                        if (idx >= 0) {
+                                            transactionInserts.push({
+                                                reason: 'send'
+                                            })
+                                        } else if (idx2 >= 0) {
+                                            transactionInserts.push({
+                                                reason: 'failed_send_refund'
+                                            })
+                                        }
+                                        return { rows: [] }
+                                    }
+
+                                    if (sql.includes(
+                                        'SELECT *'
+                                    ) &&
+                                        sql.includes(
+                                            'FROM postcards'
+                                        )) {
+                                        return { rows: [] }
+                                    }
+
+                                    if (sql.includes(
+                                        'INSERT INTO postcards'
+                                    )) {
+                                        return {
+                                            rows: [{
+                                                id: 'postcard-1',
+                                                status: 'queued'
+                                            }]
+                                        }
+                                    }
+
+                                    if (sql.includes(
+                                        'SELECT blob_key'
+                                    )) {
+                                        return {
+                                            rows: [{
+                                                blob_key:
+                                                    'test-blob-key',
+                                                text: 'test',
+                                                alt_text: 'test'
+                                            }]
+                                        }
+                                    }
+
+                                    if (sql.includes(
+                                        'UPDATE postcards'
+                                    )) {
+                                        return { rows: [] }
+                                    }
+
+                                    if (sql.includes(
+                                        'SELECT 1'
+                                    ) &&
+                                        sql.includes(
+                                            'FROM drawings'
+                                        )) {
+                                        return {
+                                            rows: [{ 1: 1 }]
+                                        }
+                                    }
+
+                                    if (sql.includes(
+                                        'BEGIN'
+                                    ) ||
+                                        sql.includes(
+                                            'COMMIT'
+                                        ) ||
+                                        sql.includes(
+                                            'ROLLBACK'
+                                        )) {
+                                        return { rows: [] }
+                                    }
+
+                                    return { rows: [] }
+                                }
+                            ),
+                            release: vi.fn()
+                        }))
+                    }
+                })
+            }
+        })
+
+        vi.doMock('../netlify/lib/session.js', () => ({
+            getSession: async () => ({
+                user: { id: 'user-1', email: 'sender@example.com' }
+            })
+        }))
+
+        vi.doMock('../netlify/lib/drawing-images.js', () => ({
+            getDrawingImage: async () => Buffer.from('fake-png')
+        }))
+
+        vi.doMock('../netlify/lib/resend.js', () => ({
+            sendPostcardEmail: async () => {
+                throw new Error('Resend failed')
+            }
+        }))
+
+        vi.doMock('../netlify/lib/stamps.js', async () => {
+            const mod = await vi.importActual(
+                '../netlify/lib/stamps.js'
+            )
+            return {
+                ...mod,
+                refundFailedSend: vi.fn(async () => ({
+                    lotId: 'lot-1',
+                    balanceAfter: 5
+                })),
+                InsufficientStampsError:
+                    (mod as any).InsufficientStampsError
+            }
+        })
+
+        const { handler } = await import(
+            '../netlify/functions/postcards/send.js'
+        )
+
+        const event = {
+            httpMethod: 'POST',
+            headers: {},
+            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
+            path: '/.netlify/functions/postcards/send',
+            body: JSON.stringify({
+                drawing_id: 'drawing-1',
+                recipient_email: 'recipient@example.com'
+            })
+        } as any
+
+        const response = await handler(event, {} as any)
+
+        expect(response).toBeTruthy()
+        if (!response) throw new Error('No response')
+        expect(response.statusCode).toBe(502)
+        expect(transactionInserts.length).toBe(2)
+        expect(transactionInserts[0].reason).toBe('send')
+        expect(transactionInserts[1].reason).toBe('failed_send_refund')
     })
 })
