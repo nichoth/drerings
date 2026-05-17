@@ -18,6 +18,14 @@ export interface PendingGiftRefundEmail {
     recipientEmail:string;
 }
 
+export type PostcardEmail = {
+    to:string;
+    senderHandle:string|null;
+    text:string;
+    pngBase64:string;
+    postcardId:string;
+}
+
 export async function sendMagicLinkEmail ({
     email,
     loginUrl
@@ -159,4 +167,68 @@ export async function sendPendingGiftRefundEmail ({
     if (!response.ok) {
         throw new Error(`Resend email failed with ${response.status}`)
     }
+}
+
+function escapeHtml (str:string):string {
+    return String(str).replace(/[<>&"]/g, c => {
+        switch (c) {
+            case '<': return '&lt;'
+            case '>': return '&gt;'
+            case '&': return '&amp;'
+            case '"': return '&quot;'
+            default: return c
+        }
+    })
+}
+
+export async function sendPostcardEmail (
+    options:PostcardEmail
+):Promise<string> {
+    const apiKey = process.env.RESEND_API_KEY
+
+    if (!apiKey) {
+        throw new Error('RESEND_API_KEY is required')
+    }
+
+    const displayName = options.senderHandle ?
+        options.senderHandle.split('@')[0] :
+        'Someone'
+    const subject = `${displayName} sent you a Drerings postcard`
+    const escapedText = escapeHtml(options.text)
+    const html = `<p>${escapedText}</p>`
+
+    const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL ||
+                'Drerings <login@drerings.app>',
+            to: options.to,
+            subject,
+            html,
+            text: options.text,
+            attachments: [{
+                filename: 'postcard.png',
+                content: options.pngBase64
+            }],
+            headers: {
+                'X-Entity-Ref-ID': options.postcardId
+            }
+        })
+    })
+
+    if (!response.ok) {
+        throw new Error(`Resend email failed with ${response.status}`)
+    }
+
+    const body = await response.json() as {id?:string}
+
+    if (!body.id || typeof body.id !== 'string') {
+        throw new Error('Resend response missing email id')
+    }
+
+    return body.id
 }

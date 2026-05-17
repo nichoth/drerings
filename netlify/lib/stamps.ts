@@ -456,9 +456,31 @@ export async function verifyStampInvariants (
         })
     }
 
+    // Persist each drift to stamp_invariant_alerts. The partial unique
+    // index on (user_id, invariant) WHERE resolved_at IS NULL silently
+    // de-dupes against existing open alerts (AC10.3). Postgres requires
+    // the WHERE clause in ON CONFLICT to match partial-index inference.
+    let alertsRecorded = 0
+    for (const drift of drifts) {
+        const inserted = await db.pool.query<{id:string}>(`
+            INSERT INTO stamp_invariant_alerts
+                (user_id, invariant, expected, actual)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, invariant)
+                WHERE resolved_at IS NULL
+                DO NOTHING
+            RETURNING id
+        `, [drift.userId, drift.invariant,
+            drift.expected, drift.actual])
+        if (inserted.rowCount && inserted.rowCount > 0) {
+            alertsRecorded += 1
+        }
+    }
+
     if (drifts.length > 0) {
         console.error('Stamp invariant verification alert.', {
-            driftCount: drifts.length
+            driftCount: drifts.length,
+            alertsRecorded
         })
     }
 

@@ -59,10 +59,20 @@ function mockRefundDatabase (
 ) {
     const release = vi.fn()
     const query = vi.fn<Query>(async (sql) => {
-        if (
-            sql.includes('SELECT') &&
-            sql.includes('FROM stamp_lots')
-        ) {
+        if (sql.includes('INSERT INTO autumn_refund_attempts')) {
+            return {
+                rows: [{
+                    id: 'attempt-1',
+                    status: 'attempted',
+                    http_status: null,
+                    response_body: null,
+                    attempted_at: new Date().toISOString(),
+                    just_inserted: true
+                }]
+            }
+        }
+
+        if (sql.includes('SELECT') && sql.includes('FROM stamp_lots')) {
             return {
                 rows: [{
                     id: 'lot-1',
@@ -80,6 +90,10 @@ function mockRefundDatabase (
             return { rows: [{ stamps_balance: 10 }] }
         }
 
+        if (sql.includes('BEGIN') || sql.includes('COMMIT')) {
+            return { rows: [] }
+        }
+
         return { rows: [] }
     })
     const connect = vi.fn(async () => {
@@ -89,7 +103,7 @@ function mockRefundDatabase (
     vi.doMock('@netlify/database', () => {
         return {
             getDatabase: () => ({
-                pool: { connect }
+                pool: { connect, query }
             })
         }
     })

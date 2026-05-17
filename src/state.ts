@@ -58,6 +58,14 @@ export interface PublishedPost {
     id:number;
 }
 
+export type PostcardSendResult =
+    | { ok:true; id:string; balanceAfter:number }
+    | {
+        ok:false;
+        reason:'insufficient_stamps'|'send_failed'|'other';
+        message:string;
+    }
+
 export interface PublicPost extends PublishedPost {
     image:string;
     text:string;
@@ -673,6 +681,62 @@ State.PublishDrawing = async function (
     }
 
     return { id }
+}
+
+State.SendPostcard = async function (
+    _state:AppState,
+    input:{
+        drawingId:string;
+        recipientEmail:string;
+        idempotencyKey:string;
+    }
+):Promise<PostcardSendResult> {
+    const response = await fetch('/api/postcards/send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+            drawing_id: input.drawingId,
+            recipient_email: input.recipientEmail,
+            idempotency_key: input.idempotencyKey
+        })
+    })
+
+    const body = await maybeJson(response)
+
+    if (response.status === 200) {
+        return {
+            ok: true,
+            id: String(body?.id),
+            balanceAfter: Number(body?.balance_after)
+        }
+    }
+
+    if (response.status === 402) {
+        return {
+            ok: false,
+            reason: 'insufficient_stamps',
+            message: 'You need more stamps to send.'
+        }
+    }
+
+    if (response.status === 502) {
+        return {
+            ok: false,
+            reason: 'send_failed',
+            message: typeof body?.error === 'string' ?
+                'The postcard didn\'t go through — your stamp has been' +
+                ' refunded.' :
+                'Send failed; your stamp has been refunded.'
+        }
+    }
+
+    return {
+        ok: false,
+        reason: 'other',
+        message: typeof body?.error === 'string' ?
+            body.error :
+            'Unable to send the postcard right now.'
+    }
 }
 
 State.StartCheckout = async function (
