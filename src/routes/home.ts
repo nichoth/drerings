@@ -39,7 +39,6 @@ export const HomeRoute:FunctionComponent<{
     const saveStatus = useSignal<'idle'|'saving'|'saved'|'error'>('idle')
     const saveError = useSignal<string>('')
     const isSaving = useComputed<boolean>(() => saveStatus.value === 'saving')
-    const paidControlsHintId = 'paid-drawing-controls'
 
     useEffect(() => {
         if (!sketchpad.current) return
@@ -133,12 +132,12 @@ export const HomeRoute:FunctionComponent<{
             altTextCount.value > ALT_TEXT_MAX
     })
     const paidActionsDisabled = useComputed<boolean>(() => {
-        return !state.isPaid.value || hasInvalidText.value
+        return !state.isAuthed.value || hasInvalidText.value
     })
 
     const submitDrawing = useCallback(async (ev:SubmitEvent) => {
         ev.preventDefault()
-        if (!state.isPaid.value || hasInvalidText.value) return
+        if (!state.isAuthed.value || hasInvalidText.value) return
         const canvas = sketchpad.current
         if (!canvas) return
 
@@ -164,7 +163,7 @@ export const HomeRoute:FunctionComponent<{
     const sendDrawing = useCallback(() => {
         const drawingId = state.currentDrawing.value?.id
 
-        if (!drawingId || !state.isPaid.value) return
+        if (!drawingId || !state.isAuthed.value) return
 
         State.GoToSendDrawing(state, drawingId)
     }, [])
@@ -262,37 +261,16 @@ export const HomeRoute:FunctionComponent<{
                 </div>
 
                 <div class="controls">
-                    ${state.isPaid.value ? null : html`
-                        <p
-                            id=${paidControlsHintId}
-                            class="paid-controls-note"
-                            role="tooltip"
-                            aria-label="Paid drawing controls"
-                        >
-                            Upgrade to keep drawings and publish them.
-                            See <a href="/pricing">pricing</a>.
-                        </p>
-                    `}
                     <${Button}
                         type="submit"
                         disabled=${paidActionsDisabled.value}
                         isSpinning=${isSaving}
-                        aria-describedby=${
-                            state.isPaid.value ?
-                                undefined :
-                                paidControlsHintId
-                        }
                     >
                         Save
                     <//>
                     <${Button}
                         type="button"
-                        disabled=${!state.isPaid.value}
-                        aria-describedby=${
-                            state.isPaid.value ?
-                                undefined :
-                                paidControlsHintId
-                        }
+                        disabled=${!state.isAuthed.value}
                         onClick=${sendDrawing}
                     >
                         Send It

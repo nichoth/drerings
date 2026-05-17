@@ -105,20 +105,6 @@ export const AccountRoute:FunctionComponent<{
         }
     }, [state])
 
-    const cancelSubscription = useCallback(async () => {
-        error.value = ''
-        message.value = ''
-
-        try {
-            await State.CancelSubscription(state)
-            message.value = 'Subscription will end at period close.'
-        } catch (err) {
-            error.value = err instanceof Error ?
-                err.message :
-                'Unable to cancel subscription right now.'
-        }
-    }, [state])
-
     const deleteAccount = useCallback(async () => {
         if (!confirmDelete.value) {
             confirmDelete.value = true
@@ -144,13 +130,6 @@ export const AccountRoute:FunctionComponent<{
 
     return html`<div class="route account">
         <h2>Account</h2>
-
-        ${returnStatus === 'ok' ?
-                html`<p class="account-success">
-                    Your subscription is being activated.
-                </p>` :
-                null
-            }
 
         ${returnStatus === 'cancel' ?
                 html`<p class="account-note">
@@ -216,24 +195,6 @@ export const AccountRoute:FunctionComponent<{
                 <//>
             </section>
 
-            <section aria-label="Subscription" class="account-section">
-                <h3>Subscription</h3>
-                <p>${subscriptionLabel(account)}</p>
-                ${returnStatus === 'cancel' ?
-                    html`<p class="account-note">
-                        Checkout was canceled. You can restart from pricing.
-                    </p>` :
-                    null
-                }
-                <${Button}
-                    type="button"
-                    onClick=${cancelSubscription}
-                    disabled=${account?.subscription_status !== 'active'}
-                >
-                    Cancel subscription
-                <//>
-            </section>
-
             <section aria-label="Passkeys" class="account-section">
                 <h3>Passkeys</h3>
                 ${passkeyList(account)}
@@ -291,23 +252,6 @@ export const AccountRoute:FunctionComponent<{
             })}
         </ul>`
     }
-}
-
-function subscriptionLabel (account:AccountDetails|null):string {
-    const status = account?.subscription_status || 'free'
-    const end = account?.subscription_current_period_end
-
-    if (status === 'active') {
-        return end ? `Active - renews ${end}` : 'Active'
-    }
-
-    if (status === 'canceled') {
-        return end ? `Canceled - ends ${end}` : 'Canceled'
-    }
-
-    if (status === 'past_due') return 'Past due'
-
-    return 'Free'
 }
 
 function formatDate (value:string):string {
