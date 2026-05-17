@@ -18,8 +18,10 @@ BEGIN;
 
 CREATE TABLE share_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    drawing_id UUID NOT NULL REFERENCES drawings(id),
+    user_id UUID NOT NULL REFERENCES users(id)
+        ON DELETE CASCADE,
+    drawing_id UUID NOT NULL REFERENCES drawings(id)
+        ON DELETE CASCADE,
     month_key TEXT NOT NULL,
     timezone TEXT NOT NULL,
     was_free BOOLEAN NOT NULL,

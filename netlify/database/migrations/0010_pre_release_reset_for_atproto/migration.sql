@@ -22,7 +22,6 @@ TRUNCATE TABLE
     stamp_transactions,
     stamp_lots,
     postcards,
-    sent_gifts,
     pending_gifts,
     public_posts,
     drawings,

@@ -22,6 +22,7 @@ ALTER TABLE stamp_transactions
             'refund',
             'gift_sent',
             'gift_received',
+            'gift_reclaimed',
             'failed_send_refund',
             'share'
         )
