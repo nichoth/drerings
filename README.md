@@ -135,6 +135,34 @@ checkout for each pack and confirming Autumn sends a signed webhook to:
 https://<your-staging-site>/api/billing/webhook
 ```
 
+### Stamp invariant alerts
+
+The scheduled function `verify-stamp-invariants` runs daily at 09:30 UTC
+and writes any detected drift to the `stamp_invariant_alerts` table.
+
+To see all active alerts:
+
+```sql
+SELECT
+    id, user_id, invariant, expected, actual, detected_at
+FROM stamp_invariant_alerts
+WHERE resolved_at IS NULL
+ORDER BY detected_at ASC;
+```
+
+Per docs/pricing.md, a human investigates the first drift before any
+automated reconciliation runs. After investigating and fixing the
+underlying cause, mark the alert resolved:
+
+```sql
+UPDATE stamp_invariant_alerts
+SET resolved_at = now(), resolution_note = $1
+WHERE id = $2;
+```
+
+If the same drift recurs on the next run, a new row is inserted — the
+unique index excludes already-resolved alerts.
+
 ### Local Provider Behavior
 
 Run the Netlify Functions and Vite dev server together:
