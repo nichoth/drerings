@@ -1,7 +1,7 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
 import { useCallback, useEffect } from 'preact/hooks'
-import { useSignal } from '@preact/signals'
+import { useSignal, batch } from '@preact/signals'
 import { Button } from '../components/button'
 import { IconStamp } from '../components/icon-stamp'
 import { State, type AppState, type SavedDrawing } from '../state'
@@ -14,6 +14,13 @@ export const SendRoute:FunctionComponent<{
     const error = useSignal<string>('')
     const isLoading = useSignal<boolean>(true)
     const isPublishing = useSignal<boolean>(false)
+    const isSendingPostcard = useSignal<boolean>(false)
+    const sendSuccess = useSignal<{
+        email:string;
+        balanceAfter:number;
+    }|null>(null)
+    const recipientEmail = useSignal<string>('')
+    const idempotencyKey = useSignal<string|null>(null)
     const routePath = state.route.value.startsWith('/send/') ?
         state.route.value :
         location.pathname
@@ -51,7 +58,8 @@ export const SendRoute:FunctionComponent<{
         error.value = ''
 
         try {
-            const post = await State.PublishDrawing(state, drawing.value.id)
+            const post = await State.PublishDrawing(state,
+                drawing.value.id)
             const path = `/post/${post.id}`
 
             state._setRoute(path)
@@ -63,6 +71,64 @@ export const SendRoute:FunctionComponent<{
         } finally {
             isPublishing.value = false
         }
+    }, [])
+
+    const sendPostcard = useCallback(async () => {
+        if (!drawing.value) return
+
+        batch(() => {
+            isSendingPostcard.value = true
+            error.value = ''
+        })
+
+        try {
+            const key = idempotencyKey.value ??
+                crypto.randomUUID()
+
+            const result = await State.SendPostcard(state, {
+                drawingId: drawing.value.id,
+                recipientEmail: recipientEmail.value,
+                idempotencyKey: key
+            })
+
+            if (result.ok) {
+                batch(() => {
+                    sendSuccess.value = {
+                        email: recipientEmail.value,
+                        balanceAfter: result.balanceAfter
+                    }
+                    recipientEmail.value = ''
+                    idempotencyKey.value = null
+                })
+                return
+            }
+
+            if (result.reason === 'insufficient_stamps') {
+                State.OpenBuyPackModal(state)
+                batch(() => {
+                    isSendingPostcard.value = false
+                    recipientEmail.value = ''
+                    idempotencyKey.value = null
+                })
+                return
+            }
+
+            error.value = result.message
+        } catch (err) {
+            error.value = err instanceof Error ?
+                err.message :
+                'Unable to send the postcard right now.'
+        } finally {
+            batch(() => {
+                isSendingPostcard.value = false
+                idempotencyKey.value = null
+            })
+        }
+    }, [drawing])
+
+    const resetSuccess = useCallback(() => {
+        sendSuccess.value = null
+        recipientEmail.value = ''
     }, [])
 
     return html`<div class="route send">
@@ -83,26 +149,77 @@ export const SendRoute:FunctionComponent<{
                     alt=${drawing.value.alt_text}
                 />
                 <p>${drawing.value.text}</p>
+
                 <div
                     class="send-actions"
                     role="group"
-                    aria-label="Send actions"
+                    aria-label="Publish actions"
                 >
-                    <${Button}
-                        type="button"
-                        onClick=${publish}
-                        isSpinning=${isPublishing}
-                    >
-                        Publish
-                    <//>
-                    <span
-                        class="send-stamp-cost"
-                        aria-label="Sending this postcard costs 1 stamp"
-                    >
-                        <${IconStamp} />
-                        <span>1 stamp</span>
-                    </span>
+                <${Button}
+                    type="button"
+                    onClick=${publish}
+                    isSpinning=${isPublishing}
+                >
+                    Publish
+                <//>
                 </div>
+
+                ${sendSuccess.value ? html`
+                    <div class="send-success">
+                        <p>Sent to ${sendSuccess.value.email}.
+                            ${sendSuccess.value.balanceAfter}
+                            stamps remaining.</p>
+                        <${Button}
+                            type="button"
+                            onClick=${resetSuccess}
+                        >
+                            Send another
+                        <//>
+                    </div>
+                ` : html`
+                    <form class="send-postcard-form">
+                        <div class="form-group">
+                            <label htmlFor="recipient-email">
+                                Recipient email
+                            </label>
+                            <input
+                                id="recipient-email"
+                                type="email"
+                                value=${recipientEmail}
+                                onChange=${(e:Event) => {
+                                    const target =
+                                        e.target as
+                                        HTMLInputElement
+                                    recipientEmail.value =
+                                        target.value
+                                }}
+                                required
+                            />
+                        </div>
+
+                        <div
+                            class="send-postcard-actions"
+                            role="group"
+                            aria-label="Send postcard actions"
+                        >
+                            <${Button}
+                                type="button"
+                                onClick=${sendPostcard}
+                                isSpinning=${isSendingPostcard}
+                            >
+                                Send postcard
+                            <//>
+                            <span
+                                class="send-stamp-cost"
+                                aria-label="Sending this postcard \
+costs 1 stamp"
+                            >
+                                <${IconStamp} />
+                                <span>1 stamp</span>
+                            </span>
+                        </div>
+                    </form>
+                `}
             </article>
         ` : null}
     </div>`

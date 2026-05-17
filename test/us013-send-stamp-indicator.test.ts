@@ -14,7 +14,9 @@ describe('US-013 send stamp indicator', () => {
         history.pushState(null, '', '/send/drawing-1')
     })
 
-    it('shows a subtle one-stamp cost indicator by the send button',
+    it(
+        'shows a subtle one-stamp cost indicator by the ' +
+        'Send postcard button',
         async () => {
             const state = paidState()
 
@@ -28,19 +30,48 @@ describe('US-013 send stamp indicator', () => {
                 name: 'A hand drawn red circle'
             })).toBeTruthy()
 
-            const sendActions = screen.getByRole('group', {
-                name: 'Send actions'
+            const postcardActions = screen.getByRole('group', {
+                name: 'Send postcard actions'
             })
 
-            expect(within(sendActions).getByRole('button', {
-                name: 'Publish'
+            expect(within(postcardActions).getByRole('button', {
+                name: 'Send postcard'
             })).toBeTruthy()
-            const cost = within(sendActions).getByLabelText(
+
+            const cost = within(postcardActions).getByLabelText(
                 'Sending this postcard costs 1 stamp'
             )
 
             expect(cost.textContent).toContain('1 stamp')
-        })
+        }
+    )
+
+    it(
+        'Publish button does NOT show stamp cost indicator',
+        async () => {
+            const state = paidState()
+
+            vi.stubGlobal('fetch', vi.fn(async () => {
+                return jsonResponse(savedDrawing())
+            }))
+
+            render(h(SendRoute, { state }))
+
+            await screen.findByRole('img', {
+                name: 'A hand drawn red circle'
+            })
+
+            const publishActions = screen.getByRole('group', {
+                name: 'Publish actions'
+            })
+
+            const stampIndicator = within(
+                publishActions
+            ).queryByText('1 stamp')
+
+            expect(stampIndicator).toBeNull()
+        }
+    )
 })
 
 function paidState ():ReturnType<typeof State> {
