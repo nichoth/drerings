@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
 import {
@@ -15,6 +14,10 @@ import {
     type StampPackDefinition,
     type StampPackProductId
 } from '../../src/stamp-packs.js'
+import {
+    readSvixHeaders,
+    isValidSvixSignature
+} from './svix.js'
 
 export {
     PACK_DEFINITIONS,
@@ -265,33 +268,17 @@ export function verifyAutumnWebhookPayload (
     body:string,
     headers:Record<string, string|undefined>
 ):AutumnWebhookEvent {
-    const messageId = getHeader(headers, 'svix-id')
-    const timestamp = getHeader(headers, 'svix-timestamp')
-    const signature = getHeader(headers, 'svix-signature')
+    const svix = readSvixHeaders(headers)
+    if (!svix) throw new Error('Missing Autumn webhook signature.')
 
-    if (!messageId || !timestamp || !signature) {
-        throw new Error('Missing Autumn webhook signature.')
-    }
-
-    verifySvixTimestamp(timestamp)
-
-    const expectedSignature = createSvixSignature(
-        getAutumnWebhookSecret(),
-        messageId,
-        timestamp,
-        body
-    )
-
-    if (!hasMatchingSignature(signature, expectedSignature)) {
+    if (!isValidSvixSignature(getAutumnWebhookSecret(), svix, body)) {
         throw new Error('Invalid Autumn webhook signature.')
     }
 
     const payload = JSON.parse(body) as unknown
-
     if (!isRecord(payload)) {
         throw new Error('Invalid Autumn webhook payload.')
     }
-
     return payload
 }
 
@@ -701,68 +688,6 @@ function isPastDueSignal (value:string):boolean {
         value === 'payment.failed' ||
         value === 'subscription.payment_failed' ||
         value === 'customer.subscription.payment_failed'
-}
-
-function getHeader (
-    headers:Record<string, string|undefined>,
-    name:string
-):string|null {
-    for (const [key, value] of Object.entries(headers)) {
-        if (key.toLowerCase() === name) return value || null
-    }
-
-    return null
-}
-
-function verifySvixTimestamp (timestamp:string):void {
-    const timestampSeconds = Number(timestamp)
-    const toleranceSeconds = 5 * 60
-    const nowSeconds = Math.floor(Date.now() / 1000)
-
-    if (!Number.isFinite(timestampSeconds)) {
-        throw new Error('Invalid Autumn webhook timestamp.')
-    }
-
-    if (Math.abs(nowSeconds - timestampSeconds) > toleranceSeconds) {
-        throw new Error('Expired Autumn webhook signature.')
-    }
-}
-
-function createSvixSignature (
-    secret:string,
-    messageId:string,
-    timestamp:string,
-    body:string
-):string {
-    const secretValue = secret.replace(/^whsec_/, '')
-    const secretKey = Buffer.from(secretValue, 'base64')
-
-    return crypto
-        .createHmac('sha256', secretKey)
-        .update(`${messageId}.${timestamp}.${body}`)
-        .digest('base64')
-}
-
-function hasMatchingSignature (
-    signatureHeader:string,
-    expectedSignature:string
-):boolean {
-    return signatureHeader.split(' ').some((signature) => {
-        const [version, value] = signature.split(',')
-
-        if (version !== 'v1' || !value) return false
-
-        return timingSafeEqual(value, expectedSignature)
-    })
-}
-
-function timingSafeEqual (left:string, right:string):boolean {
-    const leftBuffer = Buffer.from(left, 'base64')
-    const rightBuffer = Buffer.from(right, 'base64')
-
-    if (leftBuffer.length !== rightBuffer.length) return false
-
-    return crypto.timingSafeEqual(leftBuffer, rightBuffer)
 }
 
 function isRecord (value:unknown):value is Record<string, unknown> {
