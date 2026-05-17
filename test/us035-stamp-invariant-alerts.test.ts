@@ -1,4 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+    beforeAll,
+    afterAll
+} from 'vitest'
+import { randomUUID } from 'crypto'
+
+const RUN_INTEGRATION = process.env.RUN_DB_INTEGRATION === '1'
 
 type Query = (
     sql:string,
@@ -336,4 +347,172 @@ describe('US-035 stamp invariant alerts persistence', () => {
                 })
             )
         })
+
+    describe.runIf(RUN_INTEGRATION)('integration', () => {
+        let fixtureUserId:string
+
+        beforeAll(async () => {
+            const { getDatabase } = await import('@netlify/database')
+            const pool = getDatabase().pool
+
+            // Create fixture user with stable email based on test session
+            const userEmail = `stamps-test-${randomUUID()}@example.com`
+            const userResult = await pool.query<{ id: string }>(
+                `INSERT INTO users (email, stamps_balance)
+                 VALUES ($1, $2)
+                 RETURNING id`,
+                [userEmail, 0]
+            )
+            fixtureUserId = userResult.rows[0].id
+        })
+
+        afterAll(async () => {
+            // CASCADE delete users + all related rows
+            const { getDatabase } = await import('@netlify/database')
+            const pool = getDatabase().pool
+            try {
+                await pool.query(
+                    'DELETE FROM users WHERE id = $1',
+                    [fixtureUserId]
+                )
+            } catch (_e) {
+                // Ignore if already deleted
+            }
+        })
+
+        it('AC10.3: dedupe via real partial index',
+            async () => {
+                const { getDatabase } = await import('@netlify/database')
+                const pool = getDatabase().pool
+
+                // Corrupt the stamps_balance to trigger drift detection
+                await pool.query(
+                    `UPDATE users
+                     SET stamps_balance = stamps_balance + 1
+                     WHERE id = $1`,
+                    [fixtureUserId]
+                )
+
+                // First verification should detect and record alert
+                const { verifyStampInvariants } = await import(
+                    '../netlify/lib/stamps'
+                )
+                const result1 = await verifyStampInvariants()
+
+                // Verify we detected at least one drift
+                expect(result1.driftCount).toBeGreaterThanOrEqual(1)
+                const relevantDrifts = result1.drifts.filter(
+                    d => d.userId === fixtureUserId
+                )
+                expect(relevantDrifts.length).toBeGreaterThanOrEqual(1)
+
+                // Verify alert was recorded in database
+                const alertResult1 = await pool.query<
+                    { id: string }
+                >(
+                    `SELECT id FROM stamp_invariant_alerts
+                     WHERE user_id = $1 AND resolved_at IS NULL`,
+                    [fixtureUserId]
+                )
+                expect(alertResult1.rows.length).toBeGreaterThanOrEqual(1)
+                const alertId = alertResult1.rows[0].id
+
+                // Second verification should NOT create new alert due to
+                // partial index deduplication
+                const result2 = await verifyStampInvariants()
+
+                // Same drift still detected (corruption not fixed)
+                expect(result2.driftCount).toBeGreaterThanOrEqual(1)
+
+                // But no NEW alert inserted (ON CONFLICT deduped)
+                const alertResult2 = await pool.query<{ id: string }>(
+                    `SELECT id FROM stamp_invariant_alerts
+                     WHERE user_id = $1 AND resolved_at IS NULL`,
+                    [fixtureUserId]
+                )
+                expect(alertResult2.rows).toHaveLength(1)
+                expect(alertResult2.rows[0].id).toBe(alertId)
+            })
+
+        it('AC10.5: manual resolution allows re-detection',
+            async () => {
+                const { getDatabase } = await import('@netlify/database')
+                const pool = getDatabase().pool
+
+                try {
+                    // Corrupt the stamps_balance to trigger drift detection
+                    await pool.query(
+                        `UPDATE users
+                         SET stamps_balance = stamps_balance + 1
+                         WHERE id = $1`,
+                        [fixtureUserId]
+                    )
+
+                    // First verification should detect and record alert
+                    const { verifyStampInvariants } = await import(
+                        '../netlify/lib/stamps'
+                    )
+                    const result1 = await verifyStampInvariants()
+
+                    expect(result1.driftCount).toBeGreaterThanOrEqual(1)
+
+                    // Get the alert id
+                    const alertResult1 = await pool.query<{ id: string }>(
+                        `SELECT id FROM stamp_invariant_alerts
+                         WHERE user_id = $1 AND resolved_at IS NULL`,
+                        [fixtureUserId]
+                    )
+                    expect(alertResult1.rows.length).toBeGreaterThanOrEqual(1)
+                    const oldAlertId = alertResult1.rows[0].id
+
+                    // Mark the alert as resolved
+                    await pool.query(
+                        `UPDATE stamp_invariant_alerts
+                         SET resolved_at = now()
+                         WHERE id = $1`,
+                        [oldAlertId]
+                    )
+
+                    // Second verification with corruption still present
+                    const result2 = await verifyStampInvariants()
+
+                    // Should detect the same drift again
+                    expect(result2.driftCount).toBeGreaterThanOrEqual(1)
+
+                    // And create a NEW alert row (old one was marked resolved)
+                    const alertResult2 = await pool.query<{ id: string }>(
+                        `SELECT id FROM stamp_invariant_alerts
+                         WHERE user_id = $1 AND resolved_at IS NULL`,
+                        [fixtureUserId]
+                    )
+                    expect(alertResult2.rows.length).toBeGreaterThanOrEqual(1)
+                    const newAlertId = alertResult2.rows[0].id
+
+                    // New alert should be different from old
+                    expect(newAlertId).not.toBe(oldAlertId)
+
+                    // Verify old alert is still marked resolved
+                    const oldAlert = await pool.query<{ resolved_at: string }>(
+                        `SELECT resolved_at FROM stamp_invariant_alerts
+                         WHERE id = $1`,
+                        [oldAlertId]
+                    )
+                    expect(oldAlert.rows[0].resolved_at).not.toBeNull()
+                } finally {
+                    // Clean up corruption
+                    await pool.query(
+                        `UPDATE users
+                         SET stamps_balance = 0
+                         WHERE id = $1`,
+                        [fixtureUserId]
+                    )
+                    // Clean up any alerts created by this test
+                    await pool.query(
+                        `DELETE FROM stamp_invariant_alerts
+                         WHERE user_id = $1`,
+                        [fixtureUserId]
+                    )
+                }
+            })
+    })
 })

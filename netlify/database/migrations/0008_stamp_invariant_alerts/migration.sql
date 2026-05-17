@@ -8,12 +8,15 @@
 CREATE TABLE stamp_invariant_alerts (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    invariant       text NOT NULL,        -- identifier from verifyStampInvariants
+    invariant       text NOT NULL,
+        -- identifier from verifyStampInvariants
     expected        bigint NOT NULL,
     actual          bigint NOT NULL,
     detected_at     timestamptz NOT NULL DEFAULT now(),
-    resolved_at     timestamptz,           -- NULL while the drift is active
-    resolution_note text                   -- operator's note when marking resolved
+    resolved_at     timestamptz,
+        -- NULL while the drift is active
+    resolution_note text
+        -- operator's note when marking resolved
 );
 
 -- Active alerts are the queryable working set. A new drift for the same
