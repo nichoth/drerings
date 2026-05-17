@@ -1,255 +1,232 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import {
+    describe, expect, it, vi, beforeEach, afterEach
+} from 'vitest'
 import crypto from 'node:crypto'
 import type { HandlerEvent, HandlerContext } from '@netlify/functions'
 
-interface QueryResult<Row = Record<string, unknown>> {
-    rows:Row[];
-}
-
+type QueryRow = Record<string, unknown>
 type Query = (
     sql:string,
     params?:unknown[]
-) => Promise<QueryResult>
+) => Promise<{ rows:QueryRow[] }>
 
 const context = {} as HandlerContext
 
-function createDbMock (): { query: ReturnType<typeof vi.fn> } {
-    const query = vi.fn<Query>(async (sql) => {
-        if (sql === 'BEGIN') {
-            return { rows: [] }
-        }
-        if (sql === 'COMMIT') {
-            return { rows: [] }
-        }
-        if (sql.includes('INSERT INTO stamp_transactions')) {
-            return { rows: [{ id: 'txn-1' }] }
-        }
-        if (sql.includes('UPDATE stamp_lots')) {
-            return { rows: [{ id: 'lot-1' }] }
-        }
-        if (sql.includes('UPDATE postcards')) {
-            return { rows: [{ id: 'postcard-1' }] }
-        }
-        if (sql.includes('UPDATE users')) {
-            return { rows: [{ stamps_balance: 8 }] }
-        }
-        if (sql.includes('SELECT')) {
-            return { rows: [] }
-        }
-        return { rows: [] }
-    })
+function buildPostEvent (
+    path:string,
+    body:string,
+    headers:Record<string, string> = {}
+):HandlerEvent {
+    return {
+        httpMethod: 'POST',
+        body,
+        isBase64Encoded: false,
+        headers: { 'content-type': 'application/json', ...headers },
+        rawUrl: `http://localhost${path}`,
+        rawQuery: '',
+        path,
+        multiValueHeaders: {},
+        queryStringParameters: null,
+        multiValueQueryStringParameters: null
+    } as HandlerEvent
+}
 
-    vi.doMock('@netlify/database', () => ({
-        getDatabase: () => ({
-            pool: {
-                query,
-                connect: vi.fn(async () => ({
-                    query,
-                    release: vi.fn()
-                }))
-            }
-        })
-    }))
+function svixSignedHeaders (
+    secret:string,
+    body:string
+):Record<string, string> {
+    const messageId = 'msg_test_' + crypto.randomBytes(4).toString('hex')
+    const timestamp = Math.floor(Date.now() / 1000).toString()
+    const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
+    const digest = crypto
+        .createHmac('sha256', key)
+        .update(`${messageId}.${timestamp}.${body}`)
+        .digest('base64')
 
-    return { query }
+    return {
+        'svix-id': messageId,
+        'svix-timestamp': timestamp,
+        'svix-signature': `v1,${digest}`
+    }
 }
 
 describe('US-037 end-to-end failed send refund', () => {
     beforeEach(() => {
-        vi.resetModules()
+        vi.doUnmock('@netlify/database')
+        vi.doUnmock('@netlify/blobs')
+        vi.doUnmock('../netlify/lib/session.js')
+        vi.doUnmock('../netlify/lib/stamps.js')
+        vi.doUnmock('../netlify/lib/postcards.js')
+        vi.doUnmock('../netlify/lib/posts.js')
+        vi.doUnmock('../netlify/lib/drawing-images.js')
+        vi.doUnmock('../netlify/lib/resend.js')
+        vi.doUnmock('../netlify/lib/resend-webhook.js')
         vi.unstubAllEnvs()
+        vi.resetModules()
     })
 
     afterEach(() => {
         vi.unstubAllEnvs()
-    })
-
-    it('AC13.1 sync refund path on blob unavailable', async () => {
-        const { query: _query } = createDbMock()
-
-        // Mock blobs to throw (blob unavailable)
-        vi.doMock('@netlify/blobs', () => ({
-            getDeploymentStore: () => ({
-                get: vi.fn().mockRejectedValue(new Error('not found'))
-            })
-        }))
-
-        // Mock session
-        vi.doMock('../netlify/lib/session', () => ({
-            getSession: vi.fn().mockResolvedValue({
-                user: {
-                    id: 'user-1',
-                    email: 'sender@example.com'
-                }
-            })
-        }))
-
-        // Import handler after mocks are set
-        const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
-        )
-
-        // Build a POST event with valid JSON
-        const event:HandlerEvent = {
-            httpMethod: 'POST',
-            body: JSON.stringify({
-                drawing_id: 'drawing-1',
-                recipient_email: 'recipient@example.com'
-            }),
-            headers: { 'content-type': 'application/json' },
-            rawUrl: 'http://localhost/.netlify/functions/send',
-            rawQuery: '',
-            path: '/.netlify/functions/send',
-            multiValueHeaders: {},
-            queryStringParameters: null,
-            multiValueQueryStringParameters: null,
-            isBase64Encoded: false
-        }
-
-        // Call handler—should refund on blob failure
-        try {
-            const response = await handler(event, context)
-            if (!response) throw new Error('No response')
-            expect(response.statusCode).toEqual(502)
-            const body = JSON.parse(response.body || '{}')
-            expect(body.error).toContain('send_failed')
-        } catch (_err) {
-            // Expected to fail due to incomplete mocks, but the sync path
-            // should have tried to call refundFailedSend
-        }
-
-        // Verify stamp_transactions INSERT was called with 'failed_send_refund'
-        const _refundCalls = _query.mock.calls.filter(
-            call => {
-                const sql = call[0]
-                return sql.includes('INSERT INTO stamp_transactions') &&
-                       sql.includes('failed_send_refund')
-            }
-        )
-        // May not have completed, but verify query was attempted
-        expect(_query.mock.calls.length).toBeGreaterThan(0)
-    })
-
-    it('AC13.2 async refund through Resend webhook', async () => {
-        const secretKey = 'test-secret-key-32-chars-long!!!'
-        vi.stubEnv(
-            'RESEND_WEBHOOK_SECRET',
-            'whsec_' + Buffer.from(secretKey).toString('base64')
-        )
-
-        const { query: _query } = createDbMock()
-
-        // Mock postcards module
-        vi.doMock('../netlify/lib/postcards', () => ({
-            getPostcardByResendEmailId: vi.fn().mockResolvedValue({
-                id: 'postcard-1',
-                sender_id: 'user-1',
-                lot_id: 'lot-1',
-                status: 'sent'
-            }),
-            markFailedRefunded: vi.fn().mockResolvedValue(undefined)
-        }))
-
-        // Mock stamps module
-        vi.doMock('../netlify/lib/stamps', () => ({
-            refundFailedSend: vi.fn().mockResolvedValue({
-                lotId: 'lot-1',
-                balanceAfter: 9
-            })
-        }))
-
-        // Import handler after mocks
-        const { handler } = await import(
-            '../netlify/functions/webhooks/resend.js'
-        )
-
-        // Compute Svix-compatible signature
-        const messageId = 'msg_test'
-        const timestamp = Math.floor(Date.now() / 1000).toString()
-        const secret = process.env.RESEND_WEBHOOK_SECRET!
-        const key = Buffer.from(
-            secret.replace(/^whsec_/, ''),
-            'base64'
-        )
-        const body = JSON.stringify({
-            type: 'email.bounced',
-            data: {
-                email_id: 're_test123',
-                bounce: { type: 'hard_bounce' }
-            }
-        })
-        const digest = crypto
-            .createHmac('sha256', key)
-            .update(`${messageId}.${timestamp}.${body}`)
-            .digest('base64')
-        const signature = `v1,${digest}`
-
-        const event:HandlerEvent = {
-            httpMethod: 'POST',
-            body,
-            headers: {
-                'svix-id': messageId,
-                'svix-timestamp': timestamp,
-                'svix-signature': signature
-            },
-            rawUrl: 'http://localhost/.netlify/functions/webhooks/resend',
-            rawQuery: '',
-            path: '/.netlify/functions/webhooks/resend',
-            multiValueHeaders: {},
-            queryStringParameters: null,
-            multiValueQueryStringParameters: null,
-            isBase64Encoded: false
-        }
-
-        try {
-            const response = await handler(event, context)
-            if (!response) throw new Error('No response')
-            expect(response.statusCode).toBe(200)
-            const result = JSON.parse(response.body || '{}')
-            expect(result.refunded).toBe(true)
-        } catch {
-            // Expected due to incomplete svix verification mocking
-        }
+        vi.resetModules()
     })
 
     it(
-        'AC13.3 double-fault: already refunded is no-op',
+        'AC13.1 sync refund path: blob unavailable returns 502 ' +
+        'and refunds via refundFailedSend',
         async () => {
-            const secretKey = 'test-secret-key-32-chars-long!!!'
-            vi.stubEnv(
-                'RESEND_WEBHOOK_SECRET',
-                'whsec_' + Buffer.from(secretKey).toString('base64')
-            )
-
-            createDbMock()
-
-            // Postcard is already refunded
-            vi.doMock('../netlify/lib/postcards', () => ({
-                getPostcardByResendEmailId: vi.fn()
-                    .mockResolvedValue({
-                        id: 'postcard-1',
-                        sender_id: 'user-1',
-                        lot_id: 'lot-1',
-                        status: 'failed_refunded'
-                    }),
-                markFailedRefunded: vi.fn()
+            const query = vi.fn<Query>(async (sql:string) => {
+                if (sql.includes('SELECT blob_key') &&
+                    sql.includes('FROM drawings')) {
+                    return {
+                        rows: [{
+                            blob_key:
+                                'users/user-1/drawings/drawing-1.png',
+                            text: 'hello',
+                            alt_text: 'alt'
+                        }]
+                    }
+                }
+                return { rows: [] }
+            })
+            vi.doMock('@netlify/database', () => ({
+                getDatabase: () => ({
+                    pool: {
+                        query,
+                        connect: vi.fn(async () => ({
+                            query,
+                            release: vi.fn()
+                        }))
+                    }
+                })
             }))
 
-            vi.doMock('../netlify/lib/stamps', () => ({
-                refundFailedSend: vi.fn()
+            vi.doMock('../netlify/lib/session.js', () => ({
+                getSession: vi.fn().mockResolvedValue({
+                    user: {
+                        id: 'user-1',
+                        email: 'sender@example.com'
+                    }
+                })
+            }))
+
+            vi.doMock('../netlify/lib/posts.js', () => ({
+                userOwnsDrawing: vi.fn().mockResolvedValue(true)
+            }))
+
+            vi.doMock('../netlify/lib/postcards.js', () => ({
+                findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                    postcard: {
+                        id: 'postcard-1',
+                        sender_id: 'user-1',
+                        drawing_id: 'drawing-1',
+                        recipient_email: 'recipient@example.com',
+                        lot_id: null,
+                        resend_email_id: null,
+                        status: 'queued',
+                        idempotency_key: null,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    },
+                    reused: false
+                }),
+                markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+                deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+                attachLotAndMarkSent:
+                    vi.fn().mockResolvedValue(undefined)
+            }))
+
+            vi.doMock('../netlify/lib/drawing-images.js', () => ({
+                getDrawingImage: vi.fn().mockRejectedValue(
+                    new Error('blob unavailable')
+                )
+            }))
+
+            const refundFailedSend = vi.fn().mockResolvedValue({
+                lotId: 'lot-1',
+                balanceAfter: 5
+            })
+
+            vi.doMock('../netlify/lib/stamps.js', async () => {
+                const actual = await vi.importActual(
+                    '../netlify/lib/stamps.js'
+                )
+                return {
+                    ...actual,
+                    debitStamp: vi.fn().mockResolvedValue({
+                        lotId: 'lot-1',
+                        balanceAfter: 4
+                    }),
+                    refundFailedSend,
+                    InsufficientStampsError:
+                        (actual as {
+                            InsufficientStampsError:unknown
+                        }).InsufficientStampsError
+                }
+            })
+
+            const { handler } = await import(
+                '../netlify/functions/postcards/send.js'
+            )
+
+            const event = buildPostEvent(
+                '/.netlify/functions/postcards/send',
+                JSON.stringify({
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com'
+                })
+            )
+
+            const response = await handler(event, context)
+
+            expect(response).toBeTruthy()
+            if (!response) throw new Error('No response')
+            expect(response.statusCode).toBe(502)
+            const body = JSON.parse(response.body || '{}')
+            expect(body.error).toBe('send_failed')
+            expect(refundFailedSend).toHaveBeenCalledWith({
+                userId: 'user-1',
+                lotId: 'lot-1'
+            })
+        }
+    )
+
+    it(
+        'AC13.2 async refund path: webhooks/resend hard bounce ' +
+        'verifies Svix signature and triggers refundFailedSend',
+        async () => {
+            const secret = 'whsec_' +
+                Buffer.from('secret-bytes-32-chars-long-aaaaa')
+                    .toString('base64')
+            vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
+
+            const refundFailedSend = vi.fn().mockResolvedValue({
+                lotId: 'lot-1',
+                balanceAfter: 9
+            })
+            const markFailedRefunded = vi.fn().mockResolvedValue(
+                undefined
+            )
+            const getPostcardByResendEmailId = vi.fn().mockResolvedValue(
+                {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    lot_id: 'lot-1',
+                    status: 'sent'
+                }
+            )
+
+            vi.doMock('../netlify/lib/stamps.js', () => ({
+                refundFailedSend
+            }))
+            vi.doMock('../netlify/lib/postcards.js', () => ({
+                getPostcardByResendEmailId,
+                markFailedRefunded
             }))
 
             const { handler } = await import(
                 '../netlify/functions/webhooks/resend.js'
             )
 
-            const messageId = 'msg_test'
-            const timestamp = Math.floor(Date.now() / 1000).toString()
-            const secret = process.env.RESEND_WEBHOOK_SECRET!
-            const key = Buffer.from(
-                secret.replace(/^whsec_/, ''),
-                'base64'
-            )
             const body = JSON.stringify({
                 type: 'email.bounced',
                 data: {
@@ -257,39 +234,142 @@ describe('US-037 end-to-end failed send refund', () => {
                     bounce: { type: 'hard_bounce' }
                 }
             })
-            const digest = crypto
-                .createHmac('sha256', key)
-                .update(`${messageId}.${timestamp}.${body}`)
-                .digest('base64')
-            const signature = `v1,${digest}`
 
-            const event:HandlerEvent = {
-                httpMethod: 'POST',
+            const event = buildPostEvent(
+                '/.netlify/functions/webhooks/resend',
                 body,
-                headers: {
-                    'svix-id': messageId,
-                    'svix-timestamp': timestamp,
-                    'svix-signature': signature
-                },
-                rawUrl: 'http://localhost/.netlify/functions/webhooks/resend',
-                rawQuery: '',
-                path: '/.netlify/functions/webhooks/resend',
-                multiValueHeaders: {},
-                queryStringParameters: null,
-                multiValueQueryStringParameters: null,
-                isBase64Encoded: false
-            }
+                svixSignedHeaders(secret, body)
+            )
 
-            try {
-                const response = await handler(event, context)
-                if (!response) throw new Error('No response')
-                expect(response.statusCode).toBe(200)
-                const result = JSON.parse(response.body || '{}')
-                expect(result.refunded).toBe(false)
-                expect(result.reason).toBe('already_refunded')
-            } catch {
-                // Expected due to incomplete mocking
-            }
+            const response = await handler(event, context)
+
+            expect(response).toBeTruthy()
+            if (!response) throw new Error('No response')
+            expect(response.statusCode).toBe(200)
+            const result = JSON.parse(response.body || '{}')
+            expect(result.received).toBe(true)
+            expect(result.refunded).toBe(true)
+            expect(refundFailedSend).toHaveBeenCalledWith({
+                userId: 'user-1',
+                lotId: 'lot-1'
+            })
+            expect(markFailedRefunded).toHaveBeenCalledWith('postcard-1')
+        }
+    )
+
+    it(
+        'AC13.2 async path rejects request with bad signature ' +
+        '(no refund triggered)',
+        async () => {
+            const secret = 'whsec_' +
+                Buffer.from('secret-bytes-32-chars-long-aaaaa')
+                    .toString('base64')
+            vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
+
+            const refundFailedSend = vi.fn()
+            const markFailedRefunded = vi.fn()
+            const getPostcardByResendEmailId = vi.fn()
+
+            vi.doMock('../netlify/lib/stamps.js', () => ({
+                refundFailedSend
+            }))
+            vi.doMock('../netlify/lib/postcards.js', () => ({
+                getPostcardByResendEmailId,
+                markFailedRefunded
+            }))
+
+            const { handler } = await import(
+                '../netlify/functions/webhooks/resend.js'
+            )
+
+            const body = JSON.stringify({
+                type: 'email.bounced',
+                data: {
+                    email_id: 're_test123',
+                    bounce: { type: 'hard_bounce' }
+                }
+            })
+
+            // Sign with a DIFFERENT secret to produce a bad signature.
+            const wrongSecret = 'whsec_' +
+                Buffer.from('different-bytes-32-chars-long-bbbb')
+                    .toString('base64')
+
+            const event = buildPostEvent(
+                '/.netlify/functions/webhooks/resend',
+                body,
+                svixSignedHeaders(wrongSecret, body)
+            )
+
+            const response = await handler(event, context)
+
+            expect(response).toBeTruthy()
+            if (!response) throw new Error('No response')
+            expect(response.statusCode).toBe(400)
+            const result = JSON.parse(response.body || '{}')
+            expect(result.error).toBe('invalid_signature')
+            expect(getPostcardByResendEmailId).not.toHaveBeenCalled()
+            expect(refundFailedSend).not.toHaveBeenCalled()
+            expect(markFailedRefunded).not.toHaveBeenCalled()
+        }
+    )
+
+    it(
+        'AC13.3 double-fault: already-refunded postcard is a no-op',
+        async () => {
+            const secret = 'whsec_' +
+                Buffer.from('secret-bytes-32-chars-long-aaaaa')
+                    .toString('base64')
+            vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
+
+            const refundFailedSend = vi.fn()
+            const markFailedRefunded = vi.fn()
+            const getPostcardByResendEmailId = vi.fn().mockResolvedValue(
+                {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    lot_id: 'lot-1',
+                    status: 'failed_refunded'
+                }
+            )
+
+            vi.doMock('../netlify/lib/stamps.js', () => ({
+                refundFailedSend
+            }))
+            vi.doMock('../netlify/lib/postcards.js', () => ({
+                getPostcardByResendEmailId,
+                markFailedRefunded
+            }))
+
+            const { handler } = await import(
+                '../netlify/functions/webhooks/resend.js'
+            )
+
+            const body = JSON.stringify({
+                type: 'email.bounced',
+                data: {
+                    email_id: 're_test123',
+                    bounce: { type: 'hard_bounce' }
+                }
+            })
+
+            const event = buildPostEvent(
+                '/.netlify/functions/webhooks/resend',
+                body,
+                svixSignedHeaders(secret, body)
+            )
+
+            const response = await handler(event, context)
+
+            expect(response).toBeTruthy()
+            if (!response) throw new Error('No response')
+            expect(response.statusCode).toBe(200)
+            const result = JSON.parse(response.body || '{}')
+            expect(result.received).toBe(true)
+            expect(result.refunded).toBe(false)
+            expect(result.reason).toBe('already_refunded')
+            expect(refundFailedSend).not.toHaveBeenCalled()
+            expect(markFailedRefunded).not.toHaveBeenCalled()
         }
     )
 })
