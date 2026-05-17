@@ -8,8 +8,8 @@
 
     & .color-input {
         inline-size: 3rem;
+        padding: 0 2px;
         block-size: 2rem;
-        padding: 0;
         border: 1px solid;
         background: transparent;
         cursor: pointer;

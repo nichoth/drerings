@@ -39,7 +39,7 @@ Three pack tiers at launch:
 |------|--------|-------|-----------|
 | Starter | 10 | $5.00 | $0.50 |
 | Bundle | 25 | $10.00 | $0.40 |
-| Big bundle | 60 | $20.00 | $0.33 |
+| Big bundle | 60 | $15.00 | $0.25 |
 
 Rationale: the volume discount rewards heavy users and makes the Bundle look like the natural choice for someone past their first purchase. The Starter is intentionally not aggressively cheap — $0.50/stamp is still well under the cost of a physical postcard + USPS stamp, and the friction reinforces that each send is meaningful. We can revisit pricing after 60–90 days of real data.
 
