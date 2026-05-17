@@ -252,3 +252,13 @@ Run lint and the full browser test bundle before committing:
 npm run lint
 npm test
 ```
+
+
+----------------------------------------------------------------
+
+
+
+
+
+
+
