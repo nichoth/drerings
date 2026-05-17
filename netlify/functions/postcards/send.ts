@@ -26,9 +26,17 @@ export const handler:Handler = async function handler (event) {
         return json(401, { error: 'Please sign in.' })
     }
 
-    const input = parseSendInput(parseJsonBody(event))
+    const body = parseJsonBody(event)
+    const input = parseSendInput(body)
 
     if (!input) {
+        console.warn(
+            'parseSendInput failed',
+            {
+                drawing_id: body?.drawing_id,
+                recipient_email: body?.recipient_email
+            }
+        )
         return json(400, {
             error: 'Include drawing_id and recipient_email.'
         })
@@ -68,12 +76,19 @@ export const handler:Handler = async function handler (event) {
 
         if (reused) {
             if (postcard.status === 'sent') {
-                return json(200, {
-                    id: postcard.id,
-                    balance_after: await getCurrentStampBalance(
+                try {
+                    const balance = await getCurrentStampBalance(
                         session.user.id
                     )
-                })
+                    return json(200, {
+                        id: postcard.id,
+                        balance_after: balance
+                    })
+                } catch (_err) {
+                    return json(404, {
+                        error: 'User not found.'
+                    })
+                }
             }
 
             if (postcard.status === 'failed_refunded') {
@@ -98,7 +113,7 @@ export const handler:Handler = async function handler (event) {
             }
         }
 
-        let debit
+        let debit:{lotId:string; balanceAfter:number}
         try {
             debit = await debitStamp({
                 userId: session.user.id,
@@ -124,7 +139,6 @@ export const handler:Handler = async function handler (event) {
                 to: input.recipient_email,
                 senderHandle: session.user.email,
                 text: drawingRow.text,
-                altText: drawingRow.alt_text,
                 pngBase64: Buffer.from(png).toString('base64'),
                 postcardId: postcard.id
             })
@@ -140,6 +154,12 @@ export const handler:Handler = async function handler (event) {
                 balance_after: debit.balanceAfter
             })
         } catch (sendError) {
+            // If markFailedRefunded fails after refundFailedSend
+            // succeeds, the postcards row stays in 'queued' until
+            // the 10-minute resurrection window expires. The
+            // next retry will adopt it and proceed with a fresh
+            // debit attempt, bounded inconsistency healed by
+            // resurrection logic.
             await refundFailedSend({
                 userId: session.user.id,
                 lotId: debit.lotId
@@ -160,7 +180,7 @@ export const handler:Handler = async function handler (event) {
     }
 }
 
-interface DrawingData {
+type DrawingData = {
     blob_key:string;
     text:string;
     alt_text:string;
@@ -180,18 +200,28 @@ async function getDrawingData (
     return result.rows[0] || null
 }
 
-async function getCurrentStampBalance (userId:string):Promise<number> {
+async function getCurrentStampBalance (
+    userId:string
+):Promise<number> {
     const db = getDatabase()
-    const result = await db.pool.query<{stamps_balance:number}>(`
+    const result = await db.pool.query<
+        {stamps_balance:number}
+    >(`
         SELECT stamps_balance
         FROM users
         WHERE id = $1
     `, [userId])
 
-    return result.rows[0]?.stamps_balance || 0
+    if (!result.rows[0]) {
+        throw new Error(
+            'user not found (replayed on nonexistent account?)'
+        )
+    }
+
+    return result.rows[0].stamps_balance
 }
 
-interface SendInput {
+type SendInput = {
     drawing_id:string;
     recipient_email:string;
     idempotency_key:string|null;

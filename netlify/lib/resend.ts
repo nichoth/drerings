@@ -18,11 +18,10 @@ export interface PendingGiftRefundEmail {
     recipientEmail:string;
 }
 
-export interface PostcardEmail {
+export type PostcardEmail = {
     to:string;
     senderHandle:string|null;
     text:string;
-    altText:string;
     pngBase64:string;
     postcardId:string;
 }
@@ -194,7 +193,7 @@ export async function sendPostcardEmail (
     const displayName = options.senderHandle ?
         options.senderHandle.split('@')[0] :
         'Someone'
-    const subject = `${displayName} sent you a Drering`
+    const subject = `${displayName} sent you a Drerings postcard`
     const escapedText = escapeHtml(options.text)
     const html = `<p>${escapedText}</p>`
 

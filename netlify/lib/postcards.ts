@@ -1,6 +1,6 @@
 import { getDatabase } from '@netlify/database'
 
-export interface CreatePostcardInput {
+export type CreatePostcardInput = {
     senderId:string;
     drawingId:string;
     recipientEmail:string;
@@ -8,7 +8,8 @@ export interface CreatePostcardInput {
     idempotencyKey:string|null;
 }
 
-export interface PostcardRow {
+// snake_case matches sibling row types (posts.ts, stamps.ts)
+export type PostcardRow = {
     id:string;
     sender_id:string;
     drawing_id:string;
@@ -25,20 +26,34 @@ export async function findOrCreateQueuedPostcard (
 ):Promise<{ postcard:PostcardRow; reused:boolean }> {
     const db = getDatabase()
 
-    if (input.idempotencyKey) {
-        const existing = await db.pool.query<PostcardRow>(`
-            SELECT *
-            FROM postcards
-            WHERE sender_id = $1
-                AND idempotency_key = $2
-        `, [input.senderId, input.idempotencyKey])
+    if (!input.idempotencyKey) {
+        // No idempotency key - plain INSERT without conflict
+        const result = await db.pool.query<PostcardRow>(`
+            INSERT INTO postcards (
+                sender_id,
+                drawing_id,
+                recipient_email,
+                lot_id,
+                idempotency_key,
+                status
+            )
+            VALUES ($1, $2, $3, $4, $5, 'queued')
+            RETURNING *
+        `, [
+            input.senderId,
+            input.drawingId,
+            input.recipientEmail,
+            input.lotId,
+            input.idempotencyKey
+        ])
 
-        if (existing.rows[0]) {
-            return { postcard: existing.rows[0], reused: true }
-        }
+        return { postcard: result.rows[0], reused: false }
     }
 
-    const result = await db.pool.query<PostcardRow>(`
+    // With idempotency key - use ON CONFLICT for atomicity
+    const result = await db.pool.query<
+        PostcardRow & {xmax:string}
+    >(`
         INSERT INTO postcards (
             sender_id,
             drawing_id,
@@ -48,7 +63,10 @@ export async function findOrCreateQueuedPostcard (
             status
         )
         VALUES ($1, $2, $3, $4, $5, 'queued')
-        RETURNING *
+        ON CONFLICT (sender_id, idempotency_key)
+            WHERE idempotency_key IS NOT NULL
+            DO UPDATE SET sender_id = EXCLUDED.sender_id
+        RETURNING *, (xmax::text != '0') AS reused
     `, [
         input.senderId,
         input.drawingId,
@@ -57,9 +75,10 @@ export async function findOrCreateQueuedPostcard (
         input.idempotencyKey
     ])
 
-    const postcard = result.rows[0]
+    const row = result.rows[0]
+    const reused = row.xmax !== '0'
 
-    return { postcard, reused: false }
+    return { postcard: row, reused }
 }
 
 export async function attachLotAndMarkSent (

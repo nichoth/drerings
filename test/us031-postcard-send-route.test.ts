@@ -4,7 +4,8 @@ import {
     render,
     screen,
     within,
-    fireEvent
+    fireEvent,
+    waitFor
 } from '@testing-library/preact'
 import { State } from '../src/state'
 import { SendRoute } from '../src/routes/send'
@@ -75,10 +76,9 @@ describe('US-031 postcard send route', () => {
             })
             fireEvent.click(sendButton)
 
-            // Wait for the buy modal to be opened
-            await new Promise(resolve => setTimeout(resolve, 100))
-
-            expect(state.buyPackModalOpen.value).toBe(true)
+            await waitFor(() => {
+                expect(state.buyPackModalOpen.value).toBe(true)
+            })
         }
     )
 
