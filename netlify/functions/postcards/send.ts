@@ -137,7 +137,6 @@ export const handler:Handler = async function handler (event) {
                 to: input.recipient_email,
                 senderHandle: session.user.email,
                 text: drawingRow.text,
-                altText: drawingRow.alt_text,
                 pngBase64: Buffer.from(png).toString('base64'),
                 postcardId: postcard.id
             })
@@ -153,12 +152,12 @@ export const handler:Handler = async function handler (event) {
                 balance_after: debit.balanceAfter
             })
         } catch (sendError) {
-            // If markFailedRefunded fails after refundFailedSend
-            // succeeds, the postcards row stays in 'queued' until
-            // the 10-minute resurrection window expires. The
-            // next retry will adopt it and proceed with a fresh
-            // debit attempt, bounded inconsistency healed by
-            // resurrection logic.
+            // If the DB UPDATE for markFailedRefunded fails after
+            // refundFailedSend succeeds, the postcards row stays
+            // in 'queued' until the 10-minute resurrection window
+            // expires; the next retry adopts the row and runs a
+            // fresh debit. Bounded inconsistency, healed by the
+            // resurrection logic in findOrCreateQueuedPostcard.
             await refundFailedSend({
                 userId: session.user.id,
                 lotId: debit.lotId

@@ -69,7 +69,7 @@ export async function findOrCreateQueuedPostcard (
         ON CONFLICT (sender_id, idempotency_key)
             WHERE idempotency_key IS NOT NULL
             DO UPDATE SET sender_id = EXCLUDED.sender_id
-        RETURNING *, (xmax::text != '0') AS reused
+        RETURNING *, (xmax <> 0) AS reused
     `, [
         input.senderId,
         input.drawingId,
@@ -106,11 +106,14 @@ export async function markFailedRefunded (
 ):Promise<void> {
     const db = getDatabase()
 
+    // Accept 'queued' too: the sync failure path (Phase 1) catches
+    // before attachLotAndMarkSent runs, so the row is still 'queued'.
+    // Only the async bounce path (Phase 2) sees the row as 'sent'.
     await db.pool.query(`
         UPDATE postcards
         SET status = 'failed_refunded',
             updated_at = now()
-        WHERE id = $1 AND status = 'sent'
+        WHERE id = $1 AND status IN ('sent', 'queued')
     `, [postcardId])
 }
 

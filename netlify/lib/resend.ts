@@ -22,7 +22,6 @@ export type PostcardEmail = {
     to:string;
     senderHandle:string|null;
     text:string;
-    altText:string;
     pngBase64:string;
     postcardId:string;
 }
