@@ -282,13 +282,15 @@ export async function issueAutumnStampRefund (
         http_status:number|null;
         response_body:string|null;
         attempted_at:string;
+        just_inserted:boolean;
     }>(`
         INSERT INTO autumn_refund_attempts
             (checkout_id, amount_cents, request_id, status)
         VALUES ($1, $2, $3, 'attempted')
         ON CONFLICT (request_id) DO UPDATE
             SET status = autumn_refund_attempts.status
-        RETURNING id, status, http_status, response_body, attempted_at
+        RETURNING id, status, http_status, response_body, attempted_at,
+                  (xmax = 0) AS just_inserted
     `, [options.checkoutId, options.amountCents, requestId])
     const attempt = upsert.rows[0]
 
@@ -296,15 +298,19 @@ export async function issueAutumnStampRefund (
     if (attempt.status === 'succeeded') return
 
     if (attempt.status === 'attempted') {
-        const ageMs = Date.now() - Date.parse(attempt.attempted_at)
-        // If age > 1s and < 60s: previous attempt in-flight (retry too soon)
-        // If age >= 60s: orphaned (previous attempt never finished)
-        // If age < 1s: fresh insert (this is the first call, proceed)
-        if (ageMs > 1_000 && ageMs < 60_000) {
-            throw new InFlightRefundAttemptError()
+        if (attempt.just_inserted === true) {
+            // Row was freshly inserted by THIS call. Proceed to Autumn.
+        } else {
+            const ageMs = Date.now() - Date.parse(attempt.attempted_at)
+            // Previous attempt in-flight: retry too soon
+            if (ageMs < 60_000) {
+                throw new InFlightRefundAttemptError()
+            }
+            // Orphaned: previous attempt never finished
+            if (ageMs >= 60_000) {
+                throw new OrphanedRefundAttemptError()
+            }
         }
-        if (ageMs >= 60_000) throw new OrphanedRefundAttemptError()
-        // else: age < 1s, fresh insert from this call, proceed
     }
 
     if (attempt.status === 'failed') {

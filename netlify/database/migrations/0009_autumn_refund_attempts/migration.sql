@@ -18,7 +18,7 @@ CREATE TABLE autumn_refund_attempts (
         'attempted', 'succeeded', 'failed'
     )),
     http_status     integer,
-    response_body   text,                  -- truncated to 2KB at write time
+    response_body   text,                  -- truncated to 2000 chars
     error_message   text,                  -- network error, if any
     attempted_at    timestamptz NOT NULL DEFAULT now(),
     responded_at    timestamptz
