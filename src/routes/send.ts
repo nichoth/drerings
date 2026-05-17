@@ -211,8 +211,8 @@ export const SendRoute:FunctionComponent<{
                             <//>
                             <span
                                 class="send-stamp-cost"
-                                aria-label="Sending this postcard \
-costs 1 stamp"
+                                aria-label=${'Sending this postcard ' +
+                                    'costs 1 stamp'}
                             >
                                 <${IconStamp} />
                                 <span>1 stamp</span>
