@@ -3,6 +3,7 @@
 
 :root {
     --focus-color: #00c8ff;
+    --focus-shadow: rgba(0, 200, 255, 0.1);
     --middle-gray: #d3d3d363;
     --main-text: black;
     --muted-text: #555;
