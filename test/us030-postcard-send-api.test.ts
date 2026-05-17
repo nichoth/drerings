@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-interface QueryResult {
-    rows:Array<Record<string, unknown>>;
-}
+type QueryResult = { rows:Array<Record<string, unknown>>; }
 
 type Query = (
     sql:string,
@@ -55,15 +53,18 @@ function createDbMock (
             return { rows: [{ 1: 1 }] }
         }
 
-        if (
-            sql.includes('UPDATE users') &&
-            sql.includes('stamps_balance = stamps_balance - 1')
-        ) {
-            if (options.insufficientStamps) {
-                return { rows: [] }
+        if (sql.includes('UPDATE users')) {
+            if (sql.includes('stamps_balance = stamps_balance - 1')) {
+                if (options.insufficientStamps) {
+                    return { rows: [] }
+                }
+                const bal = options.balanceAfter ?? 4
+                return { rows: [{ stamps_balance: bal }] }
             }
-            const bal = options.balanceAfter ?? 4
-            return { rows: [{ stamps_balance: bal }] }
+            if (sql.includes('stamps_balance = stamps_balance + 1')) {
+                const bal = options.balanceAfter ?? 5
+                return { rows: [{ stamps_balance: bal }] }
+            }
         }
 
         if (sql.includes('SELECT stamps_balance')) {
@@ -136,6 +137,16 @@ function createDbMock (
 }
 
 describe('US-030 POST /api/postcards/send', () => {
+    beforeEach(() => {
+        vi.doUnmock('@netlify/database')
+        vi.doUnmock('@netlify/blobs')
+        vi.doUnmock('../netlify/lib/session.js')
+        vi.doUnmock('../netlify/lib/stamps.js')
+        vi.doUnmock('../netlify/lib/drawing-images.js')
+        vi.doUnmock('../netlify/lib/resend.js')
+        vi.resetModules()
+    })
+
     it('rejects non-POST requests', async () => {
         vi.resetModules()
 
@@ -283,6 +294,70 @@ describe('US-030 POST /api/postcards/send', () => {
                             }]
                         }
                     }
+                    if (sql.includes('SELECT blob_key')) {
+                        return {
+                            rows: [{
+                                blob_key:
+                                    'users/user-1/drawings/' +
+                                    'drawing-1.png',
+                                text: 'test drawing',
+                                alt_text: 'alt text'
+                            }]
+                        }
+                    }
+                    if (sql.includes('SELECT 1') &&
+                        sql.includes('FROM drawings')) {
+                        return { rows: [{ 1: 1 }] }
+                    }
+                    if (
+                        sql.includes('UPDATE users') &&
+                        sql.includes(
+                            'stamps_balance = stamps_balance - 1'
+                        )
+                    ) {
+                        return { rows: [{ stamps_balance: 4 }] }
+                    }
+                    if (sql.includes('UPDATE stamp_lots')) {
+                        return {
+                            rows: [{
+                                id: 'lot-1',
+                                remaining_count: 9
+                            }]
+                        }
+                    }
+                    if (sql.includes('INSERT INTO postcards')) {
+                        return {
+                            rows: [{
+                                id: 'postcard-1',
+                                sender_id: 'user-1',
+                                drawing_id: 'drawing-1',
+                                recipient_email:
+                                    'recipient@example.com',
+                                lot_id: null,
+                                resend_email_id: null,
+                                status: 'queued',
+                                idempotency_key: 'idempotent-key-1',
+                                created_at:
+                                    new Date().toISOString(),
+                                updated_at:
+                                    new Date().toISOString()
+                            }]
+                        }
+                    }
+                    if (sql.includes('INSERT INTO stamp_transactions')) {
+                        return { rows: [] }
+                    }
+                    if (sql.includes('UPDATE postcards')) {
+                        return { rows: [] }
+                    }
+                    if (sql.includes('DELETE FROM postcards')) {
+                        return { rows: [] }
+                    }
+                    if (sql.includes('BEGIN') ||
+                        sql.includes('COMMIT') ||
+                        sql.includes('ROLLBACK')) {
+                        return { rows: [] }
+                    }
                     return { rows: [] }
                 }
             )
@@ -293,7 +368,8 @@ describe('US-030 POST /api/postcards/send', () => {
                         connect: vi.fn(async () => ({
                             query: mockQuery,
                             release: vi.fn()
-                        }))
+                        })),
+                        query: mockQuery
                     }
                 })
             }
@@ -438,16 +514,18 @@ describe('US-030 POST /api/postcards/send', () => {
             }
         }))
 
+        const refundMock = vi.fn(async () => ({
+            lotId: 'lot-1',
+            balanceAfter: 5
+        }))
+
         vi.doMock('../netlify/lib/stamps.js', async () => {
             const mod = await vi.importActual(
                 '../netlify/lib/stamps.js'
             )
             return {
                 ...mod,
-                refundFailedSend: vi.fn(async () => ({
-                    lotId: 'lot-1',
-                    balanceAfter: 5
-                })),
+                refundFailedSend: refundMock,
                 InsufficientStampsError:
                     (mod as any).InsufficientStampsError
             }
@@ -475,6 +553,10 @@ describe('US-030 POST /api/postcards/send', () => {
         expect(response.statusCode).toBe(502)
         const body = JSON.parse(response.body || '')
         expect(body.error).toBe('send_failed')
+        expect(refundMock).toHaveBeenCalledWith({
+            userId: 'user-1',
+            lotId: 'lot-1'
+        })
     })
 
     it('AC3.2: Resend rejects synchronously', async () => {
@@ -498,16 +580,18 @@ describe('US-030 POST /api/postcards/send', () => {
             }
         }))
 
+        const refundMock = vi.fn(async () => ({
+            lotId: 'lot-1',
+            balanceAfter: 5
+        }))
+
         vi.doMock('../netlify/lib/stamps.js', async () => {
             const mod = await vi.importActual(
                 '../netlify/lib/stamps.js'
             )
             return {
                 ...mod,
-                refundFailedSend: vi.fn(async () => ({
-                    lotId: 'lot-1',
-                    balanceAfter: 5
-                })),
+                refundFailedSend: refundMock,
                 InsufficientStampsError:
                     (mod as any).InsufficientStampsError
             }
@@ -535,6 +619,10 @@ describe('US-030 POST /api/postcards/send', () => {
         expect(response.statusCode).toBe(502)
         const body = JSON.parse(response.body || '')
         expect(body.error).toBe('send_failed')
+        expect(refundMock).toHaveBeenCalledWith({
+            userId: 'user-1',
+            lotId: 'lot-1'
+        })
     })
 
     it('AC3.3: audit trail on failure', async () => {
@@ -544,113 +632,29 @@ describe('US-030 POST /api/postcards/send', () => {
             {reason:string}
         > = []
 
-        vi.doMock('@netlify/database', () => {
-            return {
-                getDatabase: () => ({
-                    pool: {
-                        connect: vi.fn(async () => ({
-                            query: vi.fn<Query>(
-                                async (
-                                    sql:string,
-                                    params?:unknown[]
-                                ) => {
-                                    if (
-                                        sql.includes(
-                                            'INSERT INTO ' +
-                                            'stamp_transactions'
-                                        )
-                                    ) {
-                                        const idx =
-                                            params?.indexOf(
-                                                'send'
-                                            ) ?? -1
-                                        const idx2 =
-                                            params?.indexOf(
-                                                'failed_send_refund'
-                                            ) ?? -1
-                                        if (idx >= 0) {
-                                            transactionInserts.push({
-                                                reason: 'send'
-                                            })
-                                        } else if (idx2 >= 0) {
-                                            transactionInserts.push({
-                                                reason: 'failed_send_refund'
-                                            })
-                                        }
-                                        return { rows: [] }
-                                    }
+        const db = createDbMock()
+        const originalQuery = db.query.getMockImplementation()
 
-                                    if (sql.includes(
-                                        'SELECT *'
-                                    ) &&
-                                        sql.includes(
-                                            'FROM postcards'
-                                        )) {
-                                        return { rows: [] }
-                                    }
-
-                                    if (sql.includes(
-                                        'INSERT INTO postcards'
-                                    )) {
-                                        return {
-                                            rows: [{
-                                                id: 'postcard-1',
-                                                status: 'queued'
-                                            }]
-                                        }
-                                    }
-
-                                    if (sql.includes(
-                                        'SELECT blob_key'
-                                    )) {
-                                        return {
-                                            rows: [{
-                                                blob_key:
-                                                    'test-blob-key',
-                                                text: 'test',
-                                                alt_text: 'test'
-                                            }]
-                                        }
-                                    }
-
-                                    if (sql.includes(
-                                        'UPDATE postcards'
-                                    )) {
-                                        return { rows: [] }
-                                    }
-
-                                    if (sql.includes(
-                                        'SELECT 1'
-                                    ) &&
-                                        sql.includes(
-                                            'FROM drawings'
-                                        )) {
-                                        return {
-                                            rows: [{ 1: 1 }]
-                                        }
-                                    }
-
-                                    if (sql.includes(
-                                        'BEGIN'
-                                    ) ||
-                                        sql.includes(
-                                            'COMMIT'
-                                        ) ||
-                                        sql.includes(
-                                            'ROLLBACK'
-                                        )) {
-                                        return { rows: [] }
-                                    }
-
-                                    return { rows: [] }
-                                }
-                            ),
-                            release: vi.fn()
-                        }))
+        vi.mocked(db.query).mockImplementation(
+            async (sql:string, params?:unknown[]) => {
+                if (sql.includes('INSERT INTO stamp_transactions')) {
+                    const idx = params?.indexOf('send') ?? -1
+                    const idx2 = params?.indexOf(
+                        'failed_send_refund'
+                    ) ?? -1
+                    if (idx >= 0) {
+                        transactionInserts.push({
+                            reason: 'send'
+                        })
+                    } else if (idx2 >= 0) {
+                        transactionInserts.push({
+                            reason: 'failed_send_refund'
+                        })
                     }
-                })
+                }
+                return originalQuery!(sql, params)
             }
-        })
+        )
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
@@ -667,21 +671,6 @@ describe('US-030 POST /api/postcards/send', () => {
                 throw new Error('Resend failed')
             }
         }))
-
-        vi.doMock('../netlify/lib/stamps.js', async () => {
-            const mod = await vi.importActual(
-                '../netlify/lib/stamps.js'
-            )
-            return {
-                ...mod,
-                refundFailedSend: vi.fn(async () => ({
-                    lotId: 'lot-1',
-                    balanceAfter: 5
-                })),
-                InsufficientStampsError:
-                    (mod as any).InsufficientStampsError
-            }
-        })
 
         const { handler } = await import(
             '../netlify/functions/postcards/send.js'
