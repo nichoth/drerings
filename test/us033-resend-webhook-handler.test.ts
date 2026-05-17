@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import crypto from 'node:crypto'
 
+const parseBody = (r:unknown):unknown =>
+    JSON.parse((r as {body:string}).body)
+
 describe('US-033 Resend webhook handler function', () => {
     afterEach(() => {
         vi.unstubAllEnvs()
@@ -25,7 +28,7 @@ describe('US-033 Resend webhook handler function', () => {
             const response = await handler(event as any, {} as any)
 
             expect(response?.statusCode).toBe(405)
-            expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+            expect(parseBody(response)).toEqual({
                 error: 'method_not_allowed'
             })
         })
@@ -47,7 +50,7 @@ describe('US-033 Resend webhook handler function', () => {
             const response = await handler(event as any, {} as any)
 
             expect(response?.statusCode).toBe(405)
-            expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+            expect(parseBody(response)).toEqual({
                 error: 'method_not_allowed'
             })
         })
@@ -69,7 +72,7 @@ describe('US-033 Resend webhook handler function', () => {
             const response = await handler(event as any, {} as any)
 
             expect(response?.statusCode).toBe(405)
-            expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+            expect(parseBody(response)).toEqual({
                 error: 'method_not_allowed'
             })
         })
@@ -103,7 +106,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(400)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     error: 'invalid_signature'
                 })
             }
@@ -138,7 +141,7 @@ describe('US-033 Resend webhook handler function', () => {
             const response = await handler(event as any, {} as any)
 
             expect(response?.statusCode).toBe(400)
-            expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+            expect(parseBody(response)).toEqual({
                 error: 'invalid_signature'
             })
         })
@@ -190,7 +193,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(400)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     error: 'invalid_signature'
                 })
             }
@@ -242,7 +245,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(400)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     error: 'invalid_signature'
                 })
             }
@@ -308,7 +311,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(200)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     received: true,
                     refunded: true
                 })
@@ -362,7 +365,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(400)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     error: 'invalid_payload'
                 })
             }
@@ -425,7 +428,7 @@ describe('US-033 Resend webhook handler function', () => {
                 const response = await handler(event as any, {} as any)
 
                 expect(response?.statusCode).toBe(500)
-                expect(JSON.parse((response as unknown as {body:string}).body)).toEqual({
+                expect(parseBody(response)).toEqual({
                     error: 'webhook_processing_failed'
                 })
             }
