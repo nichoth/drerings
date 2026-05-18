@@ -18,8 +18,18 @@ describe('US-027 share fallback panel', () => {
     beforeEach(() => {
         vi.restoreAllMocks()
         history.pushState(null, '', '/post/42')
-        vi.stubGlobal('fetch', vi.fn(async () => {
-            return jsonResponse(publicPost())
+        vi.stubGlobal('fetch', vi.fn(async (url:string|Request) => {
+            const urlString = typeof url === 'string' ? url : url.url
+            if (urlString === '/api/posts/42') {
+                return jsonResponse(publicPost())
+            }
+            if (urlString === '/api/shares/precheck') {
+                return jsonResponse({ type: 'free' })
+            }
+            if (urlString === '/api/shares/confirm') {
+                return jsonResponse({ type: 'free' })
+            }
+            throw new Error(`Unexpected fetch: ${urlString}`)
         }))
     })
 
@@ -164,10 +174,14 @@ async function shareButton ():Promise<HTMLElement> {
 function paidState ():AppState {
     const state = State()
 
+    state.auth.value = {
+        registered: false,
+        authenticated: true
+    }
     state.currentUser.value = {
         id: 'user-1',
-        email: 'paid@example.com',
-        subscription_status: 'active'
+        did: 'did:plc:test-1',
+        handle: 'paid.bsky.social'
     }
 
     return state

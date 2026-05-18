@@ -35,7 +35,8 @@ describe('US-018 logout', () => {
                     'drerings_session=',
                     'Path=/',
                     'Max-Age=0'
-                ].join('; ')
+                ].join('; '),
+                readSessionUserFromCookie: () => null
             }
         })
 
@@ -47,14 +48,17 @@ describe('US-018 logout', () => {
         expect(response.headers?.['Set-Cookie'])
             .toContain('drerings_session=')
         expect(response.headers?.['Set-Cookie']).toContain('Max-Age=0')
-        expect(body).toEqual({ logged_out: true })
+        expect(body).toEqual({ ok: true })
     })
 
     it('rejects non-POST logout requests', async () => {
         vi.resetModules()
 
         vi.doMock('../netlify/lib/session', () => {
-            return { clearSessionCookie: () => 'drerings_session=;' }
+            return {
+                clearSessionCookie: () => 'drerings_session=;',
+                readSessionUserFromCookie: () => null
+            }
         })
 
         const { handler } = await import('../netlify/functions/auth/logout')

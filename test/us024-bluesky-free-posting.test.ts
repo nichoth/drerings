@@ -97,8 +97,18 @@ describe('US-024 free broadcast posting', () => {
         async () => {
             const state = paidState(0)
 
-            vi.stubGlobal('fetch', vi.fn(async () => {
-                return jsonResponse(publicPost())
+            vi.stubGlobal('fetch', vi.fn(async (url:string|Request) => {
+                const urlString = typeof url === 'string' ? url : url.url
+                if (urlString === '/api/posts/42') {
+                    return jsonResponse(publicPost())
+                }
+                if (urlString === '/api/shares/precheck') {
+                    return jsonResponse({ type: 'free' })
+                }
+                if (urlString === '/api/shares/confirm') {
+                    return jsonResponse({ type: 'free' })
+                }
+                throw new Error(`Unexpected fetch: ${urlString}`)
             }))
 
             render(h(PostRoute, { state }))
@@ -120,8 +130,8 @@ function activeSession (stampsBalance:number):{ user:CurrentUser } {
     return {
         user: {
             id: 'user-1',
-            email: 'paid@example.com',
-            subscription_status: 'active',
+            did: 'did:plc:test-1',
+            handle: 'paid.bsky.social',
             stamps_balance: stampsBalance
         }
     }
@@ -130,6 +140,10 @@ function activeSession (stampsBalance:number):{ user:CurrentUser } {
 function paidState (stampsBalance:number):AppState {
     const state = State()
 
+    state.auth.value = {
+        registered: false,
+        authenticated: true
+    }
     state.currentUser.value = activeSession(stampsBalance).user
 
     return state

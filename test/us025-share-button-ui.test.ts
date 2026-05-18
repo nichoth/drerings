@@ -82,10 +82,14 @@ describe('US-025 published post share button', () => {
 function paidState ():AppState {
     const state = State()
 
+    state.auth.value = {
+        registered: false,
+        authenticated: true
+    }
     state.currentUser.value = {
         id: 'user-1',
-        email: 'paid@example.com',
-        subscription_status: 'active'
+        did: 'did:plc:test-1',
+        handle: 'paid.bsky.social'
     }
 
     return state
