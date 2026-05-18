@@ -57,7 +57,7 @@ describe('US-020 expired pending gift refunds', () => {
                     return {
                         rows: [{
                             id: 'pending-gift-1',
-                            sender_email: 'sender@example.com',
+                            sender_handle: 'sender.bsky.social',
                             recipient_email: 'friend@example.com',
                             autumn_checkout_id: 'checkout-gift-1',
                             price_cents: 1000
@@ -72,7 +72,7 @@ describe('US-020 expired pending gift refunds', () => {
                     return {
                         rows: [{
                             id: 'pending-gift-1',
-                            sender_email: 'sender@example.com',
+                            sender_handle: 'sender.bsky.social',
                             recipient_email: 'friend@example.com',
                             autumn_checkout_id: 'checkout-gift-1',
                             price_cents: 1000
@@ -143,7 +143,7 @@ describe('US-020 expired pending gift refunds', () => {
             expect(clientQuery).toHaveBeenCalledWith('COMMIT')
             expect(release).toHaveBeenCalled()
             expect(sendRefundEmail).toHaveBeenCalledWith({
-                email: 'sender@example.com',
+                email: 'sender.bsky.social@bsky.social',
                 recipientEmail: 'friend@example.com'
             })
         })

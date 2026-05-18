@@ -77,7 +77,7 @@ describe('US-023 stamps page', () => {
 
             expect(within(lots).getByText('15 of 25 stamps left'))
                 .toBeTruthy()
-            expect(within(lots).getByText('friend@example.com'))
+            expect(within(lots).getByText('friend.bsky.social'))
                 .toBeTruthy()
 
             await fireEvent.click(screen.getByRole('button', {
@@ -197,7 +197,7 @@ function sentGifts () {
     return [
         {
             id: 'lot-unused',
-            recipient_email: 'friend@example.com',
+            recipient_handle: 'friend.bsky.social',
             original_count: 25,
             remaining_count: 25,
             refund_cents: 1000,
