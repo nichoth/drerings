@@ -76,7 +76,7 @@ export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
 
 export interface SentGiftSummary {
     id:string;
-    recipient_email:string;
+    recipient_handle:string;
     original_count:number;
     remaining_count:number;
     refund_cents:number;
@@ -239,7 +239,7 @@ interface PendingGiftRow {
 
 interface SentGiftRow {
     id:string;
-    recipient_email:string;
+    recipient_handle:string;
     original_count:number|string;
     remaining_count:number|string;
     price_paid_cents:number|string|null;
@@ -253,7 +253,7 @@ interface RefundableSentGiftRow extends SentGiftRow {
 
 interface ExpiredPendingGiftRow {
     id:string;
-    sender_email:string;
+    sender_handle:string;
     recipient_email:string;
     autumn_checkout_id:string;
     price_cents:number|string;
@@ -371,7 +371,7 @@ export async function listSentGiftsForSender (
     const result = await db.pool.query<SentGiftRow>(`
         SELECT
             stamp_lots.id,
-            users.email AS recipient_email,
+            users.handle AS recipient_handle,
             stamp_lots.original_count,
             stamp_lots.remaining_count,
             stamp_lots.price_paid_cents,
@@ -977,7 +977,7 @@ export async function refundSentGiftStampLot (
             SELECT
                 stamp_lots.id,
                 stamp_lots.user_id,
-                users.email AS recipient_email,
+                users.handle AS recipient_handle,
                 stamp_lots.original_count,
                 stamp_lots.remaining_count,
                 stamp_lots.price_paid_cents,
@@ -1074,7 +1074,7 @@ export async function refundExpiredPendingGifts (
     const result = await db.pool.query<ExpiredPendingGiftRow>(`
         SELECT
             pending_gifts.id,
-            users.email AS sender_email,
+            users.handle AS sender_handle,
             pending_gifts.recipient_email,
             pending_gifts.autumn_checkout_id,
             pending_gifts.price_cents
@@ -1114,7 +1114,7 @@ async function refundExpiredPendingGift (
         const locked = await client.query<ExpiredPendingGiftRow>(`
             SELECT
                 pending_gifts.id,
-                users.email AS sender_email,
+                users.handle AS sender_handle,
                 pending_gifts.recipient_email,
                 pending_gifts.autumn_checkout_id,
                 pending_gifts.price_cents
@@ -1176,7 +1176,7 @@ async function sendPendingGiftRefundNotice (
 ):Promise<void> {
     try {
         await options.sendRefundEmail({
-            email: gift.sender_email,
+            email: `${gift.sender_handle}@bsky.social`,
             recipientEmail: gift.recipient_email
         })
     } catch (error) {
@@ -1201,7 +1201,7 @@ function sentGiftSummary (
 
     return {
         id: gift.id,
-        recipient_email: gift.recipient_email,
+        recipient_handle: gift.recipient_handle,
         original_count: originalCount,
         remaining_count: remainingCount,
         refund_cents: refundable ? pricePaidCents : 0,

@@ -112,7 +112,7 @@ export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
 
 export interface SentGiftSummary {
     id:string;
-    recipient_email:string;
+    recipient_handle:string;
     original_count:number;
     remaining_count:number;
     refund_cents:number;
@@ -1358,7 +1358,7 @@ function isSentGiftSummary (value:unknown):value is SentGiftSummary {
     ]
 
     return typeof maybeGift.id === 'string' &&
-        typeof maybeGift.recipient_email === 'string' &&
+        typeof maybeGift.recipient_handle === 'string' &&
         typeof maybeGift.original_count === 'number' &&
         typeof maybeGift.remaining_count === 'number' &&
         typeof maybeGift.refund_cents === 'number' &&

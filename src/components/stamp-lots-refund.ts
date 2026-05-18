@@ -188,7 +188,7 @@ export const StampLotsRefundPanel:FunctionComponent<{
                         class="sent-gift"
                         aria-label=${sentGiftLabel(gift)}
                     >
-                        <span>${gift.recipient_email}</span>
+                        <span>${gift.recipient_handle}</span>
                         <span>${gift.original_count} stamps</span>
                         <span>${sentGiftStatusLabel(gift)}</span>
                         ${sentGiftActions(gift)}
@@ -256,7 +256,7 @@ export const StampLotsRefundPanel:FunctionComponent<{
 }
 
 function sentGiftLabel (gift:SentGiftSummary):string {
-    return `${gift.recipient_email} ${gift.original_count} stamp gift`
+    return `${gift.recipient_handle} ${gift.original_count} stamp gift`
 }
 
 function pendingGiftLabel (gift:PendingGiftSummary):string {
@@ -327,7 +327,7 @@ function refundConfirmLabel (lot:StampLotSummary):string {
 function sentGiftConfirmLabel (gift:SentGiftSummary):string {
     return `Refund ${formatMoney(
         gift.refund_cents
-    )} for ${gift.recipient_email}?`
+    )} for ${gift.recipient_handle}?`
 }
 
 function formatMoney (cents:number):string {
