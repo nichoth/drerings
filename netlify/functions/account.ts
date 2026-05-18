@@ -5,7 +5,6 @@ import {
     deleteAccountData,
     getAccountDetails
 } from '../lib/account.js'
-import { cancelAutumnSubscription } from '../lib/billing.js'
 
 export const handler:Handler = async function handler (event) {
     if (!['DELETE', 'GET'].includes(event.httpMethod)) {
@@ -25,7 +24,6 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
-        await cancelAutumnSubscription(session.user)
         await deleteAccountData(session.user.id)
 
         return {
