@@ -15,11 +15,9 @@ export const AccountRoute:FunctionComponent<{
 }> = function AccountRoute ({ state }) {
     const currentUser = state.currentUser.value
     const returnStatus = new URLSearchParams(location.search).get('status')
-    const emailStatus = new URLSearchParams(location.search).get('email')
     const account = state.account.value
     const error = useSignal<string>('')
     const message = useSignal<string>('')
-    const newEmail = useSignal<string>('')
     const confirmDelete = useSignal<boolean>(false)
     const deleteText = useSignal<string>('')
     const supportsPasskeys = browserSupportsWebAuthn()
@@ -29,20 +27,6 @@ export const AccountRoute:FunctionComponent<{
 
         State.FetchAccount(state).catch(() => {})
     }, [currentUser?.id, state])
-
-    const updateEmail = useCallback(async () => {
-        error.value = ''
-        message.value = ''
-
-        try {
-            await State.RequestEmailUpdate(state, newEmail.value)
-            message.value = `Check ${newEmail.value} to confirm the update.`
-        } catch (err) {
-            error.value = err instanceof Error ?
-                err.message :
-                'Unable to send the update link right now.'
-        }
-    }, [state])
 
     const registerPasskey = useCallback(async () => {
         error.value = ''
@@ -91,20 +75,6 @@ export const AccountRoute:FunctionComponent<{
         }
     }, [state])
 
-    const removePasskey = useCallback(async (passkeyId:string) => {
-        error.value = ''
-        message.value = ''
-
-        try {
-            await State.RemovePasskey(state, passkeyId)
-            message.value = 'Passkey removed.'
-        } catch (err) {
-            error.value = err instanceof Error ?
-                err.message :
-                'Unable to remove passkey right now.'
-        }
-    }, [state])
-
     const deleteAccount = useCallback(async () => {
         if (!confirmDelete.value) {
             confirmDelete.value = true
@@ -137,11 +107,6 @@ export const AccountRoute:FunctionComponent<{
                 </p>` :
                 null
             }
-
-        ${emailStatus === 'ok' ?
-            html`<p class="account-success">Email updated.</p>` :
-            null
-        }
 
         ${!currentUser ?
             html`<p>
@@ -180,19 +145,6 @@ export const AccountRoute:FunctionComponent<{
                     <dt>Email</dt>
                     <dd>${account?.email || currentUser?.email || ''}</dd>
                 </dl>
-                <label>
-                    New email
-                    <input
-                        type="email"
-                        value=${newEmail.value}
-                        onInput=${(ev:InputEvent) => {
-                            newEmail.value = inputValue(ev)
-                        }}
-                    />
-                </label>
-                <${Button} type="button" onClick=${updateEmail}>
-                    Update email
-                <//>
             </section>
 
             <section aria-label="Passkeys" class="account-section">
@@ -242,12 +194,6 @@ export const AccountRoute:FunctionComponent<{
             ${details.passkeys.map((passkey) => {
                 return html`<li key=${passkey.id}>
                     <span>Added ${formatDate(passkey.created_at)}</span>
-                    <${Button}
-                        type="button"
-                        onClick=${() => removePasskey(passkey.id)}
-                    >
-                        Remove
-                    <//>
                 </li>`
             })}
         </ul>`

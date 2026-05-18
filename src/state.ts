@@ -884,56 +884,6 @@ State.FetchAccount = async function (
     }
 }
 
-State.RequestEmailUpdate = async function (
-    _state:AppState,
-    email:string
-):Promise<void> {
-    const response = await fetch('/api/account/email', {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-    })
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to send the update link right now.'
-
-        throw new Error(message)
-    }
-}
-
-State.RemovePasskey = async function (
-    state:AppState,
-    passkeyId:string
-):Promise<void> {
-    const response = await fetch(
-        `/api/account/passkeys/${encodeURIComponent(passkeyId)}`,
-        { method: 'DELETE' }
-    )
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to remove passkey right now.'
-
-        throw new Error(message)
-    }
-
-    if (state.account.value) {
-        state.account.value = {
-            ...state.account.value,
-            passkeys: state.account.value.passkeys.filter((passkey) => {
-                return passkey.id !== passkeyId
-            })
-        }
-    }
-}
-
 State.DeleteAccount = async function (state:AppState):Promise<void> {
     const response = await fetch('/api/account', { method: 'DELETE' })
 
