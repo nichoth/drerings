@@ -63,6 +63,26 @@ export type PostcardSendResult =
         message:string;
     }
 
+export type ShareDrawingResult =
+    | { ok:true; was_free:boolean; stamps_balance?:number }
+    | {
+        ok:false;
+        reason:'blocked'|'network'|'cancelled'|'other';
+        message:string;
+    }
+
+export type ShareDialogState =
+    | {
+        type:'confirm';
+        drawingId:string;
+        idempotencyKey:string;
+        stampsBalance:number;
+    }
+    | {
+        type:'blocked';
+        message:string;
+    }
+
 export interface PublicPost extends PublishedPost {
     image:string;
     text:string;
@@ -116,7 +136,8 @@ export type StampTransactionReason =
     'gift_sent'|
     'gift_received'|
     'failed_send_refund'|
-    'gift_reclaimed'
+    'gift_reclaimed'|
+    'share'
 
 export interface StampTransactionSummary {
     id:string;
@@ -174,6 +195,9 @@ export function State (): {
     stampLotsLoading:Signal<boolean>;
     stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
+    shareDialog:Signal<ShareDialogState|null>;
+    shareInFlight:Signal<boolean>;
+    shareError:Signal<string|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
     const onRoute = Route()
@@ -207,6 +231,9 @@ export function State (): {
         stampLotsLoading: signal<boolean>(false),
         stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
+        shareDialog: signal<ShareDialogState|null>(null),
+        shareInFlight: signal<boolean>(false),
+        shareError: signal<string|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
@@ -1073,7 +1100,8 @@ function isStampTransactionReason (
         value === 'gift_sent' ||
         value === 'gift_received' ||
         value === 'failed_send_refund' ||
-        value === 'gift_reclaimed'
+        value === 'gift_reclaimed' ||
+        value === 'share'
 }
 
 function isStampPackProductId (
