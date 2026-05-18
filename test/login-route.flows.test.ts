@@ -1,55 +1,49 @@
 import { h } from 'preact'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/preact'
+import { render, screen } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
 import { LoginRoute } from '../src/routes/login'
 import { State } from '../src/state'
 
 describe('login route', () => {
-    it('renders a magic-link email form', () => {
+    it('renders a Bluesky handle form', () => {
         const state = State()
 
         render(h(LoginRoute, { state }))
 
-        expect(screen.getByRole('heading', { name: 'Sign In' }))
+        expect(screen.getByRole('heading', { name: 'Sign in' }))
             .toBeTruthy()
-        expect(screen.getByLabelText(/email/i))
+        expect(screen.getByLabelText(/bluesky handle/i))
             .toBeTruthy()
-        expect(screen.getByRole('button', { name: /send link/i }))
+        expect(screen.getByRole('button', { name: /sign in with bluesky/i }))
             .toBeTruthy()
     })
 
-    it('shows a check-your-email state after requesting a link', async () => {
+    it('submitting the handle navigates to auth login endpoint', async () => {
         const user = userEvent.setup()
         const state = State()
-        const fetcher = vi.fn(async () => {
-            return new Response(JSON.stringify({ ok: true }), {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-        })
+        const assigned:string[] = []
+        const originalAssign = location.assign
+        // @ts-expect-error: monkey-patch for test
+        location.assign = (url:string) => { assigned.push(url) }
 
-        vi.stubGlobal('fetch', fetcher)
+        try {
+            render(h(LoginRoute, { state }))
 
-        render(h(LoginRoute, { state }))
+            await user.type(
+                screen.getByLabelText(/bluesky handle/i),
+                'alice.bsky.social'
+            )
+            await user.click(
+                screen.getByRole('button', { name: /sign in with bluesky/i })
+            )
 
-        await user.type(
-            screen.getByLabelText(/email/i),
-            'user@example.com'
-        )
-        await user.click(screen.getByRole('button', { name: /send link/i }))
-
-        await waitFor(() => {
-            expect(screen.getByText(/check your email/i)).toBeTruthy()
-        })
-        expect(fetcher).toHaveBeenCalledWith('/api/auth/magic-link', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ email: 'user@example.com' })
-        })
+            expect(assigned.length).toBe(1)
+            expect(assigned[0]).toMatch(/^\/api\/auth\/login\?handle=/)
+            expect(assigned[0]).toContain('alice.bsky.social')
+        } finally {
+            // @ts-expect-error: restore
+            location.assign = originalAssign
+        }
     })
 })
