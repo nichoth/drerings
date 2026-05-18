@@ -355,4 +355,79 @@ describe('recordShare', () => {
             })
         }
     )
+
+    it('returns recorded on replay of idempotent request',
+        async () => {
+            vi.resetModules()
+
+            const queries:Array<{ sql:string; params?:unknown[] }> = []
+            const release = vi.fn()
+
+            const query = vi.fn(async (sql:string, params?:unknown[]) => {
+                queries.push({ sql, params })
+
+                if (sql.includes('FROM share_events')
+                    && sql.includes('idempotency_key = $2')) {
+                    // Early dup check - row already exists
+                    return {
+                        rows: [{
+                            drawing_id: 'drawing-1',
+                            was_free: true
+                        }]
+                    }
+                }
+                if (sql.includes('stamps_balance FROM users')) {
+                    // Balance read for replay response
+                    return { rows: [{ stamps_balance: 3 }] }
+                }
+                if (sql === 'BEGIN' || sql === 'COMMIT' ||
+                    sql === 'ROLLBACK') {
+                    return { rows: [] }
+                }
+                return { rows: [] }
+            })
+
+            vi.doMock('@netlify/database', () => ({
+                getDatabase: () => ({
+                    pool: {
+                        query,
+                        connect: async () => ({
+                            query,
+                            release
+                        })
+                    }
+                })
+            }))
+
+            const { recordShare } = await import('../netlify/lib/shares')
+            const result = await recordShare({
+                userId: 'user-1',
+                drawingId: 'drawing-1',
+                timezone: 'UTC',
+                idempotencyKey: 'idem-1'
+            })
+
+            expect(result).toEqual({
+                type: 'recorded',
+                was_free: true,
+                stamps_balance: 3
+            })
+
+            // Verify early dup branch was taken: no BEGIN issued
+            const begin = queries.find(q => q.sql === 'BEGIN')
+            expect(begin).toBeUndefined()
+
+            // Verify no INSERT into share_events
+            const insertEvent = queries.find(q =>
+                q.sql.includes('INSERT INTO share_events')
+            )
+            expect(insertEvent).toBeUndefined()
+
+            // Verify no debit (no INSERT into stamp_transactions)
+            const insertStamps = queries.find(q =>
+                q.sql.includes('INSERT INTO stamp_transactions')
+            )
+            expect(insertStamps).toBeUndefined()
+        }
+    )
 })
