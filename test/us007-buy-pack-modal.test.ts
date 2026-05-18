@@ -22,7 +22,7 @@ describe('US-007 buy-pack modal UI', () => {
         render(h(Route, { state }))
 
         await fireEvent.click(screen.getByRole('button', {
-            name: 'Buy stamps'
+            name: 'Buy 10-stamp pack'
         }))
 
         const dialog = screen.getByRole('dialog', { name: 'Buy stamps' })
@@ -72,7 +72,7 @@ describe('US-007 buy-pack modal UI', () => {
         render(h(Route, { state }))
 
         await fireEvent.click(screen.getByRole('button', {
-            name: 'Buy stamps'
+            name: 'Buy 10-stamp pack'
         }))
         await fireEvent.click(screen.getByRole('button', {
             name: 'Buy 25 stamps'
@@ -83,7 +83,7 @@ describe('US-007 buy-pack modal UI', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: 'buyer@example.com',
+                    handle: 'testuser',
                     product_id: '25_stamps'
                 })
             })
@@ -99,8 +99,8 @@ function signedInState ():AppState {
 
     state.currentUser.value = {
         id: 'user-1',
-        email: 'buyer@example.com',
-        subscription_status: 'free'
+        did: 'did:key:user1',
+        handle: 'testuser'
     }
     state.auth.value = {
         registered: false,
