@@ -15,10 +15,11 @@ interface DatabaseClient {
 
 // Pure helpers for timezone and month_key derivation.
 
-export function isValidIanaTimezone(tz:string):boolean {
+export function isValidIanaTimezone (tz:string):boolean {
     if (typeof tz !== 'string' || tz.length === 0) return false
 
     try {
+        // eslint-disable-next-line no-new
         new Intl.DateTimeFormat('en-US', { timeZone: tz })
         return true
     } catch {
@@ -26,7 +27,7 @@ export function isValidIanaTimezone(tz:string):boolean {
     }
 }
 
-export function monthKeyFor(
+export function monthKeyFor (
     timezone:string,
     instant:Date = new Date()
 ):string {
@@ -70,17 +71,17 @@ export interface PrecheckOptions {
     idempotencyKey:string;
 }
 
-export interface ConfirmOptions extends PrecheckOptions {}
+export type ConfirmOptions = PrecheckOptions
 
 export class IdempotencyConflictError extends Error {
-    constructor() {
+    constructor () {
         super('idempotency_key already used for a different drawing_id')
     }
 }
 
 // Task 4: Read-only precheck - determine share eligibility.
 
-export async function precheckShare(
+export async function precheckShare (
     options:PrecheckOptions
 ):Promise<PrecheckResult> {
     const db = getDatabase()
@@ -149,7 +150,7 @@ export async function precheckShare(
 // Task 5: Single-transaction confirm - record share with serialization via
 // SELECT ... FOR UPDATE.
 
-export async function recordShare(
+export async function recordShare (
     options:ConfirmOptions
 ):Promise<ConfirmResult> {
     const db = getDatabase()
@@ -313,7 +314,7 @@ export async function recordShare(
     }
 }
 
-function isUniqueViolation(err:unknown):boolean {
+function isUniqueViolation (err:unknown):boolean {
     // Postgres error code 23505: unique_violation.
     return !!err
         && typeof err === 'object'
