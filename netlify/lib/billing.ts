@@ -624,6 +624,9 @@ function getAutumnSecretKey ():string {
     return key
 }
 
+// Defense-in-depth: runtime guard exists because callers may bypass
+// the type system via `as StampPackProductId` assertions on webhook/HTTP
+// inputs.
 function getCheckoutProductId (
     productId:StampPackProductId
 ):string {

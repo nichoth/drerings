@@ -34,7 +34,7 @@ export const PACK_DEFINITIONS = {
 
 export type StampPackProductId = keyof typeof PACK_DEFINITIONS
 
-export const STAMP_PACKS:StampPackDefinition[] = Object.values(
+export const STAMP_PACKS:Array<StampPackDefinition> = Object.values(
     PACK_DEFINITIONS
 )
 

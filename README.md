@@ -119,14 +119,12 @@ Resend. To enable it:
 
 Configure these one-time stamp pack products in Autumn for prepaid
 postcard sends. The product ids and metadata values must match
-`PACK_DEFINITIONS` in `netlify/lib/billing.ts`.
+`PACK_DEFINITIONS` in `src/stamp-packs.ts`.
 
-- `stamps_starter`: 10 stamps for $5.00. Metadata:
+- `10_stamps`: 10 stamps for $5.00 (500 cents). Metadata:
   `stamp_count=10`, `per_stamp_price_cents=50`.
-- `stamps_bundle`: 25 stamps for $10.00. Metadata:
+- `25_stamps`: 25 stamps for $10.00 (1000 cents). Metadata:
   `stamp_count=25`, `per_stamp_price_cents=40`.
-- `stamps_big_bundle`: 60 stamps for $20.00. Metadata:
-  `stamp_count=60`, `per_stamp_price_cents=33.33`.
 
 After configuring the products, verify staging checkout by starting a
 checkout for each pack and confirming Autumn sends a signed webhook to:

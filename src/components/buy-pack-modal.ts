@@ -54,9 +54,6 @@ export const BuyPackModal:FunctionComponent<{
                                 null
                             }
                         </div>
-                        <p class="stamp-pack-count">
-                            ${pack.count} stamps
-                        </p>
                         <p class="stamp-pack-price">
                             ${formatPackPrice(pack.priceCents)}
                         </p>

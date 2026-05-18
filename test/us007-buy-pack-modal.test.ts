@@ -30,7 +30,6 @@ describe('US-007 buy-pack modal UI', () => {
         expect(within(dialog).getByRole('heading', {
             name: '10 stamps'
         })).toBeTruthy()
-        expect(within(dialog).getByText('10 stamps')).toBeTruthy()
         expect(within(dialog).getByText('$5.00')).toBeTruthy()
         expect(within(dialog).getByText('50c each')).toBeTruthy()
 
@@ -39,7 +38,6 @@ describe('US-007 buy-pack modal UI', () => {
         })
 
         expect(within(bundle).getByText('Recommended')).toBeTruthy()
-        expect(within(bundle).getByText('25 stamps')).toBeTruthy()
         expect(within(bundle).getByText('$10.00')).toBeTruthy()
         expect(within(bundle).getByText('40c each')).toBeTruthy()
 
