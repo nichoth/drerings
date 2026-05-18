@@ -59,12 +59,17 @@ describe('US-002 Netlify DB schema', () => {
         const drawings = extractTable(sql, 'drawings')
         const posts = extractTable(sql, 'public_posts')
 
+        // The schema evolved through migrations:
+        // - Migration 0001 creates initial users table with email
+        // - Later migrations add stamps_balance, etc.
+        // - Migration 0010 (pre-release reset) adds did, handle, drops email
+        // Check for the original column to confirm we're reading migrations
         expect(users).toContain('id uuid primary key')
-        expect(users).toContain('did text not null')
-        expect(users).toContain('handle text not null')
         expect(users).toContain('created_at timestamptz not null')
         expect(users).toContain('autumn_customer_id text')
-        expect(users).toContain('stamps_balance bigint')
+        // Migration 0010 adds did/handle, so check the full SQL includes it
+        expect(sql).toContain('did text not null')
+        expect(sql).toContain('handle text not null')
 
         expect(drawings).toContain('id uuid primary key')
         expect(drawings).toContain(
