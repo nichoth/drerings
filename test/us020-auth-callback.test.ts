@@ -1,4 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Handler, HandlerResponse } from '@netlify/functions'
+
+function assertResponse (
+    r:Awaited<ReturnType<Handler>>
+):asserts r is HandlerResponse {
+    if (!r) throw new Error('handler returned void')
+}
 
 describe('GET /api/auth/callback', () => {
     it('returns 400 when state is missing from query', async () => {
@@ -25,6 +32,7 @@ describe('GET /api/auth/callback', () => {
             headers: {}
         } as never, {} as never)
 
+        assertResponse(response)
         expect(response.statusCode).toBe(400)
         expect(upsertSpy).not.toHaveBeenCalled()
         expect(callbackSpy).not.toHaveBeenCalled()
@@ -54,6 +62,7 @@ describe('GET /api/auth/callback', () => {
             headers: {}
         } as never, {} as never)
 
+        assertResponse(response)
         expect(response.statusCode).toBe(400)
         expect(upsertSpy).not.toHaveBeenCalled()
     })
@@ -88,6 +97,7 @@ describe('GET /api/auth/callback', () => {
                 headers: {}
             } as never, {} as never)
 
+            assertResponse(response)
             expect(response.statusCode).toBe(400)
             expect(upsertSpy).not.toHaveBeenCalled()
         })
@@ -108,11 +118,15 @@ describe('GET /api/auth/callback', () => {
                 session: {
                     sub: 'did:plc:alice',
                     agent: {
-                        com: { atproto: { server: {
-                            getSession: async () => ({
-                                data: { handle: 'alice-new.bsky.social' }
-                            })
-                        } } }
+                        com: {
+                            atproto: {
+                                server: {
+                                    getSession: async () => ({
+                                        data: { handle: 'alice-new.bsky.social' }
+                                    })
+                                }
+                            }
+                        }
                     }
                 }
             }))
@@ -124,7 +138,7 @@ describe('GET /api/auth/callback', () => {
                 getOAuthClient: () => ({ callback: callbackSpy })
             }))
             vi.doMock('../netlify/lib/session.js', () => ({
-                createSessionCookie: (user:never) => 'session-cookie'
+                createSessionCookie: (_user:never) => 'session-cookie'
             }))
 
             const { handler } = await import(
@@ -139,6 +153,7 @@ describe('GET /api/auth/callback', () => {
                 headers: {}
             } as never, {} as never)
 
+            assertResponse(response)
             expect(response.statusCode).toBe(302)
             expect(upsertSpy).toHaveBeenCalledWith(
                 'did:plc:alice',
@@ -183,7 +198,7 @@ describe('GET /api/auth/callback', () => {
             getOAuthClient: () => ({ callback: callbackSpy })
         }))
         vi.doMock('../netlify/lib/session.js', () => ({
-            createSessionCookie: (user:never) => 'session-cookie'
+            createSessionCookie: (_user:never) => 'session-cookie'
         }))
 
         const { handler } = await import(
@@ -198,6 +213,7 @@ describe('GET /api/auth/callback', () => {
             headers: {}
         } as never, {} as never)
 
+        assertResponse(response)
         expect(response.statusCode).toBe(302)
         expect(upsertSpy).toHaveBeenCalledWith(
             'did:plc:test',

@@ -9,7 +9,7 @@ import './login.css'
 
 export const LoginRoute:FunctionComponent<{
     state:AppState;
-}> = function LoginRoute ({ state:_state }) {
+}> = function LoginRoute ({ state: _state }) {
     const handle = useSignal<string>('')
 
     const onSubmit = useCallback((ev:Event) => {

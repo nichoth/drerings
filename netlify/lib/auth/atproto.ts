@@ -27,7 +27,7 @@ function getClientId (origin:string):string {
     return `${origin}/.well-known/oauth-client-metadata.json`
 }
 
-export function getClientMetadata ():object {
+export function getClientMetadata ():Record<string, unknown> {
     const origin = getOrigin()
     const clientId = getClientId(origin)
 
@@ -45,6 +45,8 @@ export function getClientMetadata ():object {
     }
 }
 
+// Cache assumes PUBLIC_URL is fixed at cold start; Netlify Function instances
+// are short-lived so this is safe.
 let cached:NodeOAuthClient|null = null
 
 export function getOAuthClient ():NodeOAuthClient {
