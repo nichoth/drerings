@@ -6,16 +6,20 @@ import { State, type AppState } from '../state'
 import { BuyPackModal } from '../components/buy-pack-modal'
 import {
     STAMP_PACKS,
-    formatPackPrice
+    formatPackPrice,
+    type StampPackProductId
 } from '../stamp-packs'
 import './pricing.css'
 
 export const PricingRoute:FunctionComponent<{
     state:AppState;
 }> = function PricingRoute ({ state }) {
-    const openBuyPacks = useCallback((productId?:string) => {
-        State.OpenBuyPackModal(state, productId as never)
-    }, [state])
+    const openBuyPacks = useCallback(
+        (productId?:StampPackProductId) => {
+            State.OpenBuyPackModal(state, productId)
+        },
+        [state]
+    )
 
     const closeBuyPacks = useCallback(() => {
         State.CloseBuyPackModal(state)
@@ -63,7 +67,10 @@ export const PricingRoute:FunctionComponent<{
                     </div>
                     <${Button}
                         type="button"
-                        onClick=${() => openBuyPacks(pack.productId)}
+                        aria-label=${'Buy ' + pack.count + '-stamp pack'}
+                        onClick=${() => openBuyPacks(
+                            pack.productId as StampPackProductId
+                        )}
                     >
                         Buy
                     <//>
