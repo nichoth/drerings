@@ -122,7 +122,9 @@ describe('State.ShareDrawing', () => {
             )
 
             expect(result.ok).toBe(false)
-            expect(result.reason).toBe('network')
+            if (!result.ok) {
+                expect(result.reason).toBe('network')
+            }
             expect(sheetOpened).toBe(false)
             expect(state.shareError.value).toBeTruthy()
         })
