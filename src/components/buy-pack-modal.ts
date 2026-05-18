@@ -38,7 +38,7 @@ export const BuyPackModal:FunctionComponent<{
                     const productId = pack.productId as StampPackProductId
                     const isBuying =
                         state.stampCheckoutProductId.value === productId
-                    const isRecommended = productId === 'stamps_bundle'
+                    const isRecommended = productId === '25_stamps'
 
                     return html`<article
                         class=${[

@@ -1074,9 +1074,8 @@ function isStampTransactionReason (
 function isStampPackProductId (
     value:unknown
 ):value is StampPackProductId {
-    return value === 'stamps_starter' ||
-        value === 'stamps_bundle' ||
-        value === 'stamps_big_bundle'
+    return value === '10_stamps' ||
+        value === '25_stamps'
 }
 
 function isProtectedRoute (path:string):boolean {

@@ -18,7 +18,7 @@ export const GiftStampsPanel:FunctionComponent<{
     state:AppState;
 }> = function GiftStampsPanel ({ state }) {
     const recipient = useSignal<string>('')
-    const selectedPack = useSignal<StampPackProductId>('stamps_bundle')
+    const selectedPack = useSignal<StampPackProductId>('25_stamps')
 
     const startGiftCheckout = useCallback(async () => {
         await State.StartGiftStampCheckout(state, {
