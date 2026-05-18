@@ -6,28 +6,12 @@
 
     & .pricing-intro {
         margin-bottom: 2rem;
-
-        & p {
-            max-width: 42rem;
-        }
     }
 
-    & form.pricing-checkout-form {
-        & div {
-            margin-bottom: 1rem;
-        }
-    }
-
-    & .pricing-tiers {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-
-    & .pricing-tier {
+    & .pricing-tier-card {
         border-top: 2px solid var(--main-text);
         padding-block: 1rem;
+        margin-bottom: 2rem;
 
         & h3 {
             margin: 0 0 0.5rem;
@@ -35,7 +19,7 @@
 
         & ul {
             padding-left: 1.2rem;
-            margin-bottom: 0;
+            margin: 0;
         }
 
         & li {
@@ -44,24 +28,8 @@
         }
     }
 
-    & .pricing-rate {
-        font-size: 1.4rem;
-        line-height: 1.2;
-        margin: 0 0 1rem;
-    }
-
-    & .pricing-checkout {
+    & .pricing-stamp-packs {
         border-top: 1px solid var(--input-border);
-        padding-top: 1rem;
-    }
-
-    & .stamp-pack-cta {
-        border-top: 1px solid var(--input-border);
-        display: flex;
-        gap: 1rem;
-        align-items: end;
-        justify-content: space-between;
-        margin-bottom: 2rem;
         padding-top: 1rem;
 
         & h3 {
@@ -69,28 +37,49 @@
         }
 
         & p {
-            margin: 0;
+            margin: 0 0 1rem;
             max-width: 36rem;
         }
     }
 
-    & .pricing-error {
-        color: var(--danger);
+    & .pack-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    & .pack-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding-block: 0.5rem;
+    }
+
+    & .pack-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    & .pack-name {
+        font-weight: 600;
+    }
+
+    & .pack-count,
+    & .pack-price {
+        color: var(--main-text);
     }
 }
 
 @media (max-width: 42rem) {
     .route.pricing {
-        & .pricing-tiers {
-            grid-template-columns: 1fr;
-        }
-
-        & .stamp-pack-cta {
-            display: block;
-
-            & .btn {
-                margin-top: 1rem;
-            }
+        & .pack-row {
+            flex-direction: column;
+            align-items: flex-start;
         }
     }
 }
