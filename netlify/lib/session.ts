@@ -3,7 +3,7 @@ import type { HandlerEvent } from '@netlify/functions'
 import { getDatabase } from '@netlify/database'
 import type { SessionUser } from './auth-store.js'
 
-const COOKIE_NAME = 'drerings_session'
+const COOKIE_NAME = 'drerings_auth'
 
 export interface Session {
     user:SessionUser;
@@ -14,14 +14,15 @@ type SessionRequest = HandlerEvent|Request
 export function createSessionCookie (user:SessionUser):string {
     const payload = Buffer.from(JSON.stringify({
         id: user.id,
-        email: user.email,
+        did: user.did,
+        handle: user.handle,
         issued_at: new Date().toISOString()
     })).toString('base64url')
     const signature = crypto
         .createHmac('sha256', getSessionSecret())
         .update(payload)
         .digest('base64url')
-    const maxAge = 60 * 60 * 24 * 30
+    const maxAge = 60 * 60 * 24 * 14
 
     return [
         `${COOKIE_NAME}=${payload}.${signature}`,
@@ -61,7 +62,8 @@ export async function getSession (
     const result = await db.pool.query<SessionUser>(`
         SELECT
             id,
-            email,
+            did,
+            handle,
             stamps_balance,
             autumn_customer_id
         FROM users
@@ -102,7 +104,8 @@ function readSignedSessionUser (
 
         return {
             id: body.id,
-            email: body.email
+            did: body.did,
+            handle: body.handle
         }
     } catch {
         return null
@@ -164,7 +167,8 @@ function isSessionUser (value:unknown):value is SessionUser {
     const maybeUser = value as Partial<SessionUser>
 
     return typeof maybeUser.id === 'string' &&
-        typeof maybeUser.email === 'string' &&
+        typeof maybeUser.did === 'string' &&
+        typeof maybeUser.handle === 'string' &&
         (
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'

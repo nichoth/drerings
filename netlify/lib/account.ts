@@ -1,14 +1,12 @@
 import { getDatabase } from '@netlify/database'
-import type { SessionUser } from './auth-store.js'
 import { deleteDrawingImage } from './drawing-images.js'
 
-export interface AccountPasskey {
+export interface AccountDetails {
     id:string;
-    created_at:string;
-}
-
-export interface AccountDetails extends SessionUser {
-    passkeys:AccountPasskey[];
+    did:string;
+    handle:string;
+    stamps_balance?:number;
+    autumn_customer_id?:string|null;
 }
 
 interface DrawingBlobRow {
@@ -16,10 +14,16 @@ interface DrawingBlobRow {
 }
 
 export async function getAccountDetails (
-    _userId:string
+    userId:string
 ):Promise<AccountDetails|null> {
-    // TODO(phase-4): rewrite for DID-keyed users after auth revival.
-    return null
+    const db = getDatabase()
+    const result = await db.pool.query<AccountDetails>(`
+        SELECT id, did, handle, stamps_balance, autumn_customer_id
+        FROM users
+        WHERE id = $1
+    `, [userId])
+
+    return result.rows[0] || null
 }
 
 export async function deleteAccountData (userId:string):Promise<void> {

@@ -3,7 +3,7 @@ import { sessionStore, stateStore } from './atproto-stores.js'
 
 const DEFAULT_LOCAL_ORIGIN = 'http://127.0.0.1:9999'
 
-function getOrigin():string {
+function getOrigin ():string {
     const env = process.env.PUBLIC_URL
     if (env) return env.replace(/\/$/, '')
 
@@ -27,7 +27,7 @@ function getClientId (origin:string):string {
     return `${origin}/.well-known/oauth-client-metadata.json`
 }
 
-export function getClientMetadata():object {
+export function getClientMetadata ():object {
     const origin = getOrigin()
     const clientId = getClientId(origin)
 
@@ -47,7 +47,7 @@ export function getClientMetadata():object {
 
 let cached:NodeOAuthClient|null = null
 
-export function getOAuthClient():NodeOAuthClient {
+export function getOAuthClient ():NodeOAuthClient {
     if (cached) return cached
 
     cached = new NodeOAuthClient({

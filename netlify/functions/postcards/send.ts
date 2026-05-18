@@ -135,7 +135,7 @@ export const handler:Handler = async function handler (event) {
 
             const resendId = await sendPostcardEmail({
                 to: input.recipient_email,
-                senderHandle: session.user.email,
+                senderHandle: session.user.handle,
                 text: drawingRow.text,
                 pngBase64: Buffer.from(png).toString('base64'),
                 postcardId: postcard.id

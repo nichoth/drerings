@@ -13,7 +13,8 @@ export const handler:Handler = async function handler (event) {
 
     return json(200, {
         id: session.user.id,
-        email: session.user.email,
-        stamps_balance: session.user.stamps_balance
+        did: session.user.did,
+        handle: session.user.handle,
+        stamps_balance: session.user.stamps_balance ?? 0
     })
 }

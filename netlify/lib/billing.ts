@@ -107,12 +107,13 @@ export async function createCheckoutSession (
         return checkout
     }
 
+    const syntheticEmail = `${user.handle}@bsky.social`
     const checkoutBody:Record<string, unknown> = {
         customer_id: user.id,
         product_id: getCheckoutProductId(productId),
         success_url: `${origin}/account?status=ok`,
         customer_data: {
-            email: user.email
+            email: syntheticEmail
         }
     }
 
@@ -189,10 +190,11 @@ export async function createGiftCheckoutSession (
     productId:StampPackProductId,
     recipient:GiftRecipient
 ):Promise<CheckoutSession> {
+    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: sender.email,
+            gift_sender_email: syntheticSenderEmail,
             gift_recipient_user_id: recipient.id,
             gift_recipient_email: recipient.email
         }
@@ -205,10 +207,11 @@ export async function createPendingGiftCheckoutSession (
     productId:StampPackProductId,
     recipientEmail:string
 ):Promise<CheckoutSession> {
+    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: sender.email,
+            gift_sender_email: syntheticSenderEmail,
             gift_pending_recipient_email: recipientEmail
         }
     })
