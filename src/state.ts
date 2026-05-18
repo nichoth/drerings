@@ -1050,9 +1050,17 @@ State.CancelShareDialog = function (state:AppState):void {
     })
 }
 
-State.OpenBuyPackModal = function (state:AppState):void {
-    state.checkoutError.value = null
-    state.buyPackModalOpen.value = true
+State.OpenBuyPackModal = function (
+    state:AppState,
+    productId?:StampPackProductId
+):void {
+    batch(() => {
+        state.checkoutError.value = null
+        if (productId) {
+            state.stampCheckoutProductId.value = productId
+        }
+        state.buyPackModalOpen.value = true
+    })
 }
 
 State.CloseBuyPackModal = function (state:AppState):void {
