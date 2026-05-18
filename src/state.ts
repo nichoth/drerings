@@ -850,6 +850,15 @@ State.ShareDrawing = async function (
                 await postConfirm(body) :
                 null
 
+            if (precheck.type === 'free' && confirm === null) {
+                return finishShare(state, {
+                    ok: false,
+                    reason: 'network',
+                    message: 'Confirm failed. Try again — your stamp '
+                        + 'has not been used.'
+                })
+            }
+
             if (confirm && confirm.type === 'blocked') {
                 // Raced — between precheck (free) and confirm someone
                 // else grabbed the free slot AND we have no stamps.
