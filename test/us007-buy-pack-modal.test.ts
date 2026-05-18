@@ -15,7 +15,7 @@ describe('US-007 buy-pack modal UI', () => {
         vi.unstubAllGlobals()
     })
 
-    it('shows the three stamp packs and closes cleanly', async () => {
+    it('shows the two stamp packs and closes cleanly', async () => {
         const state = signedInState()
         const Route = routeFor('/pricing', state)
 
@@ -28,27 +28,20 @@ describe('US-007 buy-pack modal UI', () => {
         const dialog = screen.getByRole('dialog', { name: 'Buy stamps' })
 
         expect(within(dialog).getByRole('heading', {
-            name: 'Starter'
+            name: '10 stamps'
         })).toBeTruthy()
         expect(within(dialog).getByText('10 stamps')).toBeTruthy()
         expect(within(dialog).getByText('$5.00')).toBeTruthy()
         expect(within(dialog).getByText('50c each')).toBeTruthy()
 
         const bundle = within(dialog).getByRole('article', {
-            name: 'Bundle'
+            name: '25 stamps'
         })
 
         expect(within(bundle).getByText('Recommended')).toBeTruthy()
         expect(within(bundle).getByText('25 stamps')).toBeTruthy()
         expect(within(bundle).getByText('$10.00')).toBeTruthy()
         expect(within(bundle).getByText('40c each')).toBeTruthy()
-
-        expect(within(dialog).getByRole('heading', {
-            name: 'Big bundle'
-        })).toBeTruthy()
-        expect(within(dialog).getByText('60 stamps')).toBeTruthy()
-        expect(within(dialog).getByText('$20.00')).toBeTruthy()
-        expect(within(dialog).getByText('33.33c each')).toBeTruthy()
 
         await fireEvent.click(within(dialog).getByRole('button', {
             name: 'Close'
@@ -63,7 +56,7 @@ describe('US-007 buy-pack modal UI', () => {
         const assign = vi.fn()
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({
-                url: 'https://checkout.stripe.com/pay/stamps_bundle'
+                url: 'https://checkout.stripe.com/pay/25_stamps'
             }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
@@ -84,7 +77,7 @@ describe('US-007 buy-pack modal UI', () => {
             name: 'Buy stamps'
         }))
         await fireEvent.click(screen.getByRole('button', {
-            name: 'Buy Bundle'
+            name: 'Buy 25 stamps'
         }))
 
         await waitFor(() => {
@@ -93,11 +86,11 @@ describe('US-007 buy-pack modal UI', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: 'buyer@example.com',
-                    product_id: 'stamps_bundle'
+                    product_id: '25_stamps'
                 })
             })
             expect(assign).toHaveBeenCalledWith(
-                'https://checkout.stripe.com/pay/stamps_bundle'
+                'https://checkout.stripe.com/pay/25_stamps'
             )
         })
     })

@@ -88,7 +88,7 @@ describe('US-014 Autumn checkout store', () => {
         const query = vi.fn<Query>(async () => ({ rows: [] }))
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({
-                url: 'https://checkout.stripe.com/pay/stamps_bundle',
+                url: 'https://checkout.stripe.com/pay/25_stamps',
                 customer_id: 'autumn-user-1'
             }), {
                 status: 200,
@@ -111,11 +111,11 @@ describe('US-014 Autumn checkout store', () => {
         const checkout = await createCheckoutSession(
             user,
             'https://drerings.app',
-            'stamps_bundle'
+            '25_stamps'
         )
 
         expect(checkout).toEqual({
-            url: 'https://checkout.stripe.com/pay/stamps_bundle',
+            url: 'https://checkout.stripe.com/pay/25_stamps',
             customer_id: 'autumn-user-1'
         })
         expect(fetcher).toHaveBeenCalledWith(
@@ -123,7 +123,7 @@ describe('US-014 Autumn checkout store', () => {
             expect.objectContaining({
                 body: JSON.stringify({
                     customer_id: 'user-1',
-                    product_id: 'stamps_bundle',
+                    product_id: '25_stamps',
                     success_url: 'https://drerings.app/account?status=ok',
                     customer_data: {
                         email: 'free@example.com'
