@@ -240,8 +240,24 @@ them back, reconsider the design rather than restoring:
 - `State.StartCheckout`, `SessionUser.subscription_status`,
   `AccountDetails.subscription_current_period_end`.
 
-### Known broken: gift checkout
+### Known issues: gift checkout, share_events deletion
 
+**Stamps gift queries (FIXED in pricing-adjust branch):**
+Four queries in `netlify/lib/stamps.ts` previously selected
+`users.email` which migration 0010 dropped. All four have been replaced
+to use `users.handle`: listSentGiftsForSender, refundSentGiftStampLot,
+refundExpiredPendingGifts, refundExpiredPendingGift. Email is
+synthesized as `${handle}@bsky.social` where needed (matching billing.ts
+pattern). Related types (SentGiftSummary, ExpiredPendingGiftRow) and UI
+consumers updated.
+
+**Share_events deletion constraint (FIXED in pricing-adjust branch):**
+Migration 0011 declared ON DELETE CASCADE FKs but also had a BEFORE
+DELETE trigger that rejected all deletes, blocking deleteAccountData.
+Migration 0014 drops the BEFORE DELETE trigger while keeping BEFORE
+UPDATE to preserve append-only semantics on the update path.
+
+**Outstanding: findGiftRecipient**
 `findGiftRecipient` (`netlify/lib/billing.ts:160`) still queries
 `users.email`, which migration 0010 dropped. Three us017 gift tests
 are skipped with a TODO pointing at this. Before re-enabling gift
