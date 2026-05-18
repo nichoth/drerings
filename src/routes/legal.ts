@@ -118,9 +118,8 @@ export const TermsRoute:FunctionComponent<{
             <section>
                 <h3>Cancellation and deletion</h3>
                 <p>
-                    You can cancel your paid plan from the account page. You
-                    can also delete your account, which removes saved drawings,
-                    blobs, public posts, passkeys, and account records from
+                    You can also delete your account, which removes saved
+                    drawings, blobs, public posts, and account records from
                     Drerings.
                 </p>
             </section>

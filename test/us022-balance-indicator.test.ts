@@ -90,8 +90,8 @@ function signedInState (stampsBalance:number):AppState {
     }
     state.currentUser.value = {
         id: 'user-1',
-        email: 'stamps@example.com',
-        subscription_status: 'free',
+        did: 'did:plc:test-1',
+        handle: 'user.bsky.social',
         stamps_balance: stampsBalance
     }
 

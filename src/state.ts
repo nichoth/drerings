@@ -29,14 +29,7 @@ export interface CurrentUser extends UserState {
     stamps_balance?:number;
 }
 
-export interface AccountPasskey {
-    id:string;
-    created_at:string;
-}
-
-export interface AccountDetails extends CurrentUser {
-    passkeys:AccountPasskey[];
-}
+export type AccountDetails = CurrentUser
 
 export interface SavedDrawing {
     id:string;
