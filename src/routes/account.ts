@@ -2,6 +2,7 @@ import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
 import { useCallback, useEffect } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
+import { Button } from '../components/button.js'
 import { State, type AppState } from '../state.js'
 import './account.css'
 
