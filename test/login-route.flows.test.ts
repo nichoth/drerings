@@ -23,9 +23,12 @@ describe('login route', () => {
         const user = userEvent.setup()
         const state = State()
         const assigned:string[] = []
-        const originalAssign = location.assign
-        // @ts-expect-error: monkey-patch for test
-        location.assign = (url:string) => { assigned.push(url) }
+        const mockAssign = vi.fn((url:string) => { assigned.push(url) })
+
+        vi.stubGlobal('location', {
+            ...window.location,
+            assign: mockAssign
+        })
 
         try {
             render(h(LoginRoute, { state }))
@@ -42,8 +45,7 @@ describe('login route', () => {
             expect(assigned[0]).toMatch(/^\/api\/auth\/login\?handle=/)
             expect(assigned[0]).toContain('alice.bsky.social')
         } finally {
-            // @ts-expect-error: restore
-            location.assign = originalAssign
+            vi.unstubAllGlobals()
         }
     })
 })
