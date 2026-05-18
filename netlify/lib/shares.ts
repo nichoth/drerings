@@ -78,7 +78,7 @@ export class IdempotencyConflictError extends Error {
     }
 }
 
-// Read-only precheck: determine share eligibility.
+// Task 4: Read-only precheck - determine share eligibility.
 
 export async function precheckShare(
     options:PrecheckOptions
