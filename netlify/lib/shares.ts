@@ -146,7 +146,7 @@ export async function precheckShare(
     }
 }
 
-// Single-transaction confirm: record share with serialization via
+// Task 5: Single-transaction confirm - record share with serialization via
 // SELECT ... FOR UPDATE.
 
 export async function recordShare(
