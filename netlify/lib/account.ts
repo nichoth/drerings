@@ -16,9 +16,8 @@ interface DrawingBlobRow {
 }
 
 export async function getAccountDetails (
-    userId:string
+    _userId:string
 ):Promise<AccountDetails|null> {
-    void userId
     // TODO(phase-4): rewrite for DID-keyed users after auth revival.
     return null
 }

@@ -35,7 +35,6 @@ interface AutumnCheckoutResponse {
     customer_id?:unknown;
 }
 
-
 interface AutumnWebhookEvent {
     type?:unknown;
     data?:unknown;
@@ -50,7 +49,6 @@ interface AutumnWebhookResult {
         'gift_credited'|
         'pending_gift_created';
 }
-
 
 export interface AutumnStampRefundOptions {
     checkoutId:string;
@@ -215,7 +213,6 @@ export async function createPendingGiftCheckoutSession (
         }
     })
 }
-
 
 export class InFlightRefundAttemptError extends Error {
     constructor () {
@@ -516,21 +513,6 @@ async function updateAutumnCustomerId (
     `, [customerId, userId])
 }
 
-
-function nextMonthDate ():string {
-    const date = new Date()
-
-    date.setUTCMonth(date.getUTCMonth() + 1)
-
-    return date.toISOString().slice(0, 10)
-}
-
-function getDateString (value:unknown):string|null {
-    if (typeof value !== 'string' || value.trim() === '') return null
-
-    return value.slice(0, 10)
-}
-
 function shouldUseMockCheckout ():boolean {
     if (process.env.NODE_ENV === 'test') return !process.env.AUTUMN_SECRET_KEY
     if (process.env.NETLIFY_LOCAL) return !process.env.AUTUMN_SECRET_KEY
@@ -667,7 +649,6 @@ function getAutumnWebhookSecret ():string {
     return secret
 }
 
-
 function getWebhookCustomerId (event:AutumnWebhookEvent):string|null {
     const data = isRecord(event.data) ? event.data : {}
     const customer = getRecord(data.customer)
@@ -711,7 +692,6 @@ function getWebhookProductId (event:AutumnWebhookEvent):string {
         getString(product?.product_id)
     )
 }
-
 
 function isRecord (value:unknown):value is Record<string, unknown> {
     return !!value && typeof value === 'object' && !Array.isArray(value)
