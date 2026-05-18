@@ -1,5 +1,6 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
+import './no-stamps-message.css'
 
 export interface NoStampsMessageProps {
     message?:string;

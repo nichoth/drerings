@@ -1,0 +1,8 @@
+.no-stamps-message {
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    color: var(--main-text);
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0.25rem;
+}
