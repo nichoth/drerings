@@ -57,4 +57,22 @@ describe('ConfirmStampDialog', () => {
         }) as HTMLButtonElement
         expect(cancelButton.disabled).toBe(true)
     })
+
+    it('does not call onCancel via backdrop while isSpinning', () => {
+        const onCancel = vi.fn()
+        const onConfirm = vi.fn()
+        const { container } = render(html`<${ConfirmStampDialog}
+            stampsBalance=${5}
+            isSpinning=${true}
+            onConfirm=${onConfirm}
+            onCancel=${onCancel}
+        />`)
+
+        const backdrop = container.querySelector(
+            '.confirm-stamp-dialog-backdrop'
+        ) as HTMLElement
+        fireEvent.click(backdrop)
+
+        expect(onCancel).not.toHaveBeenCalled()
+    })
 })

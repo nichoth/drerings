@@ -20,7 +20,7 @@ export const ConfirmStampDialog:FunctionComponent<
         aria-labelledby="confirm-stamp-dialog-title"
     >
         <div class="confirm-stamp-dialog-backdrop"
-             onClick=${props.onCancel}></div>
+             onClick=${props.isSpinning ? undefined : props.onCancel}></div>
         <div class="confirm-stamp-dialog-panel">
             <h3 id="confirm-stamp-dialog-title">Use 1 stamp to share?</h3>
             <p>
