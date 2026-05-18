@@ -155,40 +155,41 @@ export async function recordShare (
 ):Promise<ConfirmResult> {
     const db = getDatabase()
     const monthKey = monthKeyFor(options.timezone)
+
+    // Early dup-check uses pool.query (no tx needed).
+    // We do it BEFORE acquiring the client so we don't hold a connection
+    // for the throw path.
+    const earlyDup = await db.pool.query<{
+        drawing_id:string;
+        was_free:boolean;
+    }>(`
+        SELECT drawing_id, was_free
+        FROM share_events
+        WHERE user_id = $1 AND idempotency_key = $2
+    `, [options.userId, options.idempotencyKey])
+
+    if (earlyDup.rows[0]) {
+        if (earlyDup.rows[0].drawing_id !== options.drawingId) {
+            throw new IdempotencyConflictError()
+        }
+        const balanceRow = await db.pool.query<{
+            stamps_balance:number;
+        }>(
+            'SELECT stamps_balance FROM users WHERE id = $1',
+            [options.userId]
+        )
+        return {
+            type: 'recorded',
+            was_free: earlyDup.rows[0].was_free,
+            stamps_balance: Number(
+                balanceRow.rows[0]?.stamps_balance ?? 0
+            )
+        }
+    }
+
     const client = await db.pool.connect() as DatabaseClient
 
     try {
-        // Early dup-check uses pool.query (no tx needed).
-        // We do it BEFORE BEGIN so we don't need to manage transaction
-        // state for the throw path.
-        const earlyDup = await db.pool.query<{
-            drawing_id:string;
-            was_free:boolean;
-        }>(`
-            SELECT drawing_id, was_free
-            FROM share_events
-            WHERE user_id = $1 AND idempotency_key = $2
-        `, [options.userId, options.idempotencyKey])
-
-        if (earlyDup.rows[0]) {
-            if (earlyDup.rows[0].drawing_id !== options.drawingId) {
-                throw new IdempotencyConflictError()
-            }
-            const balanceRow = await db.pool.query<{
-                stamps_balance:number;
-            }>(
-                'SELECT stamps_balance FROM users WHERE id = $1',
-                [options.userId]
-            )
-            return {
-                type: 'recorded',
-                was_free: earlyDup.rows[0].was_free,
-                stamps_balance: Number(
-                    balanceRow.rows[0]?.stamps_balance ?? 0
-                )
-            }
-        }
-
         await client.query('BEGIN')
 
         // Serialize concurrent confirms on the same user.
@@ -295,8 +296,7 @@ export async function recordShare (
             stamps_balance: debitResult.balanceAfter
         }
     } catch (err) {
-        // ROLLBACK best-effort. If we never BEGAN (the early-dup
-        // path), this is a harmless no-op.
+        // ROLLBACK best-effort.
         try {
             await client.query('ROLLBACK')
         } catch {
