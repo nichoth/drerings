@@ -32,9 +32,9 @@ Drerings is installable as a PWA. The app manifest lives at
 theme colors, and the icon set used by install prompts.
 
 Sharing is a paid feature. The frontend derives share eligibility from
-`state.canShare`, which is true only when the current user's
-`subscription_status` is `active`. Public-post share UI should use that
-signal instead of duplicating subscription checks in route components.
+`state.canShare`, which is true only when the current user has a positive
+stamps balance. Public-post share UI should use that signal instead of
+duplicating subscription checks in route components.
 
 The share flow uses the Web Share API when the browser supports it, then
 falls back to copy-link and PNG download actions. See `docs/SMS.md` for the
@@ -48,21 +48,23 @@ redirects that Netlify serves from `netlify/functions`.
 
 ### Required Services
 
-- Netlify Database stores users, passkeys, magic-link tokens, saved
-  drawings, and public post records. Apply the migrations in
-  `netlify/database/migrations` before taking traffic.
+- Netlify Database stores users (DID-keyed), saved drawings, public posts,
+  stamp accounting tables (stamp_lots, stamp_transactions, stamp_invariant_alerts,
+  autumn_refund_attempts), postcards, share_events, atproto_sessions, and
+  atproto_oauth_states. Apply the migrations in `netlify/database/migrations`
+  before taking traffic.
 - Netlify Blobs stores drawing PNGs in the `drawings` store. Blob keys use
   `users/<userId>/drawings/<drawingId>.png`.
-- Resend sends magic-link login and email-change confirmation messages.
-- Autumn handles checkout, cancellation, and subscription webhooks.
+- Resend sends postcard delivery messages.
+- Autumn handles stamp pack purchases and subscription webhooks.
 
 ### Environment Variables
 
 Set these values in the Netlify site environment for production:
 
-- `RESEND_API_KEY`: Resend API key used by magic-link email delivery.
+- `RESEND_API_KEY`: Resend API key used by postcard delivery.
 - `RESEND_FROM_EMAIL`: optional sender address. Defaults to
-  `Drerings <login@drerings.app>`.
+  `Drerings <postcards@drerings.app>`.
 - `AUTUMN_SECRET_KEY`: Autumn API key, sent to Autumn as the bearer token.
 - `AUTUMN_PRODUCT_ID`: Autumn product ID for the paid plan. Defaults to
   `paid` only in local/test paths.
@@ -76,6 +78,17 @@ Set these values in the Netlify site environment for production:
 The app base URL is the deployed Netlify site URL. The current code derives it
 from each request origin for login links, checkout success URLs, and checkout
 cancel URLs. No `APP_BASE_URL` variable is read by the app today.
+
+### Authentication
+
+The app authenticates users via OpenID Connect. Configure the client metadata
+endpoint and issuer in the identity provider's directory. The app provides the
+following endpoints:
+
+- `GET /api/auth/login` — initiates the login flow
+- `GET /api/auth/callback` — login callback handler
+- `POST /api/auth/logout` — ends the session
+- `GET /.well-known/oauth-client-metadata.json` — returns the client metadata
 
 ### Autumn Dashboard
 
@@ -100,7 +113,7 @@ https://<your-netlify-site>/api/billing/webhook
 
 Copy that endpoint's Svix signing secret into `AUTUMN_WEBHOOK_SECRET`. The
 Netlify Function validates `svix-id`, `svix-timestamp`, and `svix-signature`
-before updating `users.subscription_status`.
+before crediting stamp lots.
 
 ### Resend Webhook (postcard bounces)
 
@@ -232,9 +245,10 @@ When `NETLIFY_LOCAL=true` and `AUTUMN_SECRET_KEY` is unset, checkout uses a
 mocked checkout URL and redirects back to `/account?status=ok`. This lets the
 pricing and account UI run without a live Autumn account.
 
-Resend is not mocked inside the Netlify Function. Magic-link delivery needs
-`RESEND_API_KEY` for real local email. UI tests and browser smoke checks mock
-auth endpoints when they need a signed-in user without sending email.
+Postcard delivery via Resend is not mocked inside the Netlify Function. Sending
+postcards requires `RESEND_API_KEY` for real deliveries. UI tests and browser
+smoke checks mock auth endpoints when they need a signed-in user without
+invoking the OAuth flow.
 
 ## Test
 
