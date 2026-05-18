@@ -51,8 +51,8 @@ describe('US-009 drawing read API', () => {
                 getSession: async () => ({
                     user: {
                         id: 'user-1',
-                        email: 'paid@example.com',
-                        subscription_status: 'active'
+                        did: 'did:plc:test-1',
+                        handle: 'test.bsky.social'
                     }
                 })
             }
@@ -97,8 +97,8 @@ describe('US-009 drawing read API', () => {
                 getSession: async () => ({
                     user: {
                         id: 'user-1',
-                        email: 'paid@example.com',
-                        subscription_status: 'active'
+                        did: 'did:plc:test-1',
+                        handle: 'test.bsky.social'
                     }
                 })
             }
