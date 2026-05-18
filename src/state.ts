@@ -1,4 +1,5 @@
 import {
+    batch,
     computed,
     type ReadonlySignal,
     type Signal,
@@ -758,6 +759,285 @@ State.SendPostcard = async function (
             body.error :
             'Unable to send the postcard right now.'
     }
+}
+
+type PrecheckResponse =
+    | { type:'free'; month_key:string }
+    | { type:'paid'; stamps_balance:number; month_key:string }
+    | {
+        type:'blocked';
+        reason:'no_free_no_stamps';
+        stamps_balance:0;
+        month_key:string;
+    }
+    | { type:'reused'; was_free:boolean }
+
+type ConfirmResponse =
+    | { type:'recorded'; was_free:boolean; stamps_balance:number }
+    | { type:'blocked'; reason:'no_free_no_stamps' }
+
+function getCurrentTimezone ():string {
+    try {
+        return Intl.DateTimeFormat()
+            .resolvedOptions().timeZone || 'UTC'
+    } catch {
+        return 'UTC'
+    }
+}
+
+function newIdempotencyKey ():string {
+    if (typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    // Last-resort fallback for very old browsers.
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+State.ShareDrawing = async function (
+    state:AppState,
+    drawingId:string,
+    openShareSheet:() => Promise<void>
+):Promise<ShareDrawingResult> {
+    batch(() => {
+        state.shareInFlight.value = true
+        state.shareError.value = null
+        state.shareDialog.value = null
+    })
+
+    const timezone = getCurrentTimezone()
+    const idempotencyKey = newIdempotencyKey()
+    const body = {
+        drawing_id: drawingId,
+        timezone,
+        idempotency_key: idempotencyKey
+    }
+
+    try {
+        const precheckResponse = await fetch(
+            '/api/shares/precheck',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }
+        )
+
+        if (precheckResponse.status === 401) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'other',
+                message: 'Please sign in.'
+            })
+        }
+
+        if (!precheckResponse.ok) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'network',
+                message: 'Unable to share right now.'
+            })
+        }
+
+        const precheck = await precheckResponse.json() as
+            PrecheckResponse
+
+        if (precheck.type === 'free' || precheck.type === 'reused') {
+            // For 'reused' we must NOT debit again; just open the
+            // share sheet. The server has the canonical record.
+            const confirm = precheck.type === 'free' ?
+                await postConfirm(body) :
+                null
+
+            if (confirm && confirm.type === 'blocked') {
+                // Raced — between precheck (free) and confirm someone
+                // else grabbed the free slot AND we have no stamps.
+                state.shareDialog.value = {
+                    type: 'blocked',
+                    message: 'You\'re out of stamps.'
+                }
+                return finishShare(state, {
+                    ok: false,
+                    reason: 'blocked',
+                    message: 'You\'re out of stamps.'
+                })
+            }
+
+            await openShareSheet()
+            return finishShare(state, {
+                ok: true,
+                was_free: precheck.type === 'reused' ?
+                    precheck.was_free :
+                    (confirm && confirm.type === 'recorded' ?
+                        confirm.was_free :
+                        true),
+                stamps_balance: confirm && confirm.type === 'recorded' ?
+                    confirm.stamps_balance :
+                    undefined
+            })
+        }
+
+        if (precheck.type === 'paid') {
+            // Show the confirm dialog; the user clicks Confirm or
+            // Cancel. The dialog's Confirm handler calls
+            // State.ConfirmShare(state, body, openShareSheet).
+            state.shareDialog.value = {
+                type: 'confirm',
+                drawingId,
+                idempotencyKey,
+                stampsBalance: precheck.stamps_balance
+            }
+            // The flow continues when the user clicks Confirm. Mark
+            // share as no-longer-in-flight; the dialog itself manages
+            // its own in-flight state on Confirm click.
+            state.shareInFlight.value = false
+            return {
+                ok: false,
+                reason: 'cancelled',
+                message: 'Awaiting user confirmation.'
+            }
+        }
+
+        // type === 'blocked'
+        state.shareDialog.value = {
+            type: 'blocked',
+            message: 'You\'re out of stamps. Buy more on the '
+                + 'pricing page.'
+        }
+        return finishShare(state, {
+            ok: false,
+            reason: 'blocked',
+            message: 'No free share remaining and no stamps.'
+        })
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to share right now.'
+
+        return finishShare(state, {
+            ok: false,
+            reason: 'network',
+            message
+        })
+    }
+}
+
+async function postConfirm (body:{
+    drawing_id:string;
+    timezone:string;
+    idempotency_key:string;
+}):Promise<ConfirmResponse|null> {
+    const response = await fetch('/api/shares/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+
+    if (!response.ok) return null
+
+    return response.json() as Promise<ConfirmResponse>
+}
+
+function finishShare (
+    state:AppState,
+    result:ShareDrawingResult
+):ShareDrawingResult {
+    let errorValue:string|null = null
+
+    if (!result.ok) {
+        const failedResult = result as
+            Exclude<ShareDrawingResult, { ok:true }>
+        if (failedResult.reason !== 'cancelled') {
+            errorValue = failedResult.message
+        }
+    }
+
+    batch(() => {
+        state.shareInFlight.value = false
+        if (result.ok) {
+            state.shareError.value = null
+        } else if (errorValue) {
+            state.shareError.value = errorValue
+        }
+    })
+
+    return result
+}
+
+State.ConfirmShare = async function (
+    state:AppState,
+    drawingId:string,
+    idempotencyKey:string,
+    openShareSheet:() => Promise<void>
+):Promise<ShareDrawingResult> {
+    batch(() => {
+        state.shareInFlight.value = true
+        state.shareError.value = null
+    })
+
+    const body = {
+        drawing_id: drawingId,
+        timezone: getCurrentTimezone(),
+        idempotency_key: idempotencyKey
+    }
+
+    try {
+        const confirm = await postConfirm(body)
+
+        if (!confirm) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'network',
+                message: 'Confirm failed. Try again — your stamp has '
+                    + 'not been used.'
+            })
+        }
+
+        if (confirm.type === 'blocked') {
+            batch(() => {
+                state.shareDialog.value = {
+                    type: 'blocked',
+                    message: 'You\'re out of stamps.'
+                }
+            })
+            return finishShare(state, {
+                ok: false,
+                reason: 'blocked',
+                message: 'You\'re out of stamps.'
+            })
+        }
+
+        state.shareDialog.value = null
+        await openShareSheet()
+
+        return finishShare(state, {
+            ok: true,
+            was_free: confirm.type === 'recorded' ?
+                confirm.was_free :
+                false,
+            stamps_balance: confirm.type === 'recorded' ?
+                confirm.stamps_balance :
+                undefined
+        })
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Confirm failed. Try again.'
+
+        return finishShare(state, {
+            ok: false,
+            reason: 'network',
+            message
+        })
+    }
+}
+
+State.CancelShareDialog = function (state:AppState):void {
+    batch(() => {
+        state.shareDialog.value = null
+        state.shareInFlight.value = false
+        state.shareError.value = null
+    })
 }
 
 State.OpenBuyPackModal = function (state:AppState):void {
