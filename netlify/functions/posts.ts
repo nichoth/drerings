@@ -20,6 +20,7 @@ export const handler:Handler = async function handler (event) {
 
             return json(200, {
                 id: post.id,
+                drawing_id: post.drawing_id,
                 image: post.image,
                 text: post.text,
                 alt_text: post.alt_text,

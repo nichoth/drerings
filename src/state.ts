@@ -85,6 +85,7 @@ export type ShareDialogState =
     }
 
 export interface PublicPost extends PublishedPost {
+    drawing_id:string;
     image:string;
     text:string;
     alt_text:string;
@@ -1232,6 +1233,7 @@ State.FetchPublicPost = async function (
 
     if (
         !Number.isFinite(id) ||
+        typeof body.drawing_id !== 'string' ||
         typeof body.image !== 'string' ||
         typeof body.text !== 'string' ||
         typeof body.alt_text !== 'string' ||
@@ -1242,6 +1244,7 @@ State.FetchPublicPost = async function (
 
     return {
         id,
+        drawing_id: body.drawing_id,
         image: body.image,
         text: body.text,
         alt_text: body.alt_text,

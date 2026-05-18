@@ -6,6 +6,7 @@ export interface PublicPost {
 }
 
 export interface PublicPostDetails extends PublicPost {
+    drawing_id:string;
     image:string;
     text:string;
     alt_text:string;
@@ -18,6 +19,7 @@ interface PublicPostRow {
 
 interface PublicPostDetailsRow {
     id:number|string;
+    drawing_id:string;
     blob_key:string;
     text:string;
     alt_text:string;
@@ -77,6 +79,7 @@ export async function getPublishedPost (
     const result = await db.pool.query<PublicPostDetailsRow>(`
         SELECT
             public_posts.id,
+            drawings.id AS drawing_id,
             drawings.blob_key,
             drawings.text,
             drawings.alt_text,
@@ -94,6 +97,7 @@ export async function getPublishedPost (
 
     return {
         id: Number(row.id),
+        drawing_id: row.drawing_id,
         image: await imageDataUrl(image),
         text: row.text,
         alt_text: row.alt_text,
