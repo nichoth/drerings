@@ -117,6 +117,39 @@ describe('US-025 stamp invariant verification', () => {
             )
         })
 
+    it('treats reason=share rows as normal debits in the invariant',
+        async () => {
+            vi.resetModules()
+
+            const query = vi.fn<Query>(async () => {
+                return {
+                    rows: [{
+                        user_id: 'share-user',
+                        cached_balance: 9,
+                        lot_balance: 9,
+                        transaction_balance: 9
+                    }]
+                }
+            })
+
+            vi.doMock('@netlify/database', () => ({
+                getDatabase: () => ({
+                    pool: { query }
+                })
+            }))
+
+            const { verifyStampInvariants } = await import(
+                '../netlify/lib/stamps'
+            )
+            const result = await verifyStampInvariants()
+
+            expect(result).toEqual({
+                usersChecked: 1,
+                driftCount: 0,
+                drifts: []
+            })
+        })
+
     it('runs from a daily scheduled Netlify function', async () => {
         vi.resetModules()
 
