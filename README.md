@@ -62,9 +62,15 @@ redirects that Netlify serves from `netlify/functions`.
 
 Set these values in the Netlify site environment for production:
 
+- `PUBLIC_URL`: REQUIRED for production. The deployed origin where the app
+  will be accessed (e.g., `https://drerings.app`). Used by atproto OAuth
+  to construct the OAuth client metadata endpoint and redirect URI. In
+  local/test, defaults to `http://127.0.0.1:9999` when unset.
 - `RESEND_API_KEY`: Resend API key used by postcard delivery.
 - `RESEND_FROM_EMAIL`: optional sender address. Defaults to
   `Drerings <postcards@drerings.app>`.
+- `RESEND_WEBHOOK_SECRET`: Svix signing secret from the Resend webhook
+  endpoint settings.
 - `AUTUMN_SECRET_KEY`: Autumn API key, sent to Autumn as the bearer token.
 - `AUTUMN_PRODUCT_ID`: Autumn product ID for the paid plan. Defaults to
   `paid` only in local/test paths.
@@ -75,20 +81,30 @@ Set these values in the Netlify site environment for production:
 - `SESSION_SECRET`: long random string used to sign session cookies. Local
   Netlify development and tests fall back to `dev-session-secret`.
 
-The app base URL is the deployed Netlify site URL. The current code derives it
-from each request origin for login links, checkout success URLs, and checkout
-cancel URLs. No `APP_BASE_URL` variable is read by the app today.
+### Authentication (atproto OAuth)
 
-### Authentication
+The app authenticates users via atproto OAuth. Users log in with their
+Bluesky handle, which is resolved dynamically to a DID via their PDS
+(Personal Data Server). The flow is:
 
-The app authenticates users via OpenID Connect. Configure the client metadata
-endpoint and issuer in the identity provider's directory. The app provides the
-following endpoints:
+1. User enters handle → `GET /api/auth/login?handle=user.bsky.social`
+2. Login handler uses `@atproto/oauth-client-node` to generate an
+   authorization URL
+3. User approves in the atproto authorization UI (on their chosen PDS)
+4. PDS redirects to `GET /api/auth/callback?code=...&state=...`
+5. Callback exchanges the code for an OAuth token and retrieves the
+   current handle from `com.atproto.server.getSession()`
+6. User record is upserted in the database keyed by DID with current handle
+7. Session cookie `drerings_auth` is set with payload
+   `{id, did, handle, issued_at}` signed via HMAC-SHA256. Max-Age is 14 days.
 
-- `GET /api/auth/login` — initiates the login flow
-- `GET /api/auth/callback` — login callback handler
-- `POST /api/auth/logout` — ends the session
+The app provides the following endpoints:
+
+- `GET /api/auth/login` — accepts `?handle=` parameter, initiates the OAuth flow
+- `GET /api/auth/callback` — handles the OAuth callback with code and state
+- `POST /api/auth/logout` — clears the session cookie
 - `GET /.well-known/oauth-client-metadata.json` — returns the client metadata
+  (in production) or localhost client ID (in local/test)
 
 ### Autumn Dashboard
 
