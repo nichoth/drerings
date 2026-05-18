@@ -86,15 +86,14 @@ describe('US-018 logout', () => {
             }
             state.currentUser.value = {
                 id: 'user-1',
-                email: 'paid@example.com',
-                subscription_status: 'active'
+                did: 'did:plc:test-1',
+                handle: 'user.bsky.social'
             }
             state.account.value = {
                 id: 'user-1',
-                email: 'paid@example.com',
-                subscription_status: 'active',
-                subscription_current_period_end: '2026-06-01',
-                passkeys: []
+                did: 'did:plc:test-1',
+                handle: 'user.bsky.social',
+                stamps_balance: 5
             }
 
             await State.Logout(state)

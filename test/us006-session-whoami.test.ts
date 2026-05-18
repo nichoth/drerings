@@ -30,8 +30,8 @@ const baseEvent:HandlerEvent = {
 const context = {} as HandlerContext
 const sessionCookie = createSessionCookie({
     id: 'user-1',
-    email: 'signed@example.com',
-    subscription_status: 'free'
+    did: 'did:plc:signed-1',
+    handle: 'signed.bsky.social'
 })
 
 async function callHandler (
@@ -53,8 +53,9 @@ describe('US-006 session middleware and whoami API', () => {
             return {
                 rows: [{
                     id: 'user-1',
-                    email: 'fresh@example.com',
-                    subscription_status: 'active'
+                    did: 'did:plc:fresh-1',
+                    handle: 'fresh.bsky.social',
+                    stamps_balance: 10
                 }]
             }
         })
@@ -79,8 +80,9 @@ describe('US-006 session middleware and whoami API', () => {
         expect(session).toEqual({
             user: {
                 id: 'user-1',
-                email: 'fresh@example.com',
-                subscription_status: 'active'
+                did: 'did:plc:fresh-1',
+                handle: 'fresh.bsky.social',
+                stamps_balance: 10
             }
         })
         expect(query.mock.calls[0]![1]).toEqual(['user-1'])
@@ -121,8 +123,9 @@ describe('US-006 session middleware and whoami API', () => {
             return {
                 user: {
                     id: 'user-1',
-                    email: 'user@example.com',
-                    subscription_status: 'active'
+                    did: 'did:plc:user-1',
+                    handle: 'user.bsky.social',
+                    stamps_balance: 5
                 }
             }
         })
@@ -137,8 +140,9 @@ describe('US-006 session middleware and whoami API', () => {
         expect(response.statusCode).toBe(200)
         expect(JSON.parse(response.body || '{}')).toEqual({
             id: 'user-1',
-            email: 'user@example.com',
-            subscription_status: 'active'
+            did: 'did:plc:user-1',
+            handle: 'user.bsky.social',
+            stamps_balance: 5
         })
         expect(getSession).toHaveBeenCalledWith(baseEvent)
     })
