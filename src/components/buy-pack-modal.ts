@@ -62,6 +62,7 @@ export const BuyPackModal:FunctionComponent<{
                         </p>
                         <${Button}
                             type="button"
+                            autoFocus=${isBuying ? true : null}
                             disabled=${state.checkoutLoading.value}
                             isSpinning=${isBuying ?
                                 state.checkoutLoading :
