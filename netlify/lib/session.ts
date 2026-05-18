@@ -15,7 +15,6 @@ export function createSessionCookie (user:SessionUser):string {
     const payload = Buffer.from(JSON.stringify({
         id: user.id,
         email: user.email,
-        subscription_status: user.subscription_status,
         issued_at: new Date().toISOString()
     })).toString('base64url')
     const signature = crypto
@@ -63,7 +62,6 @@ export async function getSession (
         SELECT
             id,
             email,
-            subscription_status,
             stamps_balance,
             autumn_customer_id
         FROM users
@@ -104,8 +102,7 @@ function readSignedSessionUser (
 
         return {
             id: body.id,
-            email: body.email,
-            subscription_status: body.subscription_status
+            email: body.email
         }
     } catch {
         return null
@@ -165,11 +162,9 @@ function isSessionUser (value:unknown):value is SessionUser {
     if (!value || typeof value !== 'object') return false
 
     const maybeUser = value as Partial<SessionUser>
-    const statuses = ['free', 'active', 'canceled', 'past_due']
 
     return typeof maybeUser.id === 'string' &&
         typeof maybeUser.email === 'string' &&
-        statuses.includes(String(maybeUser.subscription_status)) &&
         (
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'

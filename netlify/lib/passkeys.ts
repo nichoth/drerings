@@ -51,7 +51,6 @@ interface PasskeyRow {
     public_key:string;
     counter:number;
     email:string;
-    subscription_status:SessionUser['subscription_status'];
 }
 
 export function createPasskeyChallengeToken (
@@ -264,8 +263,7 @@ export async function findPasskeyByCredentialId (
             passkeys.credential_id,
             passkeys.public_key,
             passkeys.counter,
-            users.email,
-            users.subscription_status
+            users.email
         FROM passkeys
         INNER JOIN users ON users.id = passkeys.user_id
         WHERE passkeys.credential_id = $1
@@ -285,8 +283,7 @@ async function listPasskeysForUser (
             passkeys.credential_id,
             passkeys.public_key,
             passkeys.counter,
-            users.email,
-            users.subscription_status
+            users.email
         FROM passkeys
         INNER JOIN users ON users.id = passkeys.user_id
         WHERE passkeys.user_id = $1
@@ -317,8 +314,7 @@ function mapPasskeyRow (row:PasskeyRow):StoredPasskey {
         counter: Number(row.counter),
         user: {
             id: row.user_id,
-            email: row.email,
-            subscription_status: row.subscription_status
+            email: row.email
         }
     }
 }

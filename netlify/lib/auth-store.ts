@@ -11,7 +11,6 @@ export interface MagicLinkLogin {
 export interface SessionUser {
     id:string;
     email:string;
-    subscription_status:'free'|'active'|'canceled'|'past_due';
     stamps_balance?:number;
     autumn_customer_id?:string|null;
 }
@@ -36,14 +35,13 @@ export async function createMagicLinkLogin (
     const db = getDatabase()
     const lookup = await db.pool.query<{
         id:string;
-        subscription_status:'free'|'active'|'canceled'|'past_due';
     }>(
-        'SELECT id, subscription_status FROM users WHERE email = $1',
+        'SELECT id FROM users WHERE email = $1',
         [email]
     )
     const user = lookup.rows[0]
 
-    if (!user || user.subscription_status === 'free') return null
+    if (!user) return null
 
     const token = crypto.randomBytes(32).toString('base64url')
     const expiresAt = new Date(Date.now() + (15 * 60 * 1000))
@@ -72,7 +70,6 @@ export async function upsertCheckoutUser (
             RETURNING
                 id,
                 email,
-                subscription_status,
                 autumn_customer_id,
                 stamps_balance,
                 true AS was_inserted
@@ -80,7 +77,6 @@ export async function upsertCheckoutUser (
         SELECT
             id,
             email,
-            subscription_status,
             autumn_customer_id,
             stamps_balance,
             was_inserted
@@ -89,7 +85,6 @@ export async function upsertCheckoutUser (
         SELECT
             users.id,
             users.email,
-            users.subscription_status,
             users.autumn_customer_id,
             users.stamps_balance,
             false AS was_inserted
@@ -176,8 +171,7 @@ export async function consumeMagicLinkToken (
             AND magic_link.expires_at > now()
         RETURNING
             users.id,
-            users.email,
-            users.subscription_status
+            users.email
     `, [token])
 
     return result.rows[0] || null
