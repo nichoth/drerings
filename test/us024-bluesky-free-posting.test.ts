@@ -138,6 +138,7 @@ function paidState (stampsBalance:number):AppState {
 function publicPost ():PublicPost {
     return {
         id: 42,
+        drawing_id: 'drawing-1',
         image: 'data:image/png;base64,aW1hZ2U=',
         text: 'A red circle',
         alt_text: 'A hand drawn red circle',
