@@ -72,7 +72,7 @@ describe.skip('US-017 gift checkout API', () => {
                 '../netlify/functions/stamps/gifts/checkout'
             )
             const response = await callHandler(handler, event({
-                product_id: 'stamps_bundle',
+                product_id: '25_stamps',
                 recipient: ' Friend@Example.COM '
             }))
 
@@ -94,15 +94,16 @@ describe.skip('US-017 gift checkout API', () => {
                     method: 'POST',
                     body: JSON.stringify({
                         customer_id: 'sender-1',
-                        product_id: 'stamps_bundle',
+                        product_id: '25_stamps',
                         success_url:
                             'https://drerings.app/account?status=ok',
                         customer_data: {
-                            email: 'sender@example.com'
+                            email: 'sender.bsky.social@bsky.social'
                         },
                         metadata: {
                             gift_sender_user_id: 'sender-1',
-                            gift_sender_email: 'sender@example.com',
+                            gift_sender_email:
+                                'sender.bsky.social@bsky.social',
                             gift_recipient_user_id: 'recipient-1',
                             gift_recipient_email: 'friend@example.com'
                         },
@@ -178,8 +179,8 @@ function event (body:Record<string, unknown>):HandlerEvent {
 function sender () {
     return {
         id: 'sender-1',
-        email: 'sender@example.com',
-        subscription_status: 'active' as const,
+        did: 'did:plc:sender1234567890123456789',
+        handle: 'sender.bsky.social',
         stamps_balance: 12
     }
 }

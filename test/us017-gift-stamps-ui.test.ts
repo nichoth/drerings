@@ -67,7 +67,7 @@ describe.skip('US-017 gift stamps UI', () => {
             await fireEvent.input(recipient, {
                 target: { value: 'friend@example.com' }
             })
-            await fireEvent.click(within(gift).getByLabelText('Bundle'))
+            await fireEvent.click(within(gift).getByLabelText('25 stamps'))
             await fireEvent.click(within(gift).getByRole('button', {
                 name: /continue to checkout/i
             }))
@@ -79,7 +79,7 @@ describe.skip('US-017 gift stamps UI', () => {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            product_id: 'stamps_bundle',
+                            product_id: '25_stamps',
                             recipient: 'friend@example.com'
                         })
                     }

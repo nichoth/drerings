@@ -65,13 +65,13 @@ describe.skip('US-017 gift stamp webhook', () => {
                 type: 'checkout.completed',
                 data: {
                     checkout_id: 'checkout-gift-1',
-                    product_id: 'stamps_bundle',
+                    product_id: '25_stamps',
                     customer: {
                         id: 'sender-1'
                     },
                     metadata: {
                         gift_sender_user_id: 'sender-1',
-                        gift_sender_email: 'sender@example.com',
+                        gift_sender_email: 'sender.bsky.social@bsky.social',
                         gift_recipient_user_id: 'recipient-1',
                         gift_recipient_email: 'friend@example.com'
                     }
@@ -121,7 +121,7 @@ describe.skip('US-017 gift stamp webhook', () => {
             )
             expect(sendStampGiftEmail).toHaveBeenCalledWith({
                 email: 'friend@example.com',
-                senderEmail: 'sender@example.com',
+                senderEmail: 'sender.bsky.social@bsky.social',
                 count: 25
             })
             expect(clientQuery).toHaveBeenCalledWith('COMMIT')
