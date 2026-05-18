@@ -1,5 +1,17 @@
 import { getDatabase } from '@netlify/database'
 
+interface QueryResult<Row> {
+    rows:Row[];
+}
+
+interface DatabaseClient {
+    query:<Row = Record<string, unknown>>(
+        sql:string,
+        params?:unknown[]
+    ) => Promise<QueryResult<Row>>;
+    release:() => void;
+}
+
 export type StampTransactionReason =
     'purchase'|
     'grant'|
@@ -187,18 +199,6 @@ export interface StampTransactionSummary {
 export interface StampTransactionPage {
     transactions:StampTransactionSummary[];
     next_before:string|null;
-}
-
-interface QueryResult<Row> {
-    rows:Row[];
-}
-
-interface DatabaseClient {
-    query:<Row = Record<string, unknown>>(
-        sql:string,
-        params?:unknown[]
-    ) => Promise<QueryResult<Row>>;
-    release:() => void;
 }
 
 interface StampLotRow {
