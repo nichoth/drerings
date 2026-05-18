@@ -9,7 +9,8 @@ export type StampTransactionReason =
     'gift_sent'|
     'gift_received'|
     'failed_send_refund'|
-    'gift_reclaimed'
+    'gift_reclaimed'|
+    'share'
 
 export interface CreditStampLotOptions {
     userId:string;
@@ -81,6 +82,17 @@ export interface PendingGiftRefundEmailOptions {
 export interface DebitStampOptions {
     userId:string;
     referenceId?:string;
+    reason?:'send'|'share';
+    /**
+     * Optional caller-supplied Postgres client. When provided,
+     * `debitStamp` runs INSIDE the caller's existing transaction:
+     * it does NOT issue BEGIN/COMMIT/ROLLBACK and does NOT release
+     * the client. The caller owns the transaction lifecycle.
+     *
+     * When omitted (the existing default for postcards), `debitStamp`
+     * acquires its own client and manages its own transaction.
+     */
+    client?:DatabaseClient;
 }
 
 export interface DebitStampResult {
@@ -711,77 +723,88 @@ export async function creditGiftStampLot (
 export async function debitStamp (
     options:DebitStampOptions
 ):Promise<DebitStampResult> {
+    if (options.client) {
+        // Caller owns the transaction. Do not BEGIN/COMMIT/release.
+        return debitStampOnClient(options.client, options)
+    }
+
     const db = getDatabase()
     const client = await db.pool.connect() as DatabaseClient
 
     try {
         await client.query('BEGIN')
-
-        const lotResult = await client.query<StampLotRow>(`
-            UPDATE stamp_lots
-            SET remaining_count = remaining_count - 1
-            WHERE id = (
-                SELECT id
-                FROM stamp_lots
-                WHERE user_id = $1
-                    AND remaining_count > 0
-                ORDER BY
-                    CASE source WHEN 'purchase' THEN 1 ELSE 0 END,
-                    created_at ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            )
-            RETURNING id
-        `, [options.userId])
-
-        if (!lotResult.rows[0]) {
-            throw new InsufficientStampsError()
-        }
-
-        const lotId = lotResult.rows[0].id
-        const balanceResult = await client.query<BalanceRow>(`
-            UPDATE users
-            SET stamps_balance = stamps_balance - 1
-            WHERE id = $1
-                AND stamps_balance > 0
-            RETURNING stamps_balance
-        `, [options.userId])
-
-        if (!balanceResult.rows[0]) {
-            throw new InsufficientStampsError()
-        }
-
-        const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
-
-        await client.query(`
-            INSERT INTO stamp_transactions (
-                user_id,
-                lot_id,
-                delta,
-                reason,
-                reference_id,
-                balance_after
-            )
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [
-            options.userId,
-            lotId,
-            -1,
-            'send',
-            options.referenceId,
-            balanceAfter
-        ])
-
+        const result = await debitStampOnClient(client, options)
         await client.query('COMMIT')
-
-        return { lotId, balanceAfter }
-    } catch (error) {
-        await client.query('ROLLBACK')
-
-        throw error
+        return result
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw err
     } finally {
         client.release()
     }
+}
+
+async function debitStampOnClient (
+    client:DatabaseClient,
+    options:DebitStampOptions
+):Promise<DebitStampResult> {
+    const lotResult = await client.query<StampLotRow>(`
+        UPDATE stamp_lots
+        SET remaining_count = remaining_count - 1
+        WHERE id = (
+            SELECT id
+            FROM stamp_lots
+            WHERE user_id = $1
+                AND remaining_count > 0
+            ORDER BY
+                CASE source WHEN 'purchase' THEN 1 ELSE 0 END,
+                created_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id
+    `, [options.userId])
+
+    if (!lotResult.rows[0]) {
+        throw new InsufficientStampsError()
+    }
+
+    const lotId = lotResult.rows[0].id
+    const balanceResult = await client.query<BalanceRow>(`
+        UPDATE users
+        SET stamps_balance = stamps_balance - 1
+        WHERE id = $1
+            AND stamps_balance > 0
+        RETURNING stamps_balance
+    `, [options.userId])
+
+    if (!balanceResult.rows[0]) {
+        throw new InsufficientStampsError()
+    }
+
+    const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
+    const reason = options.reason ?? 'send'
+
+    await client.query(`
+        INSERT INTO stamp_transactions (
+            user_id,
+            lot_id,
+            delta,
+            reason,
+            reference_id,
+            balance_after
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+        options.userId,
+        lotId,
+        -1,
+        reason,
+        options.referenceId,
+        balanceAfter
+    ])
+
+    return { lotId, balanceAfter }
 }
 
 export async function refundFailedSend (
