@@ -20,7 +20,8 @@ export interface AuthStatus {
 
 export interface UserState {
     id:string;
-    email:string;
+    did:string;
+    handle:string;
 }
 
 export interface CurrentUser extends UserState {
@@ -262,7 +263,8 @@ State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
         state.currentUser.value = user
         state.profile.value = {
             id: user.id,
-            email: user.email
+            did: user.did,
+            handle: user.handle
         }
         state.auth.value = {
             registered: false,
@@ -746,14 +748,15 @@ State.StartStampCheckout = async function (
     state:AppState,
     productId:StampPackProductId
 ):Promise<void> {
-    const email = state.currentUser.value?.email || state.profile.value?.email
+    const handle = state.currentUser.value?.handle ||
+        state.profile.value?.handle
 
     state.checkoutLoading.value = true
     state.checkoutError.value = null
     state.stampCheckoutProductId.value = productId
 
     try {
-        if (!email) {
+        if (!handle) {
             throw new Error('Sign in before buying stamps.')
         }
 
@@ -761,7 +764,7 @@ State.StartStampCheckout = async function (
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email,
+                handle,
                 product_id: productId
             })
         })
@@ -867,7 +870,8 @@ State.FetchAccount = async function (
         state.account.value = account
         state.currentUser.value = {
             id: account.id,
-            email: account.email
+            did: account.did,
+            handle: account.handle
         }
 
         return account
@@ -977,7 +981,8 @@ function isCurrentUser (value:unknown):value is CurrentUser {
     const maybeUser = value as Partial<CurrentUser>
 
     return typeof maybeUser.id === 'string' &&
-        typeof maybeUser.email === 'string' &&
+        typeof maybeUser.did === 'string' &&
+        typeof maybeUser.handle === 'string' &&
         (
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'

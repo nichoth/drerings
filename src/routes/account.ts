@@ -142,8 +142,8 @@ export const AccountRoute:FunctionComponent<{
             <section aria-label="Profile" class="account-section">
                 <h3>Profile</h3>
                 <dl>
-                    <dt>Email</dt>
-                    <dd>${account?.email || currentUser?.email || ''}</dd>
+                    <dt>Bluesky Handle</dt>
+                    <dd>${account?.handle || currentUser?.handle || ''}</dd>
                 </dl>
             </section>
 
