@@ -65,7 +65,7 @@ describe('US-021 sent gifts UI', () => {
             )
 
             expect(sentGiftsHeading).toBeTruthy()
-            expect(within(stamps).getByText('friend@example.com'))
+            expect(within(stamps).getByText('friend.bsky.social'))
                 .toBeTruthy()
             expect(within(stamps).getByText(
                 'Unused (refundable until May 31, 2026)'
@@ -73,10 +73,10 @@ describe('US-021 sent gifts UI', () => {
             expect(within(stamps).getByText('In use (final)')).toBeTruthy()
 
             const unusedGift = within(stamps).getByRole('listitem', {
-                name: /friend@example.com/i
+                name: /friend.bsky.social/i
             })
             const usedGift = within(stamps).getByRole('listitem', {
-                name: /pal@example.com/i
+                name: /pal.bsky.social/i
             })
 
             expect(within(unusedGift).getByRole('button', {
@@ -91,7 +91,7 @@ describe('US-021 sent gifts UI', () => {
             }))
 
             expect(within(unusedGift).getByText(
-                'Refund $10.00 for friend@example.com?'
+                'Refund $10.00 for friend.bsky.social?'
             )).toBeTruthy()
 
             await fireEvent.click(within(unusedGift).getByRole('button', {
@@ -114,8 +114,8 @@ function signedInState ():AppState {
 
     state.currentUser.value = {
         id: 'sender-1',
-        email: 'sender@example.com',
-        subscription_status: 'active',
+        did: 'did:plc:test-1',
+        handle: 'sender.bsky.social',
         stamps_balance: 12
     }
     state.auth.value = {
@@ -130,7 +130,7 @@ function sentGifts () {
     return [
         {
             id: 'lot-unused',
-            recipient_email: 'friend@example.com',
+            recipient_handle: 'friend.bsky.social',
             original_count: 25,
             remaining_count: 25,
             refund_cents: 1000,
@@ -141,7 +141,7 @@ function sentGifts () {
         },
         {
             id: 'lot-used',
-            recipient_email: 'pal@example.com',
+            recipient_handle: 'pal.bsky.social',
             original_count: 25,
             remaining_count: 24,
             refund_cents: 0,

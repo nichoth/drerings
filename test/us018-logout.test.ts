@@ -35,7 +35,8 @@ describe('US-018 logout', () => {
                     'drerings_session=',
                     'Path=/',
                     'Max-Age=0'
-                ].join('; ')
+                ].join('; '),
+                readSessionUserFromCookie: () => null
             }
         })
 
@@ -47,14 +48,17 @@ describe('US-018 logout', () => {
         expect(response.headers?.['Set-Cookie'])
             .toContain('drerings_session=')
         expect(response.headers?.['Set-Cookie']).toContain('Max-Age=0')
-        expect(body).toEqual({ logged_out: true })
+        expect(body).toEqual({ ok: true })
     })
 
     it('rejects non-POST logout requests', async () => {
         vi.resetModules()
 
         vi.doMock('../netlify/lib/session', () => {
-            return { clearSessionCookie: () => 'drerings_session=;' }
+            return {
+                clearSessionCookie: () => 'drerings_session=;',
+                readSessionUserFromCookie: () => null
+            }
         })
 
         const { handler } = await import('../netlify/functions/auth/logout')
@@ -86,15 +90,14 @@ describe('US-018 logout', () => {
             }
             state.currentUser.value = {
                 id: 'user-1',
-                email: 'paid@example.com',
-                subscription_status: 'active'
+                did: 'did:plc:test-1',
+                handle: 'user.bsky.social'
             }
             state.account.value = {
                 id: 'user-1',
-                email: 'paid@example.com',
-                subscription_status: 'active',
-                subscription_current_period_end: '2026-06-01',
-                passkeys: []
+                did: 'did:plc:test-1',
+                handle: 'user.bsky.social',
+                stamps_balance: 5
             }
 
             await State.Logout(state)

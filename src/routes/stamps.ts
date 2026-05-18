@@ -154,7 +154,8 @@ function reasonLabel (reason:StampTransactionReason):string {
         gift_sent: 'Gift sent',
         gift_received: 'Gift received',
         failed_send_refund: 'Failed-send refund',
-        gift_reclaimed: 'Gift reclaimed'
+        gift_reclaimed: 'Gift reclaimed',
+        share: 'Share'
     }
 
     return labels[reason]

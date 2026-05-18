@@ -56,5 +56,5 @@ function getWebhookResultBody (
         return { stamp_purchase: result.stamp_purchase }
     }
 
-    return { subscription_status: result.subscription_status }
+    return {}
 }

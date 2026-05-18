@@ -209,7 +209,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 
@@ -253,7 +253,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 
@@ -410,7 +410,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 
@@ -461,8 +461,8 @@ describe('US-030 POST /api/postcards/send', () => {
             getSession: async () => ({
                 user: {
                     id: 'user-1',
-                    email: 'sender@example.com',
-                    subscription_status: 'free'
+                    did: 'did:plc:test-1',
+                    handle: 'test.bsky.social'
                 }
             })
         }))
@@ -504,7 +504,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 
@@ -566,7 +566,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 
@@ -658,7 +658,7 @@ describe('US-030 POST /api/postcards/send', () => {
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
-                user: { id: 'user-1', email: 'sender@example.com' }
+                user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
         }))
 

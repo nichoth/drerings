@@ -8,6 +8,10 @@ import {
     type AppState,
     type PublicPost
 } from '../state'
+import {
+    ConfirmStampDialog
+} from '../components/confirm-stamp-dialog'
+import { NoStampsMessage } from '../components/no-stamps-message'
 import './post.css'
 
 const SHARE_COPY = {
@@ -118,8 +122,13 @@ export const PostRoute:FunctionComponent<{
     const share = useCallback(async () => {
         if (!post.value) return
 
-        await sharePublicPost(post.value)
-    }, [])
+        const drawingId = post.value.drawing_id
+        const localPost = post.value
+
+        await State.ShareDrawing(state, drawingId, async () => {
+            await sharePublicPost(localPost)
+        })
+    }, [state])
 
     const copyLink = useCallback(async () => {
         if (!fallbackUrl.value || !canWriteClipboard()) return
@@ -212,6 +221,44 @@ export const PostRoute:FunctionComponent<{
                 ` : null}
             </article>
         ` : null}
+
+        ${state.shareDialog.value &&
+            state.shareDialog.value.type === 'confirm' ?
+            html`<${ConfirmStampDialog}
+                stampsBalance=${state.shareDialog.value.stampsBalance}
+                isSpinning=${state.shareInFlight.value}
+                onConfirm=${async () => {
+                    if (!state.shareDialog.value ||
+                        state.shareDialog.value.type !== 'confirm') return
+
+                    const dialog = state.shareDialog.value
+                    const localPost = post.value
+                    if (!localPost) return
+
+                    await State.ConfirmShare(
+                        state,
+                        dialog.drawingId,
+                        dialog.idempotencyKey,
+                        async () => { await sharePublicPost(localPost) }
+                    )
+                }}
+                onCancel=${() => State.CancelShareDialog(state)}
+            />` : null
+        }
+
+        ${state.shareDialog.value &&
+            state.shareDialog.value.type === 'blocked' ?
+            html`<${NoStampsMessage}
+                message=${state.shareDialog.value.message}
+            />` : null
+        }
+
+        ${state.shareError.value ?
+            html`<p role="alert" class="share-error">
+                ${state.shareError.value}
+            </p>` :
+            null
+        }
     </div>`
 }
 

@@ -1,27 +1,25 @@
 import { html } from 'htm/preact'
 import { type FunctionComponent } from 'preact'
 import { useCallback } from 'preact/hooks'
-import { useSignal } from '@preact/signals'
 import { Button } from '../components/button'
-import { Input } from '../components/input'
 import { State, type AppState } from '../state'
 import { BuyPackModal } from '../components/buy-pack-modal'
+import {
+    STAMP_PACKS,
+    formatPackPrice,
+    type StampPackProductId
+} from '../stamp-packs'
 import './pricing.css'
 
 export const PricingRoute:FunctionComponent<{
     state:AppState;
 }> = function PricingRoute ({ state }) {
-    const currentUser = state.currentUser.value
-    const email = useSignal<string>(currentUser?.email || '')
-
-    const startCheckout = useCallback(async (ev:Event) => {
-        ev.preventDefault()
-        await State.StartCheckout(state, email.value.trim()).catch(() => {})
-    }, [state])
-
-    const openBuyPacks = useCallback(() => {
-        State.OpenBuyPackModal(state)
-    }, [state])
+    const openBuyPacks = useCallback(
+        (productId?:StampPackProductId) => {
+            State.OpenBuyPackModal(state, productId)
+        },
+        [state]
+    )
 
     const closeBuyPacks = useCallback(() => {
         State.CloseBuyPackModal(state)
@@ -30,79 +28,54 @@ export const PricingRoute:FunctionComponent<{
     return html`<div class="route pricing">
         <section class="pricing-intro">
             <h2>Pricing</h2>
+        </section>
+
+        <section class="pricing-tier-card" aria-label="Free tier">
+            <h3>Sign in (free)</h3>
+            <ul>
+                <li>Draw in your browser.</li>
+                <li>Save drawings to your account.</li>
+                <li>Reopen and edit saved drawings.</li>
+                <li>Publish drawings to stable public URLs.</li>
+                <li>
+                    One free share per calendar month.
+                    Additional shares use 1 stamp each.
+                </li>
+            </ul>
+        </section>
+
+        <section class="pricing-stamp-packs" aria-label="Stamp packs">
+            <h3>Stamps</h3>
             <p>
-                Draw for free. Subscribe when you want to share your drawings
-                with the world.
+                Buy prepaid stamps to send postcards and to make
+                additional shares after your monthly free share.
             </p>
-        </section>
 
-        <section class="pricing-tiers" aria-label="Plans">
-            <article class="pricing-tier">
-                <h3>Free</h3>
-                <p class="pricing-rate">$0/month</p>
-                <ul>
-                    <li>Draw in the browser.</li>
-                    <li>Start over with every refresh.</li>
-                    <li>No saved drawings or public posts.</li>
-                </ul>
-            </article>
-
-            <article class="pricing-tier paid">
-                <h3>Paid</h3>
-                <p class="pricing-rate">$5/month</p>
-                <ul>
-                    <li>Save drawings to your account.</li>
-                    <li>Reopen and edit saved drawings.</li>
-                    <li>Publish drawings to stable public URLs.</li>
-                    <li>
-                        Share your drawings through your device share sheet.
-                    </li>
-                </ul>
-            </article>
-        </section>
-
-        <section class="stamp-pack-cta" aria-label="Stamps">
-            <div>
-                <h3>Stamps</h3>
-                <p>
-                    Buy prepaid stamps for sending postcards. One stamp sends
-                    one postcard.
-                </p>
-            </div>
-
-            <${Button} type="button" onClick=${openBuyPacks}>
-                Buy stamps
-            <//>
-        </section>
-
-        <section class="pricing-checkout" aria-label="Checkout">
-            <form onSubmit=${startCheckout} class="pricing-checkout-form">
-                <${Input}
-                    label="Email"
-                    name="email"
-                    required=${true}
-                    value=${email.value}
-                    id="checkout-email"
-                    onInput=${(ev:InputEvent) => {
-                        const input = ev.currentTarget as HTMLInputElement
-                        email.value = input.value
-                    }}
-                />
-
-                <${Button}
-                    type="submit"
-                    isSpinning=${state.checkoutLoading}
+            <ul class="pack-list">
+                ${STAMP_PACKS.map(pack => html`<li
+                    class="pack-row"
+                    key=${pack.productId}
                 >
-                    Subscribe - $5/month
-                <//>
-            </form>
-
-            ${state.checkoutError.value ?
-                html`<p role="alert" class="pricing-error">
-                    ${state.checkoutError.value}
-                </p>` :
-                null
-            }
+                    <div class="pack-info">
+                        <span class="pack-name">${pack.name}</span>
+                        <span class="pack-count">
+                            ${pack.count} stamps
+                        </span>
+                        <span class="pack-price">
+                            ${formatPackPrice(pack.priceCents)}
+                        </span>
+                    </div>
+                    <${Button}
+                        type="button"
+                        aria-label=${'Buy ' + pack.count + '-stamp pack'}
+                        onClick=${() => openBuyPacks(
+                            pack.productId as StampPackProductId
+                        )}
+                    >
+                        Buy
+                    <//>
+                </li>`)}
+            </ul>
         </section>
 
         ${state.buyPackModalOpen.value ? html`

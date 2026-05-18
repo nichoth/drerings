@@ -1,6 +1,10 @@
 import type { Handler } from '@netlify/functions'
-import { getRequestOrigin, json, parseJsonBody } from '../../lib/http.js'
-import { upsertCheckoutUser } from '../../lib/auth-store.js'
+import {
+    getRequestOrigin,
+    json,
+    parseJsonBody
+} from '../../lib/http.js'
+import { getSession } from '../../lib/session.js'
 import {
     createCheckoutSession,
     PACK_DEFINITIONS,
@@ -12,24 +16,23 @@ export const handler:Handler = async function handler (event) {
         return json(405, { error: 'Method not allowed' })
     }
 
-    const body = parseJsonBody(event)
-    const email = normalizeEmail(body?.email)
-    const productId = normalizeProductId(body?.product_id)
-
-    if (!email) {
-        return json(400, { error: 'Enter a valid email address.' })
+    const session = await getSession(event)
+    if (!session) {
+        return json(401, { error: 'Please sign in.' })
     }
 
-    if (body?.product_id && !productId) {
+    const body = parseJsonBody(event)
+    const productId = normalizeProductId(body?.product_id)
+
+    if (!productId) {
         return json(400, { error: 'Choose a valid stamp pack.' })
     }
 
     try {
-        const user = await upsertCheckoutUser(email)
         const checkout = await createCheckoutSession(
-            user,
+            session.user,
             getRequestOrigin(event),
-            productId || undefined
+            productId
         )
 
         return json(200, { url: checkout.url })
@@ -50,13 +53,4 @@ function normalizeProductId (value:unknown):StampPackProductId|null {
     return productId in PACK_DEFINITIONS ?
         productId as StampPackProductId :
         null
-}
-
-function normalizeEmail (value:unknown):string|null {
-    if (typeof value !== 'string') return null
-
-    const email = value.trim().toLowerCase()
-    const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-
-    return isValid ? email : null
 }

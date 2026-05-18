@@ -35,8 +35,6 @@ interface AutumnCheckoutResponse {
     customer_id?:unknown;
 }
 
-type SubscriptionStatus = SessionUser['subscription_status']
-
 interface AutumnWebhookEvent {
     type?:unknown;
     data?:unknown;
@@ -45,17 +43,11 @@ interface AutumnWebhookEvent {
 
 interface AutumnWebhookResult {
     handled:boolean;
-    subscription_status?:SubscriptionStatus;
     stamp_purchase?:
         'credited'|
         'already_credited'|
         'gift_credited'|
         'pending_gift_created';
-}
-
-export interface CancelSubscriptionResult {
-    subscription_status:'canceled';
-    subscription_current_period_end:string|null;
 }
 
 export interface AutumnStampRefundOptions {
@@ -101,7 +93,7 @@ interface CheckoutOptions {
 export async function createCheckoutSession (
     user:SessionUser,
     origin:string,
-    productId?:StampPackProductId,
+    productId:StampPackProductId,
     options:CheckoutOptions = {}
 ):Promise<CheckoutSession> {
     if (shouldUseMockCheckout()) {
@@ -115,12 +107,13 @@ export async function createCheckoutSession (
         return checkout
     }
 
+    const syntheticEmail = `${user.handle}@bsky.social`
     const checkoutBody:Record<string, unknown> = {
         customer_id: user.id,
         product_id: getCheckoutProductId(productId),
         success_url: `${origin}/account?status=ok`,
         customer_data: {
-            email: user.email
+            email: syntheticEmail
         }
     }
 
@@ -197,10 +190,11 @@ export async function createGiftCheckoutSession (
     productId:StampPackProductId,
     recipient:GiftRecipient
 ):Promise<CheckoutSession> {
+    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: sender.email,
+            gift_sender_email: syntheticSenderEmail,
             gift_recipient_user_id: recipient.id,
             gift_recipient_email: recipient.email
         }
@@ -213,35 +207,14 @@ export async function createPendingGiftCheckoutSession (
     productId:StampPackProductId,
     recipientEmail:string
 ):Promise<CheckoutSession> {
+    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: sender.email,
+            gift_sender_email: syntheticSenderEmail,
             gift_pending_recipient_email: recipientEmail
         }
     })
-}
-
-export async function cancelAutumnSubscription (
-    user:SessionUser
-):Promise<CancelSubscriptionResult|null> {
-    if (user.subscription_status !== 'active') return null
-
-    const currentPeriodEnd = await cancelAutumnAtPeriodEnd(user)
-    const db = getDatabase()
-
-    await db.pool.query(`
-        UPDATE users
-        SET
-            subscription_status = $1,
-            subscription_current_period_end = $2
-        WHERE id = $3
-    `, ['canceled', currentPeriodEnd, user.id])
-
-    return {
-        subscription_status: 'canceled',
-        subscription_current_period_end: currentPeriodEnd
-    }
 }
 
 export class InFlightRefundAttemptError extends Error {
@@ -444,27 +417,7 @@ export async function applyAutumnWebhookEvent (
         return applyStampCheckout(stampCheckout)
     }
 
-    const subscriptionStatus = getWebhookSubscriptionStatus(event)
-    const customerId = getWebhookCustomerId(event)
-
-    if (!subscriptionStatus || !customerId) return { handled: false }
-
-    const db = getDatabase()
-
-    await db.pool.query(`
-        UPDATE users
-        SET
-            subscription_status = $1,
-            autumn_customer_id = $2
-        WHERE autumn_customer_id = $2
-            OR id = $3
-        RETURNING id
-    `, [subscriptionStatus, customerId, customerId])
-
-    return {
-        handled: true,
-        subscription_status: subscriptionStatus
-    }
+    return { handled: false }
 }
 
 async function applyStampCheckout (
@@ -561,50 +514,6 @@ async function updateAutumnCustomerId (
         SET autumn_customer_id = $1
         WHERE id = $2
     `, [customerId, userId])
-}
-
-async function cancelAutumnAtPeriodEnd (
-    user:SessionUser
-):Promise<string|null> {
-    if (shouldUseMockCheckout()) return nextMonthDate()
-
-    const customerId = user.autumn_customer_id || user.id
-    const response = await fetch(
-        `${getAutumnApiUrl()}/customers/${customerId}/cancel`,
-        {
-            method: 'POST',
-            headers: {
-                authorization: `Bearer ${getAutumnSecretKey()}`,
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({ cancel_at_period_end: true })
-        }
-    )
-
-    if (!response.ok) throw new Error('Autumn cancellation failed.')
-
-    const body = await response.json() as Record<string, unknown>
-
-    return getDateString(
-        body.current_period_end ||
-        body.ends_at ||
-        body.period_end ||
-        null
-    )
-}
-
-function nextMonthDate ():string {
-    const date = new Date()
-
-    date.setUTCMonth(date.getUTCMonth() + 1)
-
-    return date.toISOString().slice(0, 10)
-}
-
-function getDateString (value:unknown):string|null {
-    if (typeof value !== 'string' || value.trim() === '') return null
-
-    return value.slice(0, 10)
 }
 
 function shouldUseMockCheckout ():boolean {
@@ -718,16 +627,19 @@ function getAutumnSecretKey ():string {
     return key
 }
 
-function getAutumnProductId ():string {
-    return process.env.AUTUMN_PRODUCT_ID || 'paid'
-}
-
+// Defense-in-depth: runtime guard exists because callers may bypass
+// the type system via `as StampPackProductId` assertions on webhook/HTTP
+// inputs.
 function getCheckoutProductId (
-    productId?:StampPackProductId
+    productId:StampPackProductId
 ):string {
-    if (productId && PACK_DEFINITIONS[productId]) return productId
+    if (!PACK_DEFINITIONS[productId]) {
+        throw new Error(
+            `Unknown stamp pack: ${String(productId)}`
+        )
+    }
 
-    return getAutumnProductId()
+    return productId
 }
 
 function getAutumnApiUrl ():string {
@@ -741,32 +653,6 @@ function getAutumnWebhookSecret ():string {
     if (!secret) throw new Error('AUTUMN_WEBHOOK_SECRET is required')
 
     return secret
-}
-
-function getWebhookSubscriptionStatus (
-    event:AutumnWebhookEvent
-):SubscriptionStatus|null {
-    const type = getString(event.type)
-    const data = isRecord(event.data) ? event.data : {}
-    const scenario = getString(data.scenario)
-    const subscription = getRecord(data.subscription)
-    const product = getRecord(data.updated_product)
-    const values = [
-        type,
-        scenario,
-        getString(data.status),
-        getString(data.subscription_status),
-        getString(subscription?.status),
-        getString(product?.status)
-    ].filter(Boolean).map((value) => {
-        return value.toLowerCase()
-    })
-
-    if (values.some(isCanceledSignal)) return 'canceled'
-    if (values.some(isPastDueSignal)) return 'past_due'
-    if (values.some(isActiveSignal)) return 'active'
-
-    return null
 }
 
 function getWebhookCustomerId (event:AutumnWebhookEvent):string|null {
@@ -811,36 +697,6 @@ function getWebhookProductId (event:AutumnWebhookEvent):string {
         getString(product?.id) ||
         getString(product?.product_id)
     )
-}
-
-function isActiveSignal (value:string):boolean {
-    return value === 'new' ||
-        value === 'active' ||
-        value === 'subscription.created' ||
-        value === 'subscription.activated' ||
-        value === 'subscription.renewed' ||
-        value === 'customer.subscription.created' ||
-        value === 'customer.subscription.activated' ||
-        value === 'customer.subscription.renewed' ||
-        value === 'renewed'
-}
-
-function isCanceledSignal (value:string):boolean {
-    return value === 'cancel' ||
-        value === 'canceled' ||
-        value === 'cancelled' ||
-        value === 'subscription.canceled' ||
-        value === 'subscription.cancelled' ||
-        value === 'customer.subscription.canceled' ||
-        value === 'customer.subscription.cancelled'
-}
-
-function isPastDueSignal (value:string):boolean {
-    return value === 'past_due' ||
-        value === 'payment_failed' ||
-        value === 'payment.failed' ||
-        value === 'subscription.payment_failed' ||
-        value === 'customer.subscription.payment_failed'
 }
 
 function isRecord (value:unknown):value is Record<string, unknown> {

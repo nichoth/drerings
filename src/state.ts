@@ -1,4 +1,5 @@
 import {
+    batch,
     computed,
     type ReadonlySignal,
     type Signal,
@@ -20,25 +21,15 @@ export interface AuthStatus {
 
 export interface UserState {
     id:string;
-    email:string;
+    did:string;
+    handle:string;
 }
 
-export type SubscriptionStatus = 'free'|'active'|'canceled'|'past_due'
-
 export interface CurrentUser extends UserState {
-    subscription_status:SubscriptionStatus;
     stamps_balance?:number;
 }
 
-export interface AccountPasskey {
-    id:string;
-    created_at:string;
-}
-
-export interface AccountDetails extends CurrentUser {
-    subscription_current_period_end:string|null;
-    passkeys:AccountPasskey[];
-}
+export type AccountDetails = CurrentUser
 
 export interface SavedDrawing {
     id:string;
@@ -66,7 +57,28 @@ export type PostcardSendResult =
         message:string;
     }
 
+export type ShareDrawingResult =
+    | { ok:true; was_free:boolean; stamps_balance?:number }
+    | {
+        ok:false;
+        reason:'blocked'|'network'|'cancelled'|'other';
+        message:string;
+    }
+
+export type ShareDialogState =
+    | {
+        type:'confirm';
+        drawingId:string;
+        idempotencyKey:string;
+        stampsBalance:number;
+    }
+    | {
+        type:'blocked';
+        message:string;
+    }
+
 export interface PublicPost extends PublishedPost {
+    drawing_id:string;
     image:string;
     text:string;
     alt_text:string;
@@ -100,7 +112,7 @@ export type SentGiftStatus = 'unused'|'in_use'|'expired'|'refunded'
 
 export interface SentGiftSummary {
     id:string;
-    recipient_email:string;
+    recipient_handle:string;
     original_count:number;
     remaining_count:number;
     refund_cents:number;
@@ -119,7 +131,8 @@ export type StampTransactionReason =
     'gift_sent'|
     'gift_received'|
     'failed_send_refund'|
-    'gift_reclaimed'
+    'gift_reclaimed'|
+    'share'
 
 export interface StampTransactionSummary {
     id:string;
@@ -154,7 +167,6 @@ export function State (): {
     auth:Signal<AuthStatus>;
     authLoading:Signal<boolean>;
     isAuthed:ReadonlySignal<boolean>;
-    isPaid:ReadonlySignal<boolean>;
     canShare:ReadonlySignal<boolean>;
     currentUser:Signal<CurrentUser|null>;
     account:Signal<AccountDetails|null>;
@@ -178,6 +190,9 @@ export function State (): {
     stampLotsLoading:Signal<boolean>;
     stampLotsError:Signal<string|null>;
     profile:Signal<UserState|null>;
+    shareDialog:Signal<ShareDialogState|null>;
+    shareInFlight:Signal<boolean>;
+    shareError:Signal<string|null>;
     _setRoute:(path:string)=>void;
 } {  // eslint-disable-line indent
     const onRoute = Route()
@@ -211,15 +226,15 @@ export function State (): {
         stampLotsLoading: signal<boolean>(false),
         stampLotsError: signal<string|null>(null),
         profile: signal<UserState|null>(null),
+        shareDialog: signal<ShareDialogState|null>(null),
+        shareInFlight: signal<boolean>(false),
+        shareError: signal<string|null>(null),
         route: signal<string>(location.pathname),
         isAuthed: computed<boolean>(() => {
             return !!state.auth.value?.authenticated
         }),
-        isPaid: computed<boolean>(() => {
-            return state.currentUser.value?.subscription_status === 'active'
-        }),
         canShare: computed<boolean>(() => {
-            return state.currentUser.value?.subscription_status === 'active'
+            return !!state.auth.value?.authenticated
         })
     }
 
@@ -270,7 +285,8 @@ State.fetchAuthStatus = async function (state:AppState):Promise<AuthStatus> {
         state.currentUser.value = user
         state.profile.value = {
             id: user.id,
-            email: user.email
+            did: user.did,
+            handle: user.handle
         }
         state.auth.value = {
             registered: false,
@@ -739,52 +755,305 @@ State.SendPostcard = async function (
     }
 }
 
-State.StartCheckout = async function (
-    state:AppState,
-    email:string
-):Promise<void> {
-    state.checkoutLoading.value = true
-    state.checkoutError.value = null
+type PrecheckResponse =
+    | { type:'free'; month_key:string }
+    | { type:'paid'; stamps_balance:number; month_key:string }
+    | {
+        type:'blocked';
+        reason:'no_free_no_stamps';
+        stamps_balance:0;
+        month_key:string;
+    }
+    | { type:'reused'; was_free:boolean }
 
+type ConfirmResponse =
+    | { type:'recorded'; was_free:boolean; stamps_balance:number }
+    | { type:'blocked'; reason:'no_free_no_stamps' }
+
+function getCurrentTimezone ():string {
     try {
-        const response = await fetch('/api/billing/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        })
-
-        if (!response.ok) {
-            const errorBody = await maybeJson(response)
-            const message = typeof errorBody?.error === 'string' ?
-                errorBody.error :
-                'Unable to start checkout right now.'
-
-            throw new Error(message)
-        }
-
-        const body = await response.json() as { url?:unknown }
-
-        if (typeof body.url !== 'string' || body.url.trim() === '') {
-            throw new Error('Unable to start checkout right now.')
-        }
-
-        location.assign(body.url)
-    } catch (err) {
-        const message = err instanceof Error ?
-            err.message :
-            'Unable to start checkout right now.'
-
-        state.checkoutError.value = message
-
-        throw err
-    } finally {
-        state.checkoutLoading.value = false
+        return Intl.DateTimeFormat()
+            .resolvedOptions().timeZone || 'UTC'
+    } catch {
+        return 'UTC'
     }
 }
 
-State.OpenBuyPackModal = function (state:AppState):void {
-    state.checkoutError.value = null
-    state.buyPackModalOpen.value = true
+function newIdempotencyKey ():string {
+    if (typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    // Last-resort fallback for very old browsers.
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+State.ShareDrawing = async function (
+    state:AppState,
+    drawingId:string,
+    openShareSheet:() => Promise<void>
+):Promise<ShareDrawingResult> {
+    batch(() => {
+        state.shareInFlight.value = true
+        state.shareError.value = null
+        state.shareDialog.value = null
+    })
+
+    const timezone = getCurrentTimezone()
+    const idempotencyKey = newIdempotencyKey()
+    const body = {
+        drawing_id: drawingId,
+        timezone,
+        idempotency_key: idempotencyKey
+    }
+
+    try {
+        const precheckResponse = await fetch(
+            '/api/shares/precheck',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }
+        )
+
+        if (precheckResponse.status === 401) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'other',
+                message: 'Please sign in.'
+            })
+        }
+
+        if (!precheckResponse.ok) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'network',
+                message: 'Unable to share right now.'
+            })
+        }
+
+        const precheck = await precheckResponse.json() as
+            PrecheckResponse
+
+        if (precheck.type === 'free' || precheck.type === 'reused') {
+            // For 'reused' we must NOT debit again; just open the
+            // share sheet. The server has the canonical record.
+            const confirm = precheck.type === 'free' ?
+                await postConfirm(body) :
+                null
+
+            if (precheck.type === 'free' && confirm === null) {
+                return finishShare(state, {
+                    ok: false,
+                    reason: 'network',
+                    message: 'Confirm failed. Try again — your stamp '
+                        + 'has not been used.'
+                })
+            }
+
+            if (confirm && confirm.type === 'blocked') {
+                // Raced — between precheck (free) and confirm someone
+                // else grabbed the free slot AND we have no stamps.
+                state.shareDialog.value = {
+                    type: 'blocked',
+                    message: 'You\'re out of stamps.'
+                }
+                return finishShare(state, {
+                    ok: false,
+                    reason: 'blocked',
+                    message: 'You\'re out of stamps.'
+                })
+            }
+
+            await openShareSheet()
+            return finishShare(state, {
+                ok: true,
+                was_free: precheck.type === 'reused' ?
+                    precheck.was_free :
+                    (confirm && confirm.type === 'recorded' ?
+                        confirm.was_free :
+                        true),
+                stamps_balance: confirm && confirm.type === 'recorded' ?
+                    confirm.stamps_balance :
+                    undefined
+            })
+        }
+
+        if (precheck.type === 'paid') {
+            // Show the confirm dialog; the user clicks Confirm or
+            // Cancel. The dialog's Confirm handler calls
+            // State.ConfirmShare(state, body, openShareSheet).
+            state.shareDialog.value = {
+                type: 'confirm',
+                drawingId,
+                idempotencyKey,
+                stampsBalance: precheck.stamps_balance
+            }
+            // The flow continues when the user clicks Confirm. Mark
+            // share as no-longer-in-flight; the dialog itself manages
+            // its own in-flight state on Confirm click.
+            state.shareInFlight.value = false
+            return {
+                ok: false,
+                reason: 'cancelled',
+                message: 'Awaiting user confirmation.'
+            }
+        }
+
+        // type === 'blocked'
+        state.shareDialog.value = {
+            type: 'blocked',
+            message: 'You\'re out of stamps. Buy more on the '
+                + 'pricing page.'
+        }
+        return finishShare(state, {
+            ok: false,
+            reason: 'blocked',
+            message: 'No free share remaining and no stamps.'
+        })
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Unable to share right now.'
+
+        return finishShare(state, {
+            ok: false,
+            reason: 'network',
+            message
+        })
+    }
+}
+
+async function postConfirm (body:{
+    drawing_id:string;
+    timezone:string;
+    idempotency_key:string;
+}):Promise<ConfirmResponse|null> {
+    const response = await fetch('/api/shares/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+
+    if (!response.ok) return null
+
+    return response.json() as Promise<ConfirmResponse>
+}
+
+function finishShare (
+    state:AppState,
+    result:ShareDrawingResult
+):ShareDrawingResult {
+    let errorValue:string|null = null
+
+    if (!result.ok) {
+        const failedResult = result as
+            Exclude<ShareDrawingResult, { ok:true }>
+        if (failedResult.reason !== 'cancelled') {
+            errorValue = failedResult.message
+        }
+    }
+
+    batch(() => {
+        state.shareInFlight.value = false
+        if (result.ok) {
+            state.shareError.value = null
+        } else if (errorValue) {
+            state.shareError.value = errorValue
+        }
+    })
+
+    return result
+}
+
+State.ConfirmShare = async function (
+    state:AppState,
+    drawingId:string,
+    idempotencyKey:string,
+    openShareSheet:() => Promise<void>
+):Promise<ShareDrawingResult> {
+    batch(() => {
+        state.shareInFlight.value = true
+        state.shareError.value = null
+    })
+
+    const body = {
+        drawing_id: drawingId,
+        timezone: getCurrentTimezone(),
+        idempotency_key: idempotencyKey
+    }
+
+    try {
+        const confirm = await postConfirm(body)
+
+        if (!confirm) {
+            return finishShare(state, {
+                ok: false,
+                reason: 'network',
+                message: 'Confirm failed. Try again — your stamp has '
+                    + 'not been used.'
+            })
+        }
+
+        if (confirm.type === 'blocked') {
+            batch(() => {
+                state.shareDialog.value = {
+                    type: 'blocked',
+                    message: 'You\'re out of stamps.'
+                }
+            })
+            return finishShare(state, {
+                ok: false,
+                reason: 'blocked',
+                message: 'You\'re out of stamps.'
+            })
+        }
+
+        state.shareDialog.value = null
+        await openShareSheet()
+
+        return finishShare(state, {
+            ok: true,
+            was_free: confirm.type === 'recorded' ?
+                confirm.was_free :
+                false,
+            stamps_balance: confirm.type === 'recorded' ?
+                confirm.stamps_balance :
+                undefined
+        })
+    } catch (err) {
+        const message = err instanceof Error ?
+            err.message :
+            'Confirm failed. Try again.'
+
+        return finishShare(state, {
+            ok: false,
+            reason: 'network',
+            message
+        })
+    }
+}
+
+State.CancelShareDialog = function (state:AppState):void {
+    batch(() => {
+        state.shareDialog.value = null
+        state.shareInFlight.value = false
+        state.shareError.value = null
+    })
+}
+
+State.OpenBuyPackModal = function (
+    state:AppState,
+    productId?:StampPackProductId
+):void {
+    batch(() => {
+        state.checkoutError.value = null
+        if (productId) {
+            state.stampCheckoutProductId.value = productId
+        }
+        state.buyPackModalOpen.value = true
+    })
 }
 
 State.CloseBuyPackModal = function (state:AppState):void {
@@ -797,14 +1066,15 @@ State.StartStampCheckout = async function (
     state:AppState,
     productId:StampPackProductId
 ):Promise<void> {
-    const email = state.currentUser.value?.email || state.profile.value?.email
+    const handle = state.currentUser.value?.handle ||
+        state.profile.value?.handle
 
     state.checkoutLoading.value = true
     state.checkoutError.value = null
     state.stampCheckoutProductId.value = productId
 
     try {
-        if (!email) {
+        if (!handle) {
             throw new Error('Sign in before buying stamps.')
         }
 
@@ -812,7 +1082,7 @@ State.StartStampCheckout = async function (
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email,
+                handle,
                 product_id: productId
             })
         })
@@ -918,8 +1188,8 @@ State.FetchAccount = async function (
         state.account.value = account
         state.currentUser.value = {
             id: account.id,
-            email: account.email,
-            subscription_status: account.subscription_status
+            did: account.did,
+            handle: account.handle
         }
 
         return account
@@ -933,90 +1203,6 @@ State.FetchAccount = async function (
         throw err
     } finally {
         state.accountLoading.value = false
-    }
-}
-
-State.RequestEmailUpdate = async function (
-    _state:AppState,
-    email:string
-):Promise<void> {
-    const response = await fetch('/api/account/email', {
-        method: 'POST',
-        headers: {
-            'content-type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-    })
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to send the update link right now.'
-
-        throw new Error(message)
-    }
-}
-
-State.CancelSubscription = async function (
-    state:AppState
-):Promise<void> {
-    const response = await fetch('/api/billing/cancel', { method: 'POST' })
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to cancel subscription right now.'
-
-        throw new Error(message)
-    }
-
-    const body = await response.json() as Partial<AccountDetails>
-    const account = state.account.value
-
-    if (account) {
-        state.account.value = {
-            ...account,
-            subscription_status: 'canceled',
-            subscription_current_period_end:
-                body.subscription_current_period_end || null
-        }
-    }
-
-    if (state.currentUser.value) {
-        state.currentUser.value = {
-            ...state.currentUser.value,
-            subscription_status: 'canceled'
-        }
-    }
-}
-
-State.RemovePasskey = async function (
-    state:AppState,
-    passkeyId:string
-):Promise<void> {
-    const response = await fetch(
-        `/api/account/passkeys/${encodeURIComponent(passkeyId)}`,
-        { method: 'DELETE' }
-    )
-
-    if (!response.ok) {
-        const errorBody = await maybeJson(response)
-        const message = typeof errorBody?.error === 'string' ?
-            errorBody.error :
-            'Unable to remove passkey right now.'
-
-        throw new Error(message)
-    }
-
-    if (state.account.value) {
-        state.account.value = {
-            ...state.account.value,
-            passkeys: state.account.value.passkeys.filter((passkey) => {
-                return passkey.id !== passkeyId
-            })
-        }
     }
 }
 
@@ -1057,6 +1243,7 @@ State.FetchPublicPost = async function (
 
     if (
         !Number.isFinite(id) ||
+        typeof body.drawing_id !== 'string' ||
         typeof body.image !== 'string' ||
         typeof body.text !== 'string' ||
         typeof body.alt_text !== 'string' ||
@@ -1067,6 +1254,7 @@ State.FetchPublicPost = async function (
 
     return {
         id,
+        drawing_id: body.drawing_id,
         image: body.image,
         text: body.text,
         alt_text: body.alt_text,
@@ -1111,18 +1299,10 @@ function isCurrentUser (value:unknown):value is CurrentUser {
     if (!value || typeof value !== 'object') return false
 
     const maybeUser = value as Partial<CurrentUser>
-    const statuses:SubscriptionStatus[] = [
-        'free',
-        'active',
-        'canceled',
-        'past_due'
-    ]
 
     return typeof maybeUser.id === 'string' &&
-        typeof maybeUser.email === 'string' &&
-        statuses.includes(
-            maybeUser.subscription_status as SubscriptionStatus
-        ) &&
+        typeof maybeUser.did === 'string' &&
+        typeof maybeUser.handle === 'string' &&
         (
             maybeUser.stamps_balance === undefined ||
             typeof maybeUser.stamps_balance === 'number'
@@ -1178,7 +1358,7 @@ function isSentGiftSummary (value:unknown):value is SentGiftSummary {
     ]
 
     return typeof maybeGift.id === 'string' &&
-        typeof maybeGift.recipient_email === 'string' &&
+        typeof maybeGift.recipient_handle === 'string' &&
         typeof maybeGift.original_count === 'number' &&
         typeof maybeGift.remaining_count === 'number' &&
         typeof maybeGift.refund_cents === 'number' &&
@@ -1213,15 +1393,15 @@ function isStampTransactionReason (
         value === 'gift_sent' ||
         value === 'gift_received' ||
         value === 'failed_send_refund' ||
-        value === 'gift_reclaimed'
+        value === 'gift_reclaimed' ||
+        value === 'share'
 }
 
 function isStampPackProductId (
     value:unknown
 ):value is StampPackProductId {
-    return value === 'stamps_starter' ||
-        value === 'stamps_bundle' ||
-        value === 'stamps_big_bundle'
+    return value === '10_stamps' ||
+        value === '25_stamps'
 }
 
 function isProtectedRoute (path:string):boolean {

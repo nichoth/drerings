@@ -17,36 +17,25 @@ describe('state auth baseline', () => {
         expect(state.isAuthed.value).toBe(false)
     })
 
-    it('canShare only allows active paid users', () => {
+    it('canShare allows authenticated users', () => {
         const state = State()
 
         expect(state.canShare.value).toBe(false)
 
-        state.currentUser.value = {
-            id: 'user-free',
-            email: 'free@example.com',
-            subscription_status: 'free'
+        state.auth.value = {
+            registered: false,
+            authenticated: true
         }
-        expect(state.canShare.value).toBe(false)
-
         state.currentUser.value = {
-            id: 'user-active',
-            email: 'active@example.com',
-            subscription_status: 'active'
+            id: 'user-1',
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         }
         expect(state.canShare.value).toBe(true)
 
-        state.currentUser.value = {
-            id: 'user-canceled',
-            email: 'canceled@example.com',
-            subscription_status: 'canceled'
-        }
-        expect(state.canShare.value).toBe(false)
-
-        state.currentUser.value = {
-            id: 'user-past-due',
-            email: 'past-due@example.com',
-            subscription_status: 'past_due'
+        state.auth.value = {
+            registered: false,
+            authenticated: false
         }
         expect(state.canShare.value).toBe(false)
     })
@@ -59,12 +48,13 @@ describe('state auth baseline', () => {
         }
         state.currentUser.value = {
             id: 'user-1',
-            email: 'user@example.com',
-            subscription_status: 'active'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         }
         state.profile.value = {
             id: 'user-1',
-            email: 'user@example.com'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         }
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({ error: 'Sign in' }), {
@@ -94,8 +84,8 @@ describe('state auth baseline', () => {
         const fetcher = vi.fn(async () => {
             return new Response(JSON.stringify({
                 id: 'user-1',
-                email: 'user@example.com',
-                subscription_status: 'active'
+                did: 'did:plc:test-1',
+                handle: 'user.bsky.social'
             }), {
                 status: 200,
                 headers: {
@@ -114,12 +104,13 @@ describe('state auth baseline', () => {
         })
         expect(state.currentUser.value).toEqual({
             id: 'user-1',
-            email: 'user@example.com',
-            subscription_status: 'active'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         })
         expect(state.profile.value).toEqual({
             id: 'user-1',
-            email: 'user@example.com'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         })
         expect(state.isAuthed.value).toBe(true)
     })
@@ -144,12 +135,13 @@ describe('state auth baseline', () => {
         }
         state.currentUser.value = {
             id: 'user-1',
-            email: 'user@example.com',
-            subscription_status: 'active'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         }
         state.profile.value = {
             id: 'user-1',
-            email: 'user@example.com'
+            did: 'did:plc:test-1',
+            handle: 'user.bsky.social'
         }
 
         await State.Logout(state)

@@ -2,7 +2,6 @@ import type { Handler } from '@netlify/functions'
 import { json, parseJsonBody } from '../lib/http.js'
 import * as drawingStore from '../lib/drawings.js'
 import { getSession } from '../lib/session.js'
-import { isPaid } from '../lib/paid.js'
 import type { SavedDrawingInput } from '../lib/drawings.js'
 
 export const handler:Handler = async function handler (event) {
@@ -13,12 +12,6 @@ export const handler:Handler = async function handler (event) {
     const session = await getSession(event)
 
     if (!session) return json(401, { error: 'Please sign in.' })
-
-    if (!isPaid(session.user)) {
-        return json(402, {
-            error: 'Upgrade to save drawings.'
-        })
-    }
 
     if (event.httpMethod === 'GET') {
         const drawingId = drawingIdFromPath(event.path || event.rawUrl)

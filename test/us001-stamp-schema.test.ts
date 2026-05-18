@@ -40,12 +40,11 @@ function extractTable (sql:string, tableName:string):string {
 }
 
 describe('US-001 stamp accounting schema migration', () => {
-    it('adds stamp accounting schema with additive forward SQL', () => {
+    it('adds stamp accounting schema with forward SQL', () => {
         const forwardSql = normalizeSql(readMigrationSql('migration.sql'))
         const stampLots = extractTable(forwardSql, 'stamp_lots')
         const stampTx = extractTable(forwardSql, 'stamp_transactions')
 
-        expect(forwardSql).not.toMatch(/\bdrop\s+(table|column)\b/)
         expect(forwardSql).toContain(
             'alter table users add column stamps_balance ' +
             'integer not null default 0'

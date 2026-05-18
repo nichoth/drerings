@@ -36,9 +36,11 @@ export const BuyPackModal:FunctionComponent<{
             <div class="buy-pack-options" aria-label="Stamp packs">
                 ${STAMP_PACKS.map((pack) => {
                     const productId = pack.productId as StampPackProductId
-                    const isBuying =
+                    const isPreselected =
                         state.stampCheckoutProductId.value === productId
-                    const isRecommended = productId === 'stamps_bundle'
+                    const isBuying =
+                        isPreselected && state.checkoutLoading.value
+                    const isRecommended = productId === '25_stamps'
 
                     return html`<article
                         class=${[
@@ -54,9 +56,6 @@ export const BuyPackModal:FunctionComponent<{
                                 null
                             }
                         </div>
-                        <p class="stamp-pack-count">
-                            ${pack.count} stamps
-                        </p>
                         <p class="stamp-pack-price">
                             ${formatPackPrice(pack.priceCents)}
                         </p>
@@ -65,6 +64,7 @@ export const BuyPackModal:FunctionComponent<{
                         </p>
                         <${Button}
                             type="button"
+                            autoFocus=${isPreselected ? true : null}
                             disabled=${state.checkoutLoading.value}
                             isSpinning=${isBuying ?
                                 state.checkoutLoading :

@@ -145,4 +145,46 @@ describe('US-003 debitStamp', () => {
             )
         }
     )
+
+    it('records reason=share when reason option is share', async () => {
+        vi.resetModules()
+
+        const db = createDbMock()
+        const { debitStamp } = await import('../netlify/lib/stamps')
+
+        await debitStamp({
+            userId: 'user-1',
+            referenceId: 'share-event-1',
+            reason: 'share'
+        })
+
+        const insertCall = db.queries.find(q =>
+            q.sql.includes('INSERT INTO stamp_transactions')
+        )
+
+        expect(insertCall).toBeDefined()
+        expect(insertCall?.params).toEqual(
+            expect.arrayContaining(['share'])
+        )
+        expect(insertCall?.params).toEqual(
+            expect.arrayContaining(['share-event-1'])
+        )
+    })
+
+    it('defaults reason to send when not provided', async () => {
+        vi.resetModules()
+
+        const db = createDbMock()
+        const { debitStamp } = await import('../netlify/lib/stamps')
+
+        await debitStamp({ userId: 'user-1' })
+
+        const insertCall = db.queries.find(q =>
+            q.sql.includes('INSERT INTO stamp_transactions')
+        )
+
+        expect(insertCall?.params).toEqual(
+            expect.arrayContaining(['send'])
+        )
+    })
 })

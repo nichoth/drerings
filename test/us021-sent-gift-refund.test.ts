@@ -17,7 +17,7 @@ describe('US-021 sender gift refunds', () => {
             rows: [
                 {
                     id: 'lot-unused',
-                    recipient_email: 'friend@example.com',
+                    recipient_handle: 'friend.bsky.social',
                     original_count: 25,
                     remaining_count: 25,
                     price_paid_cents: 1000,
@@ -25,7 +25,7 @@ describe('US-021 sender gift refunds', () => {
                 },
                 {
                     id: 'lot-used',
-                    recipient_email: 'pal@example.com',
+                    recipient_handle: 'pal.bsky.social',
                     original_count: 25,
                     remaining_count: 24,
                     price_paid_cents: 1000,
@@ -51,7 +51,7 @@ describe('US-021 sender gift refunds', () => {
         expect(gifts).toEqual([
             {
                 id: 'lot-unused',
-                recipient_email: 'friend@example.com',
+                recipient_handle: 'friend.bsky.social',
                 original_count: 25,
                 remaining_count: 25,
                 refund_cents: 1000,
@@ -62,7 +62,7 @@ describe('US-021 sender gift refunds', () => {
             },
             {
                 id: 'lot-used',
-                recipient_email: 'pal@example.com',
+                recipient_handle: 'pal.bsky.social',
                 original_count: 25,
                 remaining_count: 24,
                 refund_cents: 0,

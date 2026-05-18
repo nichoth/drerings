@@ -102,8 +102,8 @@ function signedInState ():AppState {
 
     state.currentUser.value = {
         id: 'user-1',
-        email: 'paid@example.com',
-        subscription_status: 'active',
+        did: 'did:plc:test-1',
+        handle: 'paid.bsky.social',
         stamps_balance: 25
     }
     state.auth.value = {

@@ -41,7 +41,7 @@ describe('US-002 Netlify DB schema', () => {
         expect(packages).toHaveProperty('@netlify/database')
     })
 
-    it('defines the paid-account tables in a Netlify migration', () => {
+    it('defines the account tables in a Netlify migration', () => {
         const migrationFiles = fs
             .readdirSync(migrationsDir, { recursive: true })
             .filter((file):file is string => {
@@ -56,32 +56,20 @@ describe('US-002 Netlify DB schema', () => {
             .join('\n')
         const sql = normalizeSql(migrationSql)
         const users = extractTable(sql, 'users')
-        const passkeys = extractTable(sql, 'passkeys')
-        const tokens = extractTable(sql, 'magic_link_tokens')
         const drawings = extractTable(sql, 'drawings')
         const posts = extractTable(sql, 'public_posts')
 
+        // The schema evolved through migrations:
+        // - Migration 0001 creates initial users table with email
+        // - Later migrations add stamps_balance, etc.
+        // - Migration 0010 (pre-release reset) adds did, handle, drops email
+        // Check for the original column to confirm we're reading migrations
         expect(users).toContain('id uuid primary key')
-        expect(users).toContain('email text not null unique')
         expect(users).toContain('created_at timestamptz not null')
-        expect(users).toContain('subscription_status text not null')
-        expect(users).toMatch(/subscription_status in \(\s*'free'/)
-        expect(users).toContain("'active', 'canceled', 'past_due'")
         expect(users).toContain('autumn_customer_id text')
-
-        expect(passkeys).toContain('id uuid primary key')
-        expect(passkeys).toContain(
-            'user_id uuid not null references users(id)'
-        )
-        expect(passkeys).toContain('credential_id text not null unique')
-        expect(passkeys).toContain('public_key text not null')
-        expect(passkeys).toContain('counter bigint not null')
-        expect(passkeys).toContain('created_at timestamptz not null')
-
-        expect(tokens).toContain('token text primary key')
-        expect(tokens).toContain('user_id uuid not null references users(id)')
-        expect(tokens).toContain('expires_at timestamptz not null')
-        expect(tokens).toContain('used_at timestamptz')
+        // Migration 0010 adds did/handle, so check the full SQL includes it
+        expect(sql).toContain('did text not null')
+        expect(sql).toContain('handle text not null')
 
         expect(drawings).toContain('id uuid primary key')
         expect(drawings).toContain(

@@ -10,9 +10,9 @@ export interface StampPackDefinition {
 }
 
 export const PACK_DEFINITIONS = {
-    stamps_starter: {
-        productId: 'stamps_starter',
-        name: 'Starter',
+    '10_stamps': {
+        productId: '10_stamps',
+        name: '10 stamps',
         count: 10,
         priceCents: 500,
         metadata: {
@@ -20,31 +20,21 @@ export const PACK_DEFINITIONS = {
             per_stamp_price_cents: '50'
         }
     },
-    stamps_bundle: {
-        productId: 'stamps_bundle',
-        name: 'Bundle',
+    '25_stamps': {
+        productId: '25_stamps',
+        name: '25 stamps',
         count: 25,
         priceCents: 1000,
         metadata: {
             stamp_count: '25',
             per_stamp_price_cents: '40'
         }
-    },
-    stamps_big_bundle: {
-        productId: 'stamps_big_bundle',
-        name: 'Big bundle',
-        count: 60,
-        priceCents: 2000,
-        metadata: {
-            stamp_count: '60',
-            per_stamp_price_cents: '33.33'
-        }
     }
 } as const satisfies Record<string, StampPackDefinition>
 
 export type StampPackProductId = keyof typeof PACK_DEFINITIONS
 
-export const STAMP_PACKS:StampPackDefinition[] = Object.values(
+export const STAMP_PACKS:Array<StampPackDefinition> = Object.values(
     PACK_DEFINITIONS
 )
 

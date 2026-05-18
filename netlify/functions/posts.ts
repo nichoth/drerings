@@ -1,7 +1,6 @@
 import type { Handler } from '@netlify/functions'
 import { json, parseJsonBody } from '../lib/http.js'
 import { getSession } from '../lib/session.js'
-import { isPaid } from '../lib/paid.js'
 import * as postStore from '../lib/posts.js'
 
 export const handler:Handler = async function handler (event) {
@@ -21,6 +20,7 @@ export const handler:Handler = async function handler (event) {
 
             return json(200, {
                 id: post.id,
+                drawing_id: post.drawing_id,
                 image: post.image,
                 text: post.text,
                 alt_text: post.alt_text,
@@ -38,12 +38,6 @@ export const handler:Handler = async function handler (event) {
     const session = await getSession(event)
 
     if (!session) return json(401, { error: 'Please sign in.' })
-
-    if (!isPaid(session.user)) {
-        return json(402, {
-            error: 'Upgrade to publish drawings.'
-        })
-    }
 
     const input = parsePublishInput(parseJsonBody(event))
 

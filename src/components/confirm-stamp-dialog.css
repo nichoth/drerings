@@ -1,0 +1,32 @@
+.confirm-stamp-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-stamp-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--scrim);
+}
+
+.confirm-stamp-dialog-panel {
+    position: relative;
+    background: var(--surface);
+    color: var(--main-text);
+    padding: 2rem;
+    border-radius: 0.5rem;
+    max-width: 28rem;
+    margin: 1rem;
+    border: 1px solid var(--main-text);
+}
+
+.confirm-stamp-dialog-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    justify-content: flex-end;
+}

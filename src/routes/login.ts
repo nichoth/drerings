@@ -1,165 +1,46 @@
 import { html } from 'htm/preact'
-import type { FunctionComponent } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useCallback } from 'preact/hooks'
 import { useSignal } from '@preact/signals'
-import {
-    browserSupportsWebAuthn,
-    startAuthentication
-} from '@simplewebauthn/browser'
-import { type AppState } from '../state.js'
 import { Button } from '../components/button.js'
+import { Input } from '../components/input.js'
+import { type AppState } from '../state.js'
 import './login.css'
 
 export const LoginRoute:FunctionComponent<{
     state:AppState;
-}> = function ({ state }) {
-    const email = useSignal<string>('')
-    const error = useSignal<string>('')
-    const isSent = useSignal<boolean>(false)
-    const isSending = useSignal<boolean>(false)
-    const passkeyError = useSignal<string>('')
-    const passkeySending = useSignal<boolean>(false)
-    const supportsPasskeys = browserSupportsWebAuthn()
+}> = function LoginRoute ({ state: _state }) {
+    const handle = useSignal<string>('')
 
-    const submit = useCallback(async (ev:SubmitEvent) => {
+    const onSubmit = useCallback((ev:Event) => {
         ev.preventDefault()
-        error.value = ''
-        isSending.value = true
-
-        try {
-            const response = await fetch('/api/auth/magic-link', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email: email.value })
-            })
-
-            if (!response.ok) {
-                const body = await response.json().catch(() => ({}))
-                throw new Error(body.error || 'Unable to send link.')
-            }
-
-            isSent.value = true
-        } catch (err) {
-            error.value = err instanceof Error ?
-                err.message :
-                'Unable to send link.'
-        } finally {
-            isSending.value = false
-        }
+        const value = handle.value.trim().replace(/^@/, '')
+        if (!value) return
+        const url = `/api/auth/login?handle=${encodeURIComponent(value)}`
+        location.assign(url)
     }, [])
 
-    const signInWithPasskey = useCallback(async () => {
-        passkeyError.value = ''
-        passkeySending.value = true
-
-        try {
-            const optionsResponse = await fetch(
-                '/api/auth/passkey/login/options',
-                { method: 'POST' }
-            )
-
-            if (!optionsResponse.ok) {
-                const body = await optionsResponse.json().catch(() => ({}))
-                throw new Error(body.error || 'Unable to start passkey.')
-            }
-
-            const optionsBody = await optionsResponse.json()
-            const response = await startAuthentication({
-                optionsJSON: optionsBody.options
-            })
-            const verifyResponse = await fetch(
-                '/api/auth/passkey/login/verify',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        challenge_token: optionsBody.challenge_token,
-                        response
-                    })
-                }
-            )
-
-            if (!verifyResponse.ok) {
-                const body = await verifyResponse.json().catch(() => ({}))
-                throw new Error(body.error || 'Passkey sign-in failed.')
-            }
-
-            state.auth.value = {
-                registered: true,
-                authenticated: true
-            }
-        } catch (err) {
-            passkeyError.value = err instanceof Error ?
-                err.message :
-                'Passkey sign-in failed.'
-        } finally {
-            passkeySending.value = false
-        }
-    }, [state])
-
     return html`<div class="route login">
-        <h2>Sign In</h2>
-
-        <p class="login-help">
-            New here? <a href="/pricing">Create an account to share your work</a>.
-        </p>
-
-        ${isSent.value ?
-            html`<p>
-                Check your email for a sign-in link.
-            </p>` :
-            html`<form onSubmit=${submit}>
-                <div class="input">
-                    <label for="email">Email</label>
-                    <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        autocomplete="email"
-                        required
-                        value=${email.value}
-                        onInput=${(ev:InputEvent) => {
-                            const input = ev.currentTarget as HTMLInputElement
-                            email.value = input.value
-                        }}
-                    />
-                </div>
-
-                ${error.value ?
-                    html`<p role="alert" class="login-error">
-                        ${error.value}
-                    </p>` :
-                    null
-                }
-
-                <div class="controls">
-                    <${Button} type="submit" isSpinning=${isSending}>Send link<//>
-                </div>
-            </form>`
-        }
-
-        ${supportsPasskeys ?
-            html`<div class="login-passkey controls">
-                <${Button}
-                    type="button"
-                    onClick=${signInWithPasskey}
-                    isSpinning=${passkeySending}
-                >
-                    Sign in with passkey
+        <section>
+            <h2>Sign in</h2>
+            <p>Sign in with your Bluesky account.</p>
+            <form onSubmit=${onSubmit}>
+                <${Input}
+                    label="Bluesky handle"
+                    id="handle"
+                    type="text"
+                    required=${'true'}
+                    value=${handle.value}
+                    placeholder="alice.bsky.social"
+                    onInput=${(ev:InputEvent) => {
+                        const input = ev.currentTarget as HTMLInputElement
+                        handle.value = input.value
+                    }}
+                />
+                <${Button} type="submit">
+                    Sign in with Bluesky
                 <//>
-
-                ${passkeyError.value ?
-                    html`<p role="alert" class="login-error">
-                        ${passkeyError.value}
-                    </p>` :
-                    null
-                }
-            </div>` :
-            null
-        }
+            </form>
+        </section>
     </div>`
 }
