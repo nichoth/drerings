@@ -93,7 +93,7 @@ interface CheckoutOptions {
 export async function createCheckoutSession (
     user:SessionUser,
     origin:string,
-    productId?:StampPackProductId,
+    productId:StampPackProductId,
     options:CheckoutOptions = {}
 ):Promise<CheckoutSession> {
     if (shouldUseMockCheckout()) {
@@ -624,16 +624,16 @@ function getAutumnSecretKey ():string {
     return key
 }
 
-function getAutumnProductId ():string {
-    return process.env.AUTUMN_PRODUCT_ID || 'paid'
-}
-
 function getCheckoutProductId (
-    productId?:StampPackProductId
+    productId:StampPackProductId
 ):string {
-    if (productId && PACK_DEFINITIONS[productId]) return productId
+    if (!PACK_DEFINITIONS[productId]) {
+        throw new Error(
+            `Unknown stamp pack: ${String(productId)}`
+        )
+    }
 
-    return getAutumnProductId()
+    return productId
 }
 
 function getAutumnApiUrl ():string {

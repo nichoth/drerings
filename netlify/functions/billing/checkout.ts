@@ -20,7 +20,7 @@ export const handler:Handler = async function handler (event) {
         return json(400, { error: 'Enter a valid email address.' })
     }
 
-    if (body?.product_id && !productId) {
+    if (!productId) {
         return json(400, { error: 'Choose a valid stamp pack.' })
     }
 
@@ -29,7 +29,7 @@ export const handler:Handler = async function handler (event) {
         const checkout = await createCheckoutSession(
             user,
             getRequestOrigin(event),
-            productId || undefined
+            productId
         )
 
         return json(200, { url: checkout.url })
