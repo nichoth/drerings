@@ -56,8 +56,7 @@ describe('State.ShareDrawing', () => {
                 month_key: '2026-05'
             }), { status: 200 })
         })
-        // @ts-expect-error: assignment to global fetch mock in test
-        globalThis.fetch = fetchMock
+        globalThis.fetch = fetchMock as typeof fetch
 
         const result = await State.ShareDrawing(
             state,
@@ -83,8 +82,7 @@ describe('State.ShareDrawing', () => {
                 month_key: '2026-05'
             }), { status: 200 })
         })
-        // @ts-expect-error: assignment to global fetch mock in test
-        globalThis.fetch = fetchMock
+        globalThis.fetch = fetchMock as typeof fetch
 
         const result = await State.ShareDrawing(
             state,
@@ -97,6 +95,37 @@ describe('State.ShareDrawing', () => {
             expect.objectContaining({ type: 'blocked' })
         )
     })
+
+    it('surfaces network error when free precheck confirm fails',
+        async () => {
+            const state = State()
+            const fetchMock = vi.fn(async (url:string) => {
+                if (url.endsWith('/api/shares/precheck')) {
+                    return new Response(JSON.stringify({
+                        type: 'free',
+                        month_key: '2026-05'
+                    }), { status: 200 })
+                }
+                if (url.endsWith('/api/shares/confirm')) {
+                    // Simulate confirm network failure
+                    return new Response('Server error', { status: 500 })
+                }
+                return new Response('not found', { status: 404 })
+            })
+            globalThis.fetch = fetchMock as typeof fetch
+
+            let sheetOpened = false
+            const result = await State.ShareDrawing(
+                state,
+                'drawing-1',
+                async () => { sheetOpened = true }
+            )
+
+            expect(result.ok).toBe(false)
+            expect(result.reason).toBe('network')
+            expect(sheetOpened).toBe(false)
+            expect(state.shareError.value).toBeTruthy()
+        })
 })
 
 describe('State.ConfirmShare', () => {
@@ -117,8 +146,7 @@ describe('State.ConfirmShare', () => {
                 }), { status: 200 })
             }
         )
-        // @ts-expect-error: assignment to global fetch mock in test
-        globalThis.fetch = fetchMock
+        globalThis.fetch = fetchMock as typeof fetch
 
         await State.ConfirmShare(
             state,
@@ -139,8 +167,7 @@ describe('State.ConfirmShare', () => {
             const fetchMock = vi.fn(async () => {
                 throw new Error('Network error')
             })
-            // @ts-expect-error: assignment to global fetch mock in test
-            globalThis.fetch = fetchMock
+            globalThis.fetch = fetchMock as typeof fetch
 
             // Pre-set the dialog as if precheck just set it
             state.shareDialog.value = {
