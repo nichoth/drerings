@@ -68,11 +68,6 @@
     & .pack-name {
         font-weight: 600;
     }
-
-    & .pack-count,
-    & .pack-price {
-        color: var(--main-text);
-    }
 }
 
 @media (max-width: 42rem) {
