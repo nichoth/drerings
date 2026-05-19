@@ -175,8 +175,8 @@ describe('US-039 refundPostcardBounce orchestrator', () => {
             // Global counter for UPDATE postcards calls
             let updateCallCount = 0
             const statusUpdates:Record<number, string> = {
-                0: 'failed_refunded', // First call will mark it failed_refunded
-                1: 'failed_refunded'  // Second call will see it as already_refunded
+                0: 'failed_refunded', // First call marks it failed_refunded
+                1: 'failed_refunded'  // Second call sees it as already_refunded
             }
 
             const createFakeClient = ():DatabaseClient => ({
@@ -190,7 +190,7 @@ describe('US-039 refundPostcardBounce orchestrator', () => {
                         return { rows: [] } as any
                     }
 
-                    // UPDATE postcards - first call succeeds, second fails (CAS)
+                    // UPDATE postcards: first succeeds, second fails (CAS)
                     if (sql.includes('UPDATE postcards')) {
                         const isFirst = updateCallCount === 0
                         updateCallCount++
@@ -248,7 +248,8 @@ describe('US-039 refundPostcardBounce orchestrator', () => {
                     // classifyMissedRefund SELECT
                     if (sql.includes('SELECT status FROM postcards')) {
                         const callNumber = poolCallCount++
-                        const status = statusUpdates[callNumber] || 'failed_refunded'
+                        const status =
+                            statusUpdates[callNumber] || 'failed_refunded'
                         return {
                             rows: [{ status }]
                         } as any
@@ -474,6 +475,12 @@ describe('US-039 refundPostcardBounce orchestrator', () => {
                 q.sql.toUpperCase() === 'ROLLBACK'
             )
             expect(rollbackCall).toBeDefined()
+
+            // No INSERT INTO stamp_transactions should have occurred
+            const stampTxInsert = queryLog.find(q =>
+                q.sql.includes('INSERT INTO stamp_transactions')
+            )
+            expect(stampTxInsert).not.toBeDefined()
 
             // Client should be released
             expect(fakeClient.release).toHaveBeenCalled()
