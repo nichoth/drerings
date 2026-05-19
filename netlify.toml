@@ -4,10 +4,18 @@
 # product requirement adds cross-origin clients, add an Edge Function
 # that echoes back exact origins from an allowlist (do not return `*`
 # with credentials).
+# CSP is rolled out report-only first (see Phase 6 notes). Once staging
+# shows zero CSP violations for one week, swap "Content-Security-Policy-Report-Only"
+# to "Content-Security-Policy" and remove the report-only line.
 [[headers]]
   for = "/*"
   [headers.values]
+      Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
       X-Content-Type-Options = "nosniff"
+      X-Frame-Options = "DENY"
+      Referrer-Policy = "strict-origin-when-cross-origin"
+      Permissions-Policy = "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), compute-pressure=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), serial=(), usb=(), xr-spatial-tracking=()"
+      Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://github.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 [[redirects]]
   from = "/api/*"
