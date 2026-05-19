@@ -1,10 +1,10 @@
 import { getDatabase } from '@netlify/database'
 
-interface QueryResult<Row> {
+export interface QueryResult<Row> {
     rows:Row[];
 }
 
-interface DatabaseClient {
+export interface DatabaseClient {
     query:<Row = Record<string, unknown>>(
         sql:string,
         params?:unknown[]
@@ -115,6 +115,17 @@ export interface DebitStampResult {
 export interface RefundFailedSendOptions {
     userId:string;
     lotId:string;
+    /**
+     * Optional caller-supplied Postgres client. When provided,
+     * `refundFailedSend` runs INSIDE the caller's existing transaction:
+     * it does NOT issue BEGIN/COMMIT/ROLLBACK and does NOT release the
+     * client. Mirrors the `debitStamp(client?)` pattern.
+     *
+     * When omitted, `refundFailedSend` acquires its own client and
+     * manages its own transaction (preserves legacy call-site behavior
+     * in netlify/functions/postcards/send.ts).
+     */
+    client?:DatabaseClient;
 }
 
 export interface AutumnRefundRequest {
@@ -848,59 +859,65 @@ async function debitStampOnClient (
 export async function refundFailedSend (
     options:RefundFailedSendOptions
 ):Promise<DebitStampResult> {
+    if (options.client) {
+        return refundFailedSendOnClient(options.client, options)
+    }
+
     const db = getDatabase()
     const client = await db.pool.connect() as DatabaseClient
 
     try {
         await client.query('BEGIN')
-
-        await client.query(`
-            UPDATE stamp_lots
-            SET remaining_count = remaining_count + 1
-            WHERE id = $1
-                AND user_id = $2
-        `, [options.lotId, options.userId])
-
-        const balanceResult = await client.query<BalanceRow>(`
-            UPDATE users
-            SET stamps_balance = stamps_balance + 1
-            WHERE id = $1
-            RETURNING stamps_balance
-        `, [options.userId])
-        const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
-
-        await client.query(`
-            INSERT INTO stamp_transactions (
-                user_id,
-                lot_id,
-                delta,
-                reason,
-                reference_id,
-                balance_after
-            )
-            VALUES ($1, $2, $3, $4, $5, $6)
-        `, [
-            options.userId,
-            options.lotId,
-            1,
-            'failed_send_refund',
-            undefined,
-            balanceAfter
-        ])
-
+        const result = await refundFailedSendOnClient(client, options)
         await client.query('COMMIT')
-
-        return {
-            lotId: options.lotId,
-            balanceAfter
-        }
+        return result
     } catch (error) {
-        await client.query('ROLLBACK')
-
+        await client.query('ROLLBACK').catch(() => {})
         throw error
     } finally {
         client.release()
     }
+}
+
+async function refundFailedSendOnClient (
+    client:DatabaseClient,
+    options:RefundFailedSendOptions
+):Promise<DebitStampResult> {
+    await client.query(`
+        UPDATE stamp_lots
+        SET remaining_count = remaining_count + 1
+        WHERE id = $1
+            AND user_id = $2
+    `, [options.lotId, options.userId])
+
+    const balanceResult = await client.query<BalanceRow>(`
+        UPDATE users
+        SET stamps_balance = stamps_balance + 1
+        WHERE id = $1
+        RETURNING stamps_balance
+    `, [options.userId])
+    const balanceAfter = Number(balanceResult.rows[0].stamps_balance)
+
+    await client.query(`
+        INSERT INTO stamp_transactions (
+            user_id,
+            lot_id,
+            delta,
+            reason,
+            reference_id,
+            balance_after
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+        options.userId,
+        options.lotId,
+        1,
+        'failed_send_refund',
+        undefined,
+        balanceAfter
+    ])
+
+    return { lotId: options.lotId, balanceAfter }
 }
 
 export async function refundPurchasedStampLot (
