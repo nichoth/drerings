@@ -528,16 +528,16 @@ function getStampCheckoutEvent (
     if (type !== 'checkout.completed') return null
 
     const productId = getWebhookProductId(event)
-
-    if (!productId.startsWith('stamps_')) return null
-
     const pack = PACK_DEFINITIONS[
         productId as keyof typeof PACK_DEFINITIONS
     ]
+
+    if (!pack) return null
+
     const checkoutId = getWebhookCheckoutId(event)
     const userId = getWebhookCustomerId(event)
 
-    if (!pack || !checkoutId || !userId) return null
+    if (!checkoutId || !userId) return null
 
     return {
         userId,
