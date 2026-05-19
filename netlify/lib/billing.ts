@@ -458,7 +458,7 @@ async function applyStampCheckout (
         })
         await sendPendingGiftInviteEmail({
             email: checkout.pendingGift.recipientEmail,
-            senderEmail: checkout.pendingGift.senderEmail,
+            senderEmail: `${checkout.pendingGift.senderHandle}@bsky.social`,
             count: checkout.pack.count,
             signupUrl: getPendingGiftSignupUrl(checkout.checkoutId)
         })

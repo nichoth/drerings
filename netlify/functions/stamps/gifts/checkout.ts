@@ -4,7 +4,7 @@ import { getSession } from '../../../lib/session.js'
 import {
     createGiftCheckoutSession,
     createPendingGiftCheckoutSession,
-    findGiftRecipient,
+    lookupGiftRecipient,
     PACK_DEFINITIONS,
     type StampPackProductId
 } from '../../../lib/billing.js'
@@ -33,7 +33,7 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
-        const recipient = await findGiftRecipient(recipientHandle)
+        const recipient = await lookupGiftRecipient(recipientHandle)
 
         if (recipient?.id === session.user.id) {
             return json(404, { error: 'Recipient account was not found.' })
