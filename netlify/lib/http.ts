@@ -7,7 +7,8 @@ export function json (
     return {
         statusCode,
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Cache-Control': 'private, no-store'
         },
         body: JSON.stringify(body)
     }
