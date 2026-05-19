@@ -129,9 +129,13 @@ describe('US-037 end-to-end failed send refund', () => {
                     },
                     reused: false
                 }),
+                transitionPostcardToDebiting:
+                    vi.fn().mockResolvedValue({ ok: true }),
                 markFailedRefunded: vi.fn().mockResolvedValue(undefined),
                 deleteIfQueued: vi.fn().mockResolvedValue(undefined),
                 attachLotAndMarkSent:
+                    vi.fn().mockResolvedValue(undefined),
+                rollbackDebitingToQueued:
                     vi.fn().mockResolvedValue(undefined)
             }))
 
