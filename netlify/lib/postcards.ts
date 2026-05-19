@@ -21,7 +21,7 @@ export type PostcardRow = {
     recipient_email:string;
     lot_id:string|null;
     resend_email_id:string|null;
-    status:'queued'|'sent'|'failed_refunded';
+    status:'queued'|'debiting'|'sent'|'failed_refunded';
     idempotency_key:string|null;
     created_at:string;
 }
@@ -89,6 +89,65 @@ export async function findOrCreateQueuedPostcard (
     return { postcard: row, reused }
 }
 
+export type TransitionToDebitingResult =
+    | { ok:true }
+    | { ok:false; status:PostcardRow['status']|null }
+
+/**
+ * Atomically claim a queued postcard for debit. Returns ok:true if the
+ * CAS succeeded; the caller now owns the debit. Returns ok:false with
+ * the observed status if the row was no longer 'queued' (already
+ * 'debiting', 'sent', 'failed_refunded') or did not exist.
+ *
+ * The send handler calls this BEFORE debitStamp to close the
+ * resurrection double-debit window (see migration 0016 notes).
+ */
+export async function transitionPostcardToDebiting (
+    postcardId:string
+):Promise<TransitionToDebitingResult> {
+    const db = getDatabase()
+    const result = await db.pool.query<{ status:string }>(`
+        UPDATE postcards
+        SET status = 'debiting',
+            updated_at = now()
+        WHERE id = $1
+            AND status = 'queued'
+        RETURNING status
+    `, [postcardId])
+
+    if (result.rows[0]) return { ok: true }
+
+    const observed = await db.pool.query<{ status:string }>(
+        'SELECT status FROM postcards WHERE id = $1',
+        [postcardId]
+    )
+    const status = observed.rows[0]?.status as
+        PostcardRow['status']|undefined
+
+    return { ok: false, status: status ?? null }
+}
+
+/**
+ * Rolls a postcard back from 'debiting' to 'queued' when debitStamp
+ * throws InsufficientStampsError after a successful CAS. The
+ * idempotency_key remains claimable by a later retry (e.g., after
+ * the user tops up stamps).
+ *
+ * If the row is no longer 'debiting' (e.g., another request completed
+ * it to 'sent' or 'failed_refunded'), this is a no-op.
+ */
+export async function rollbackDebitingToQueued (
+    postcardId:string
+):Promise<void> {
+    const db = getDatabase()
+    await db.pool.query(`
+        UPDATE postcards
+        SET status = 'queued',
+            updated_at = now()
+        WHERE id = $1 AND status = 'debiting'
+    `, [postcardId])
+}
+
 export async function attachLotAndMarkSent (
     postcardId:string,
     lotId:string,
@@ -96,6 +155,7 @@ export async function attachLotAndMarkSent (
 ):Promise<void> {
     const db = getDatabase()
 
+    // Only the holder of the 'debiting' claim may transition to 'sent'.
     await db.pool.query(`
         UPDATE postcards
         SET lot_id = $1,
@@ -103,22 +163,33 @@ export async function attachLotAndMarkSent (
             status = 'sent',
             updated_at = now()
         WHERE id = $3
+            AND status = 'debiting'
     `, [lotId, resendEmailId, postcardId])
 }
 
+/**
+ * Transition a postcard from 'debiting' to 'failed_refunded'.
+ *
+ * CONTRACT: Only operates on rows currently in 'debiting' state. Rows in
+ * any other state ('queued', 'sent', 'failed_refunded') are silently
+ * no-op'd (UPDATE returns 0 rows; no error raised). This is intentional —
+ * `markFailedRefunded` is called from the send-handler failure path AFTER
+ * the queued->debiting CAS has already succeeded.
+ *
+ * For the bounce-webhook refund path, use `refundPostcardBounce` in
+ * netlify/lib/postcards.ts which atomically pairs the CAS with the
+ * refund.
+ */
 export async function markFailedRefunded (
     postcardId:string
 ):Promise<void> {
     const db = getDatabase()
 
-    // Accept 'queued' too: the sync failure path (Phase 1) catches
-    // before attachLotAndMarkSent runs, so the row is still 'queued'.
-    // Only the async bounce path (Phase 2) sees the row as 'sent'.
     await db.pool.query(`
         UPDATE postcards
         SET status = 'failed_refunded',
             updated_at = now()
-        WHERE id = $1 AND status IN ('sent', 'queued')
+        WHERE id = $1 AND status = 'debiting'
     `, [postcardId])
 }
 
