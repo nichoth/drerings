@@ -324,6 +324,72 @@ describe('US-033 Resend webhook handler function', () => {
                 })
             }
         )
+
+        it('AC12.2: Svix retry (already refunded) returns idempotent response',
+            async () => {
+                vi.resetModules()
+                vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
+
+                const handleResendEvent = vi.fn().mockResolvedValue({
+                    received: true,
+                    refunded: false,
+                    reason: 'already_refunded'
+                })
+
+                vi.doMock(
+                    '../netlify/lib/resend-webhook.js',
+                    () => ({
+                        handleResendEvent,
+                        verifyResendSignature: () => null
+                    })
+                )
+
+                const { handler } = await import(
+                    '../netlify/functions/webhooks/resend.js'
+                )
+
+                const body = JSON.stringify({
+                    type: 'email.bounced',
+                    data: {
+                        email_id: 're_1',
+                        bounce: { type: 'hard_bounce' }
+                    }
+                })
+
+                const messageId = 'msg_test'
+                const timestamp = String(
+                    Math.floor(Date.now() / 1000)
+                )
+
+                const secret = 'whsec_test'
+                const sig = crypto
+                    .createHmac('sha256',
+                        Buffer.from(secret.replace(/^whsec_/, ''),
+                            'base64'))
+                    .update(messageId + '.' + timestamp + '.' + body)
+                    .digest('base64')
+
+                const event = {
+                    httpMethod: 'POST',
+                    body,
+                    isBase64Encoded: false,
+                    headers: {
+                        'svix-id': messageId,
+                        'svix-timestamp': timestamp,
+                        'svix-signature': `v1,${sig}`
+                    }
+                } as unknown
+
+                const response = await handler(event as any, {} as any)
+
+                expect(response?.statusCode).toBe(200)
+                expect(parseBody(response)).toEqual({
+                    received: true,
+                    refunded: false,
+                    reason: 'already_refunded'
+                })
+            }
+        )
     })
 
     describe('Non-JSON body', () => {

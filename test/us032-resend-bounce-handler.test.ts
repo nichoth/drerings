@@ -13,68 +13,62 @@ describe('US-032 Resend bounce handler', () => {
     })
 
     describe('AC6.1: Hard bounce → refund', () => {
-        it('refunds stamp and marks failed on hard bounce', async () => {
-            vi.resetModules()
+        it('refunds stamp using refundPostcardBounce on hard bounce',
+            async () => {
+                vi.resetModules()
 
-            const postcardId = crypto.randomUUID()
-            const userId = crypto.randomUUID()
-            const lotId = crypto.randomUUID()
+                const postcardId = crypto.randomUUID()
+                const userId = crypto.randomUUID()
+                const lotId = crypto.randomUUID()
 
-            const query = vi.fn<Query>(async (_sql) => {
-                return { rows: [] }
-            })
+                const query = vi.fn<Query>(async (_sql) => {
+                    return { rows: [] }
+                })
 
-            const refundFailedSend = vi.fn().mockResolvedValue(undefined)
-            const markFailedRefunded = vi.fn().mockResolvedValue(undefined)
-            const getPostcardByResendEmailId = vi.fn().mockResolvedValue({
-                id: postcardId,
-                sender_id: userId,
-                lot_id: lotId,
-                status: 'sent'
-            })
+                const refundPostcardBounce = vi.fn().mockResolvedValue({
+                    refunded: true,
+                    balanceAfter: 5
+                })
+                const getPostcardByResendEmailId = vi.fn().mockResolvedValue({
+                    id: postcardId,
+                    sender_id: userId,
+                    lot_id: lotId,
+                    status: 'sent'
+                })
 
-            vi.doMock('@netlify/database', () => {
-                return {
-                    getDatabase: () => ({
-                        pool: { query }
-                    })
-                }
-            })
+                vi.doMock('@netlify/database', () => {
+                    return {
+                        getDatabase: () => ({
+                            pool: { query }
+                        })
+                    }
+                })
 
-            vi.doMock('../netlify/lib/stamps.js', () => {
-                return {
-                    refundFailedSend
-                }
-            })
+                vi.doMock('../netlify/lib/postcards.js', () => {
+                    return {
+                        getPostcardByResendEmailId,
+                        refundPostcardBounce
+                    }
+                })
 
-            vi.doMock('../netlify/lib/postcards.js', () => {
-                return {
-                    getPostcardByResendEmailId,
-                    markFailedRefunded
-                }
-            })
+                const resendWebhook = await import(
+                    '../netlify/lib/resend-webhook'
+                )
+                const result = await resendWebhook.handleResendEvent({
+                    type: 'email.bounced',
+                    data: {
+                        email_id: 're_test123',
+                        bounce: { type: 'hard_bounce' }
+                    }
+                })
 
-            const resendWebhook = await import(
-                '../netlify/lib/resend-webhook'
-            )
-            const result = await resendWebhook.handleResendEvent({
-                type: 'email.bounced',
-                data: {
-                    email_id: 're_test123',
-                    bounce: { type: 'hard_bounce' }
-                }
-            })
-
-            expect(result).toEqual({
-                received: true,
-                refunded: true
-            })
-            expect(refundFailedSend).toHaveBeenCalledWith({
-                userId,
-                lotId
-            })
-            expect(markFailedRefunded).toHaveBeenCalledWith(postcardId)
-        })
+                expect(result).toEqual({
+                    received: true,
+                    refunded: true
+                })
+                expect(refundPostcardBounce).toHaveBeenCalledWith(postcardId)
+            }
+        )
     })
 
     describe('AC6.2: Transient bounce ignored', () => {
@@ -362,8 +356,7 @@ describe('US-032 Resend bounce handler', () => {
 
     describe('AC8.1 + AC8.2: Audit trail', () => {
         it(
-            'calls refundFailedSend and markFailedRefunded ' +
-                'with correct postcard IDs',
+            'calls refundPostcardBounce with correct postcard ID',
             async () => {
                 vi.resetModules()
 
@@ -371,12 +364,12 @@ describe('US-032 Resend bounce handler', () => {
                 const userId = crypto.randomUUID()
                 const lotId = crypto.randomUUID()
 
-                const refundFailedSend = vi
+                const refundPostcardBounce = vi
                     .fn()
-                    .mockResolvedValue(undefined)
-                const markFailedRefunded = vi
-                    .fn()
-                    .mockResolvedValue(undefined)
+                    .mockResolvedValue({
+                        refunded: true,
+                        balanceAfter: 5
+                    })
                 const getPostcardByResendEmailId = vi
                     .fn()
                     .mockResolvedValue({
@@ -386,16 +379,10 @@ describe('US-032 Resend bounce handler', () => {
                         status: 'sent'
                     })
 
-                vi.doMock('../netlify/lib/stamps.js', () => {
-                    return {
-                        refundFailedSend
-                    }
-                })
-
                 vi.doMock('../netlify/lib/postcards.js', () => {
                     return {
                         getPostcardByResendEmailId,
-                        markFailedRefunded
+                        refundPostcardBounce
                     }
                 })
 
@@ -410,13 +397,8 @@ describe('US-032 Resend bounce handler', () => {
                     }
                 })
 
-                expect(refundFailedSend).toHaveBeenCalledTimes(1)
-                expect(refundFailedSend).toHaveBeenCalledWith({
-                    userId,
-                    lotId
-                })
-                expect(markFailedRefunded).toHaveBeenCalledTimes(1)
-                expect(markFailedRefunded).toHaveBeenCalledWith(
+                expect(refundPostcardBounce).toHaveBeenCalledTimes(1)
+                expect(refundPostcardBounce).toHaveBeenCalledWith(
                     postcardId
                 )
             }
