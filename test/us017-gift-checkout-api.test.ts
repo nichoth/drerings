@@ -258,6 +258,73 @@ describe('US-017 gift checkout API', () => {
                 .toMatch(/recipient.*not found/i)
             expect(fetcher).not.toHaveBeenCalled()
         })
+
+    it('preserves DID case when passed to lookupGiftRecipient',
+        async () => {
+            vi.resetModules()
+            vi.stubEnv('AUTUMN_SECRET_KEY', 'autumn-sk-test')
+            vi.stubEnv('AUTUMN_API_URL', 'https://api.useautumn.test')
+
+            const query = vi.fn<Query>(async (sql) => {
+                if (
+                    sql.includes('FROM users') &&
+                    sql.includes('WHERE did = $1')
+                ) {
+                    return {
+                        rows: [{
+                            id: 'recipient-1',
+                            handle: 'alice.bsky.social',
+                            did: 'did:plc:aBc1234567890123456789xYz'
+                        }]
+                    }
+                }
+
+                return { rows: [] }
+            })
+            const fetcher = vi.fn(async () => {
+                return new Response(JSON.stringify({
+                    url: 'https://checkout.stripe.com/pay/gift-1',
+                    customer_id: 'autumn-sender-1'
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                })
+            })
+
+            vi.stubGlobal('fetch', fetcher)
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { query }
+                    })
+                }
+            })
+            vi.doMock('../netlify/lib/session', () => {
+                return { getSession: async () => ({ user: sender() }) }
+            })
+
+            const { handler } = await import(
+                '../netlify/functions/stamps/gifts/checkout'
+            )
+            const response = await callHandler(handler, event({
+                product_id: '25_stamps',
+                recipient: ' did:plc:aBc1234567890123456789xYz '
+            }))
+
+            expect(response.statusCode).toBe(200)
+            expect(JSON.parse(response.body || '{}')).toEqual({
+                url: 'https://checkout.stripe.com/pay/gift-1',
+                recipient: {
+                    id: 'recipient-1',
+                    handle: 'alice.bsky.social',
+                    did: 'did:plc:aBc1234567890123456789xYz'
+                }
+            })
+            expect(query).toHaveBeenCalledWith(
+                expect.stringContaining('WHERE did = $1'),
+                ['did:plc:aBc1234567890123456789xYz']
+            )
+        })
 })
 
 async function callHandler (

@@ -93,9 +93,15 @@ function normalizeProductId (value:unknown):StampPackProductId|null {
 function normalizeRecipient (value:unknown):string|null {
     if (typeof value !== 'string') return null
 
-    const recipient = value.trim().toLowerCase()
+    const trimmed = value.trim()
 
-    return recipient || null
+    if (!trimmed) return null
+
+    // DIDs are case-sensitive identifiers passed through verbatim.
+    // Handles are normalized to lowercase by lookupGiftRecipient.
+    const isDid = trimmed.toLowerCase().startsWith('did:')
+
+    return isDid ? trimmed : trimmed.toLowerCase()
 }
 
 function isEmail (value:string):boolean {
