@@ -303,13 +303,5 @@ npm test
 ```
 
 
-----------------------------------------------------------------
-
-
-```
-/ed3d-plan-and-execute:execute-implementation-plan docs/implementation-plans/2026-05-18-payment-hardening/ .
-```
-
-
 
 
