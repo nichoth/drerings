@@ -12,11 +12,13 @@
 -- The 'debiting' state is transient. Successful sends transition
 -- 'debiting' -> 'sent' via attachLotAndMarkSent. Failed sends transition
 -- 'debiting' -> 'failed_refunded' via markFailedRefunded.
+--
+-- IF EXISTS added for defensiveness (idempotent re-run).
 
 BEGIN;
 
 ALTER TABLE postcards
-    DROP CONSTRAINT postcards_status_check;
+    DROP CONSTRAINT IF EXISTS postcards_status_check;
 
 ALTER TABLE postcards
     ADD CONSTRAINT postcards_status_check

@@ -310,6 +310,14 @@ describe('US-039 postcard CAS state machine', () => {
         'AC15.3 resurrection concurrent: two parallel retries, ' +
         'first CAS wins → 200, second loses → 409 send_in_progress',
         async () => {
+            // This mock-based test verifies handler control-flow only:
+            // one CAS call returns ok:true, the other ok:false status
+            // 'debiting', proving exactly one proceeds to debit. The test
+            // does NOT model Postgres UPDATE...WHERE arbitration. A real-DB
+            // integration test would be needed to verify atomicity at the
+            // storage layer (e.g., spawning concurrent connections and
+            // observing the exact one-winner guarantee of the CAS UPDATE).
+
             const createdAt = new Date(
                 Date.now() - 15 * 60 * 1000
             ).toISOString()

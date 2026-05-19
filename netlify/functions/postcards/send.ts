@@ -143,6 +143,11 @@ export const handler:Handler = async function handler (event) {
                 return json(409, { error: 'send_previously_failed' })
             }
             // 'debiting' or null — race lost; ask the client to retry.
+            // Note: claim.status can be 'debiting', null, or rarely 'queued'
+            // if another caller rolled back the CAS between our UPDATE and
+            // our observed SELECT in transitionPostcardToDebiting. The
+            // fall-through 409 send_in_progress is benign in all three
+            // cases — the next user retry succeeds.
             return json(409, { error: 'send_in_progress' })
         }
 
@@ -163,7 +168,20 @@ export const handler:Handler = async function handler (event) {
                 // NOT wrap CAS+debit+rollback in a single transaction
                 // because debitStamp already manages its own transaction;
                 // double-wrapping would require restructuring debitStamp.
-                await postcardStore.rollbackDebitingToQueued(postcard.id)
+                try {
+                    await postcardStore.rollbackDebitingToQueued(
+                        postcard.id
+                    )
+                } catch (rollbackErr) {
+                    console.error('rollbackDebitingToQueued failed', {
+                        postcardId: postcard.id,
+                        originalError: err,
+                        rollbackError: rollbackErr
+                    })
+                    // Still return 402 — the user's underlying problem is
+                    // insufficient stamps. The stuck 'debiting' row is an
+                    // operator concern (see README operator runbook).
+                }
                 return json(402, { error: 'insufficient_stamps' })
             }
 
