@@ -61,6 +61,7 @@ describe('US-037 end-to-end failed send refund', () => {
         vi.doUnmock('../netlify/lib/drawing-images.js')
         vi.doUnmock('../netlify/lib/resend.js')
         vi.doUnmock('../netlify/lib/resend-webhook.js')
+        vi.mock('../netlify/lib/rate-limit.js')
         vi.unstubAllEnvs()
         vi.resetModules()
     })
@@ -167,6 +168,17 @@ describe('US-037 end-to-end failed send refund', () => {
                         }).InsufficientStampsError
                 }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement:
+                    vi.fn().mockResolvedValue({
+                        allowed: true,
+                        remaining: 29,
+                        resetAt: new Date(Date.now() + 60 * 1000)
+                    }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/postcards/send.js'

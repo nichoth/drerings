@@ -2,6 +2,10 @@ import type { Handler } from '@netlify/functions'
 import { getRequestOrigin, json, parseJsonBody } from '../../../lib/http.js'
 import { getSession } from '../../../lib/session.js'
 import {
+    checkAndIncrement,
+    rateLimitResponse
+} from '../../../lib/rate-limit.js'
+import {
     createGiftCheckoutSession,
     createPendingGiftCheckoutSession,
     lookupGiftRecipient,
@@ -18,6 +22,17 @@ export const handler:Handler = async function handler (event) {
 
     if (!session) {
         return json(401, { error: 'Sign in before gifting stamps.' })
+    }
+
+    const RATE_MAX = 5
+    const RATE_WINDOW = 60
+    const limit = await checkAndIncrement(
+        `user:${session.user.id}:stamps/gifts/checkout`,
+        RATE_MAX,
+        RATE_WINDOW
+    )
+    if (!limit.allowed) {
+        return rateLimitResponse(limit, RATE_MAX, RATE_WINDOW)
     }
 
     const body = parseJsonBody(event)

@@ -7,6 +7,18 @@ type Query = (
     params?:unknown[]
 ) => Promise<QueryResult>
 
+function mockRateLimitAllow () {
+    vi.doMock('../netlify/lib/rate-limit.js', () => ({
+        checkAndIncrement: vi.fn().mockResolvedValue({
+            allowed: true,
+            remaining: 29,
+            resetAt: new Date(Date.now() + 60 * 1000)
+        }),
+        getClientIp: vi.fn(),
+        rateLimitResponse: vi.fn()
+    }))
+}
+
 function createDbMock (
     options:{
         insufficientStamps?:boolean
@@ -207,6 +219,8 @@ describe('US-030 POST /api/postcards/send', () => {
 
         const _db = createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
@@ -275,6 +289,8 @@ describe('US-030 POST /api/postcards/send', () => {
         vi.resetModules()
 
         createDbMock()
+
+        mockRateLimitAllow()
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
@@ -455,6 +471,8 @@ describe('US-030 POST /api/postcards/send', () => {
             insufficientStamps: true
         })
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
@@ -529,6 +547,8 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: {
@@ -598,6 +618,8 @@ describe('US-030 POST /api/postcards/send', () => {
         vi.resetModules()
 
         createDbMock()
+
+        mockRateLimitAllow()
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
@@ -685,6 +707,8 @@ describe('US-030 POST /api/postcards/send', () => {
         vi.resetModules()
 
         createDbMock()
+
+        mockRateLimitAllow()
 
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
@@ -781,6 +805,8 @@ describe('US-030 POST /api/postcards/send', () => {
 
         const db = createDbMock()
         const originalQuery = db.query.getMockImplementation()
+
+        mockRateLimitAllow()
 
         vi.mocked(db.query).mockImplementation(
             async (sql:string, params?:unknown[]) => {

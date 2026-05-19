@@ -5,6 +5,10 @@ import {
 } from '../../lib/http.js'
 import { getSession } from '../../lib/session.js'
 import {
+    checkAndIncrement,
+    rateLimitResponse
+} from '../../lib/rate-limit.js'
+import {
     debitStamp,
     refundFailedSend,
     InsufficientStampsError
@@ -24,6 +28,17 @@ export const handler:Handler = async function handler (event) {
 
     if (!session) {
         return json(401, { error: 'Please sign in.' })
+    }
+
+    const RATE_MAX = 30
+    const RATE_WINDOW = 60
+    const limit = await checkAndIncrement(
+        `user:${session.user.id}:postcards/send`,
+        RATE_MAX,
+        RATE_WINDOW
+    )
+    if (!limit.allowed) {
+        return rateLimitResponse(limit, RATE_MAX, RATE_WINDOW)
     }
 
     const body = parseJsonBody(event)

@@ -64,6 +64,16 @@ describe('US-017 gift checkout API', () => {
                 return { getSession: async () => ({ user: sender() }) }
             })
 
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement: vi.fn().mockResolvedValue({
+                    allowed: true,
+                    remaining: 4,
+                    resetAt: new Date(Date.now() + 60 * 1000)
+                }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
+
             const { handler } = await import(
                 '../netlify/functions/stamps/gifts/checkout'
             )
@@ -142,6 +152,16 @@ describe('US-017 gift checkout API', () => {
                 return { getSession: async () => ({ user: sender() }) }
             })
 
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement: vi.fn().mockResolvedValue({
+                    allowed: true,
+                    remaining: 4,
+                    resetAt: new Date(Date.now() + 60 * 1000)
+                }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
+
             const { handler } = await import(
                 '../netlify/functions/stamps/gifts/checkout'
             )
@@ -200,6 +220,16 @@ describe('US-017 gift checkout API', () => {
                 return { getSession: async () => ({ user: sender() }) }
             })
 
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement: vi.fn().mockResolvedValue({
+                    allowed: true,
+                    remaining: 4,
+                    resetAt: new Date(Date.now() + 60 * 1000)
+                }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
+
             const { handler } = await import(
                 '../netlify/functions/stamps/gifts/checkout'
             )
@@ -244,6 +274,16 @@ describe('US-017 gift checkout API', () => {
             vi.doMock('../netlify/lib/session', () => {
                 return { getSession: async () => ({ user: sender() }) }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement: vi.fn().mockResolvedValue({
+                    allowed: true,
+                    remaining: 4,
+                    resetAt: new Date(Date.now() + 60 * 1000)
+                }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/stamps/gifts/checkout'
@@ -302,6 +342,16 @@ describe('US-017 gift checkout API', () => {
             vi.doMock('../netlify/lib/session', () => {
                 return { getSession: async () => ({ user: sender() }) }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement: vi.fn().mockResolvedValue({
+                    allowed: true,
+                    remaining: 4,
+                    resetAt: new Date(Date.now() + 60 * 1000)
+                }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/stamps/gifts/checkout'

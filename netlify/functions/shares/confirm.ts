@@ -2,6 +2,10 @@ import type { Handler } from '@netlify/functions'
 import { json, parseJsonBody } from '../../lib/http.js'
 import { getSession } from '../../lib/session.js'
 import {
+    checkAndIncrement,
+    rateLimitResponse
+} from '../../lib/rate-limit.js'
+import {
     isValidIanaTimezone,
     recordShare,
     IdempotencyConflictError
@@ -38,6 +42,17 @@ export const handler:Handler = async function handler (event) {
 
     const session = await getSession(event)
     if (!session) return json(401, { error: 'Please sign in.' })
+
+    const RATE_MAX = 30
+    const RATE_WINDOW = 60
+    const limit = await checkAndIncrement(
+        `user:${session.user.id}:shares/confirm`,
+        RATE_MAX,
+        RATE_WINDOW
+    )
+    if (!limit.allowed) {
+        return rateLimitResponse(limit, RATE_MAX, RATE_WINDOW)
+    }
 
     const body = parseBody(parseJsonBody(event))
     if (!body) return json(400, { error: 'Invalid request body.' })

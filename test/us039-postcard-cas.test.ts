@@ -40,6 +40,7 @@ describe('US-039 postcard CAS state machine', () => {
         vi.doUnmock('../netlify/lib/posts.js')
         vi.doUnmock('../netlify/lib/drawing-images.js')
         vi.doUnmock('../netlify/lib/resend.js')
+        vi.mock('../netlify/lib/rate-limit.js')
         vi.unstubAllEnvs()
         vi.resetModules()
     })
@@ -150,6 +151,17 @@ describe('US-039 postcard CAS state machine', () => {
                         }).InsufficientStampsError
                 }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement:
+                    vi.fn().mockResolvedValue({
+                        allowed: true,
+                        remaining: 29,
+                        resetAt: new Date(Date.now() + 60 * 1000)
+                    }),
+                getClientIp: vi.fn((e) => e.headers?.ip || 'unknown'),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/postcards/send.js'
@@ -283,6 +295,17 @@ describe('US-039 postcard CAS state machine', () => {
                         }).InsufficientStampsError
                 }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement:
+                    vi.fn().mockResolvedValue({
+                        allowed: true,
+                        remaining: 29,
+                        resetAt: new Date(Date.now() + 60 * 1000)
+                    }),
+                getClientIp: vi.fn((e) => e.headers?.ip || 'unknown'),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/postcards/send.js'
@@ -706,6 +729,17 @@ describe('US-039 postcard CAS state machine', () => {
                         }).InsufficientStampsError
                 }
             })
+
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement:
+                    vi.fn().mockResolvedValue({
+                        allowed: true,
+                        remaining: 29,
+                        resetAt: new Date(Date.now() + 60 * 1000)
+                    }),
+                getClientIp: vi.fn((e) => e.headers?.ip || 'unknown'),
+                rateLimitResponse: vi.fn()
+            }))
 
             const { handler } = await import(
                 '../netlify/functions/postcards/send.js'
