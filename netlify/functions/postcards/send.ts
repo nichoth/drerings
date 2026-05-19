@@ -95,20 +95,55 @@ export const handler:Handler = async function handler (event) {
                 })
             }
 
+            if (postcard.status === 'debiting') {
+                // Already claimed by a prior in-flight request. The
+                // 'debiting' state has no time-based escape hatch — the
+                // only way out is 'sent' or 'failed_refunded' via the
+                // holder's completion path.
+                return json(409, { error: 'send_in_progress' })
+            }
+
             if (postcard.status === 'queued') {
                 const createdAt = new Date(postcard.created_at)
                 const tenMinutesAgo = new Date(
                     Date.now() - 10 * 60 * 1000
                 )
 
-                if (createdAt < tenMinutesAgo) {
-                    // Stale row - proceed with fresh attempt
-                } else {
+                if (createdAt >= tenMinutesAgo) {
                     return json(409, {
                         error: 'send_in_progress'
                     })
                 }
+                // Fall through — proceed to CAS, which will arbitrate.
             }
+        }
+
+        // CAS: claim 'queued' -> 'debiting'. Only the winner debits.
+        const claim = await postcardStore.transitionPostcardToDebiting(
+            postcard.id
+        )
+
+        if (!claim.ok) {
+            if (claim.status === 'sent') {
+                try {
+                    const balance = await getCurrentStampBalance(
+                        session.user.id
+                    )
+                    return json(200, {
+                        id: postcard.id,
+                        balance_after: balance
+                    })
+                } catch (_err) {
+                    return json(404, {
+                        error: 'User not found.'
+                    })
+                }
+            }
+            if (claim.status === 'failed_refunded') {
+                return json(409, { error: 'send_previously_failed' })
+            }
+            // 'debiting' or null — race lost; ask the client to retry.
+            return json(409, { error: 'send_in_progress' })
         }
 
         let debit:{lotId:string; balanceAfter:number}
@@ -119,7 +154,16 @@ export const handler:Handler = async function handler (event) {
             })
         } catch (err) {
             if (err instanceof InsufficientStampsError) {
-                await postcardStore.deleteIfQueued(postcard.id)
+                // We held the 'debiting' claim but ran out of stamps.
+                // Roll the state back to queued so a subsequent attempt
+                // (after the user tops up) can proceed via the same
+                // idempotency_key.
+                // If this rollback fails, the row sticks at 'debiting'
+                // until the operator sweep — see Operator notes. We do
+                // NOT wrap CAS+debit+rollback in a single transaction
+                // because debitStamp already manages its own transaction;
+                // double-wrapping would require restructuring debitStamp.
+                await postcardStore.rollbackDebitingToQueued(postcard.id)
                 return json(402, { error: 'insufficient_stamps' })
             }
 
