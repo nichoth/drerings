@@ -1,14 +1,20 @@
 import type { HandlerEvent, HandlerResponse } from '@netlify/functions'
 
+/**
+ * Responds with a JSON body.
+ * By default sets Cache-Control to 'private, no-store';
+ * pass { cacheControl: '...' } to override.
+ */
 export function json (
     statusCode:number,
-    body:Record<string, unknown>
+    body:Record<string, unknown>,
+    options?:{ cacheControl?:string }
 ):HandlerResponse {
     return {
         statusCode,
         headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'private, no-store'
+            'Cache-Control': options?.cacheControl ?? 'private, no-store'
         },
         body: JSON.stringify(body)
     }
