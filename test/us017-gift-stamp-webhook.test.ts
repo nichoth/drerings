@@ -183,4 +183,83 @@ describe('US-017 gift stamp webhook', () => {
             })
             expect(sendStampGiftEmail).not.toHaveBeenCalled()
         })
+
+    it('creditGiftStampLot raises DuplicateStampCheckoutError on retry',
+        async () => {
+            vi.resetModules()
+
+            let callCount = 0
+            const clientQuery = vi.fn<Query>(async (sql, params) => {
+                callCount++
+
+                if (sql.includes('INSERT INTO stamp_lots')) {
+                    // First call succeeds, second call throws 23505
+                    if (callCount <= 4) {
+                        return { rows: [{ id: 'lot-gift-dup' }] }
+                    }
+                    const err:any = new Error('unique violation')
+                    err.code = '23505'
+                    throw err
+                }
+
+                if (
+                    sql.includes('UPDATE users') &&
+                    params?.includes('recipient-dup')
+                ) {
+                    return { rows: [{ stamps_balance: 30 }] }
+                }
+
+                if (
+                    sql.includes('SELECT stamps_balance') &&
+                    sql.includes('FROM users')
+                ) {
+                    return { rows: [{ stamps_balance: 12 }] }
+                }
+
+                return { rows: [] }
+            })
+            const release = vi.fn()
+            const connect = vi.fn(async () => {
+                return { query: clientQuery, release }
+            })
+
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { connect }
+                    })
+                }
+            })
+
+            const { creditGiftStampLot, DuplicateStampCheckoutError } =
+                await import('../netlify/lib/stamps.js')
+
+            // First call succeeds
+            const result1 = await creditGiftStampLot({
+                senderUserId: 'sender-dup',
+                recipientUserId: 'recipient-dup',
+                count: 25,
+                priceCents: 1000,
+                autumnCheckoutId: 'checkout-gift-duplicate'
+            })
+
+            expect(result1).toEqual({
+                lotId: 'lot-gift-dup',
+                recipientBalanceAfter: 30,
+                senderBalanceAfter: 12
+            })
+
+            // Second call (duplicate checkout) raises error
+            await expect(
+                creditGiftStampLot({
+                    senderUserId: 'sender-dup',
+                    recipientUserId: 'recipient-dup',
+                    count: 25,
+                    priceCents: 1000,
+                    autumnCheckoutId: 'checkout-gift-duplicate'
+                })
+            ).rejects.toThrow(DuplicateStampCheckoutError)
+
+            expect(release).toHaveBeenCalled()
+        })
 })

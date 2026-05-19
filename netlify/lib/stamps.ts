@@ -287,6 +287,13 @@ export class StampLotNotRefundableError extends Error {
     }
 }
 
+export class DuplicateStampCheckoutError extends Error {
+    constructor () {
+        super('Stamp checkout already credited.')
+        this.name = 'DuplicateStampCheckoutError'
+    }
+}
+
 export function calculateStampLotRefundCents (
     lot:StampLotRefundRow
 ):number {
@@ -512,26 +519,37 @@ export async function creditStampLot (
     try {
         await client.query('BEGIN')
 
-        const lotResult = await client.query<StampLotRow>(`
-            INSERT INTO stamp_lots (
-                user_id,
-                source,
-                original_count,
-                remaining_count,
-                price_paid_cents,
-                autumn_checkout_id,
-                gifted_by_user_id
-            )
-            VALUES ($1, $2, $3, $3, $4, $5, $6)
-            RETURNING id
-        `, [
-            options.userId,
-            options.source,
-            options.count,
-            options.priceCents ?? null,
-            options.autumnCheckoutId,
-            options.giftedByUserId
-        ])
+        let lotResult:QueryResult<StampLotRow>
+
+        try {
+            lotResult = await client.query<StampLotRow>(`
+                INSERT INTO stamp_lots (
+                    user_id,
+                    source,
+                    original_count,
+                    remaining_count,
+                    price_paid_cents,
+                    autumn_checkout_id,
+                    gifted_by_user_id
+                )
+                VALUES ($1, $2, $3, $3, $4, $5, $6)
+                RETURNING id
+            `, [
+                options.userId,
+                options.source,
+                options.count,
+                options.priceCents ?? null,
+                options.autumnCheckoutId,
+                options.giftedByUserId
+            ])
+        } catch (err) {
+            if (isUniqueViolation(err)) {
+                await client.query('ROLLBACK').catch(() => {})
+                throw new DuplicateStampCheckoutError()
+            }
+            throw err
+        }
+
         const lotId = lotResult.rows[0].id
 
         const balanceResult = await client.query<BalanceRow>(`
@@ -565,7 +583,7 @@ export async function creditStampLot (
 
         return { lotId, balanceAfter }
     } catch (error) {
-        await client.query('ROLLBACK')
+        await client.query('ROLLBACK').catch(() => {})
 
         throw error
     } finally {
@@ -616,6 +634,15 @@ export async function createPendingGift (
     }
 }
 
+function isUniqueViolation (err:unknown):boolean {
+    // Postgres error code 23505: unique_violation. Duplication from
+    // shares.ts is intentional for now — refactor into netlify/lib/db-errors.ts
+    // in a follow-up after Phase 7 ships. Keeping local minimizes phase coupling.
+    return !!err
+        && typeof err === 'object'
+        && (err as { code?:string }).code === '23505'
+}
+
 export async function creditGiftStampLot (
     options:CreditGiftStampLotOptions
 ):Promise<CreditGiftStampLotResult> {
@@ -625,26 +652,37 @@ export async function creditGiftStampLot (
     try {
         await client.query('BEGIN')
 
-        const lotResult = await client.query<StampLotRow>(`
-            INSERT INTO stamp_lots (
-                user_id,
-                source,
-                original_count,
-                remaining_count,
-                price_paid_cents,
-                autumn_checkout_id,
-                gifted_by_user_id
-            )
-            VALUES ($1, $2, $3, $3, $4, $5, $6)
-            RETURNING id
-        `, [
-            options.recipientUserId,
-            'gift_received',
-            options.count,
-            options.priceCents,
-            options.autumnCheckoutId,
-            options.senderUserId
-        ])
+        let lotResult:QueryResult<StampLotRow>
+
+        try {
+            lotResult = await client.query<StampLotRow>(`
+                INSERT INTO stamp_lots (
+                    user_id,
+                    source,
+                    original_count,
+                    remaining_count,
+                    price_paid_cents,
+                    autumn_checkout_id,
+                    gifted_by_user_id
+                )
+                VALUES ($1, $2, $3, $3, $4, $5, $6)
+                RETURNING id
+            `, [
+                options.recipientUserId,
+                'gift_received',
+                options.count,
+                options.priceCents,
+                options.autumnCheckoutId,
+                options.senderUserId
+            ])
+        } catch (err) {
+            if (isUniqueViolation(err)) {
+                await client.query('ROLLBACK').catch(() => {})
+                throw new DuplicateStampCheckoutError()
+            }
+            throw err
+        }
+
         const lotId = lotResult.rows[0].id
 
         const recipientBalance = await client.query<BalanceRow>(`
@@ -712,7 +750,7 @@ export async function creditGiftStampLot (
             senderBalanceAfter
         }
     } catch (error) {
-        await client.query('ROLLBACK')
+        await client.query('ROLLBACK').catch(() => {})
 
         throw error
     } finally {
