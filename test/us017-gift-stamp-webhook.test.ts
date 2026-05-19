@@ -188,13 +188,11 @@ describe('US-017 gift stamp webhook', () => {
         async () => {
             vi.resetModules()
 
-            let callCount = 0
+            let lotInsertCount = 0
             const clientQuery = vi.fn<Query>(async (sql, params) => {
-                callCount++
-
                 if (sql.includes('INSERT INTO stamp_lots')) {
-                    // First call succeeds, second call throws 23505
-                    if (callCount <= 4) {
+                    lotInsertCount++
+                    if (lotInsertCount === 1) {
                         return { rows: [{ id: 'lot-gift-dup' }] }
                     }
                     const err:any = new Error('unique violation')

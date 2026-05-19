@@ -110,6 +110,7 @@ describe('US-039 credit stamp lot idempotency', () => {
                 })
             ).rejects.toThrow(DuplicateStampCheckoutError)
 
+            expect(clientQuery).toHaveBeenCalledWith('BEGIN')
             expect(clientQuery).toHaveBeenCalledWith('ROLLBACK')
             expect(release).toHaveBeenCalled()
         })
@@ -307,6 +308,7 @@ describe('US-039 credit stamp lot idempotency', () => {
                     })
                 ).rejects.toThrow(DuplicateStampCheckoutError)
 
+                expect(clientQuery).toHaveBeenCalledWith('BEGIN')
                 expect(clientQuery).toHaveBeenCalledWith('ROLLBACK')
                 expect(release).toHaveBeenCalled()
             })

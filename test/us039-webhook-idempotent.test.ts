@@ -137,13 +137,65 @@ describe('US-039 webhook idempotency (applyStampCheckout)', () => {
         it('returns already_credited when 23505 is caught from ' +
             'createPendingGift',
         async () => {
-            // Test coverage for isUniqueViolation in pending gift path
-            // This is covered by credential stamp lot tests which verify
-            // DuplicateStampCheckoutError is thrown by creditStampLot and
-            // creditGiftStampLot, and applyStampCheckout handler tests
-            // confirm the error is caught. The pending gift path uses the
-            // same isUniqueViolation helper that is unit tested elsewhere.
-            expect(true).toBe(true)
+            vi.resetModules()
+
+            vi.doMock('../netlify/lib/stamps.js', async () => {
+                const actual = await vi.importActual(
+                    '../netlify/lib/stamps.js'
+                )
+                return {
+                    ...(actual as object),
+                    createPendingGift: vi.fn(async () => {
+                        const err:any = new Error('unique violation')
+                        err.code = '23505'
+                        throw err
+                    })
+                }
+            })
+
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: {
+                            query: vi.fn(async () => {
+                                return { rows: [] }
+                            })
+                        }
+                    })
+                }
+            })
+
+            vi.doMock('../netlify/lib/resend.js', () => {
+                return {
+                    sendStampGiftEmail: vi.fn(),
+                    sendPendingGiftInviteEmail: vi.fn()
+                }
+            })
+
+            const { applyAutumnWebhookEvent } = await import(
+                '../netlify/lib/billing.js'
+            )
+
+            const result = await applyAutumnWebhookEvent({
+                type: 'checkout.completed',
+                data: {
+                    checkout_id: 'checkout-pending-dup',
+                    product_id: '10_stamps',
+                    customer: {
+                        id: 'sender-1'
+                    },
+                    metadata: {
+                        gift_sender_user_id: 'sender-1',
+                        gift_sender_handle: 'sender.bsky.social',
+                        gift_pending_recipient_email: 'recipient@example.com'
+                    }
+                }
+            })
+
+            expect(result).toEqual({
+                handled: true,
+                stamp_purchase: 'already_credited'
+            })
         })
     })
 })
