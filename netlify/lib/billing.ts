@@ -7,7 +7,8 @@ import {
 import {
     createPendingGift,
     creditGiftStampLot,
-    creditStampLot
+    creditStampLot,
+    DuplicateStampCheckoutError
 } from './stamps.js'
 import {
     PACK_DEFINITIONS,
@@ -428,13 +429,23 @@ async function applyStampCheckout (
     }
 
     if (checkout.gift) {
-        await creditGiftStampLot({
-            senderUserId: checkout.gift.senderUserId,
-            recipientUserId: checkout.gift.recipientUserId,
-            count: checkout.pack.count,
-            priceCents: checkout.pack.priceCents,
-            autumnCheckoutId: checkout.checkoutId
-        })
+        try {
+            await creditGiftStampLot({
+                senderUserId: checkout.gift.senderUserId,
+                recipientUserId: checkout.gift.recipientUserId,
+                count: checkout.pack.count,
+                priceCents: checkout.pack.priceCents,
+                autumnCheckoutId: checkout.checkoutId
+            })
+        } catch (err) {
+            if (err instanceof DuplicateStampCheckoutError) {
+                return {
+                    handled: true,
+                    stamp_purchase: 'already_credited'
+                }
+            }
+            throw err
+        }
         await sendStampGiftEmail({
             email: `${checkout.gift.recipientHandle}@bsky.social`,
             senderEmail: `${checkout.gift.senderHandle}@bsky.social`,
@@ -448,14 +459,24 @@ async function applyStampCheckout (
     }
 
     if (checkout.pendingGift) {
-        await createPendingGift({
-            senderUserId: checkout.pendingGift.senderUserId,
-            recipientEmail: checkout.pendingGift.recipientEmail,
-            packId: checkout.pack.productId,
-            count: checkout.pack.count,
-            priceCents: checkout.pack.priceCents,
-            autumnCheckoutId: checkout.checkoutId
-        })
+        try {
+            await createPendingGift({
+                senderUserId: checkout.pendingGift.senderUserId,
+                recipientEmail: checkout.pendingGift.recipientEmail,
+                packId: checkout.pack.productId,
+                count: checkout.pack.count,
+                priceCents: checkout.pack.priceCents,
+                autumnCheckoutId: checkout.checkoutId
+            })
+        } catch (err) {
+            if (isUniqueViolation(err)) {
+                return {
+                    handled: true,
+                    stamp_purchase: 'already_credited'
+                }
+            }
+            throw err
+        }
         await sendPendingGiftInviteEmail({
             email: checkout.pendingGift.recipientEmail,
             senderEmail: `${checkout.pendingGift.senderHandle}@bsky.social`,
@@ -469,13 +490,23 @@ async function applyStampCheckout (
         }
     }
 
-    await creditStampLot({
-        userId: checkout.userId,
-        source: 'purchase',
-        count: checkout.pack.count,
-        priceCents: checkout.pack.priceCents,
-        autumnCheckoutId: checkout.checkoutId
-    })
+    try {
+        await creditStampLot({
+            userId: checkout.userId,
+            source: 'purchase',
+            count: checkout.pack.count,
+            priceCents: checkout.pack.priceCents,
+            autumnCheckoutId: checkout.checkoutId
+        })
+    } catch (err) {
+        if (err instanceof DuplicateStampCheckoutError) {
+            return {
+                handled: true,
+                stamp_purchase: 'already_credited'
+            }
+        }
+        throw err
+    }
 
     return {
         handled: true,
@@ -498,6 +529,15 @@ async function hasStampCheckout (checkoutId:string):Promise<boolean> {
     `, [checkoutId])
 
     return result.rows.length > 0
+}
+
+function isUniqueViolation (err:unknown):boolean {
+    // Postgres error code 23505: unique_violation. Duplication from
+    // stamps.ts is intentional for now — refactor into netlify/lib/db-errors.ts
+    // in a follow-up after Phase 7 ships. Keeping local minimizes phase coupling.
+    return !!err
+        && typeof err === 'object'
+        && (err as { code?:string }).code === '23505'
 }
 
 async function updateAutumnCustomerId (
