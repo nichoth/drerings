@@ -1,13 +1,13 @@
+# Security headers. Phase 6 adds CSP, HSTS, Referrer-Policy, etc.
+# CORS is intentionally not configured — the SPA is same-origin
+# and the API does not need cross-origin browser access. If a future
+# product requirement adds cross-origin clients, add an Edge Function
+# that echoes back exact origins from an allowlist (do not return `*`
+# with credentials).
 [[headers]]
   for = "/*"
   [headers.values]
-      Access-Control-Allow-Origin = "*"
-      access-control-allow-methods = "POST,GET,PUT,OPTIONS"
-      Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-      Access-Control-Max-Age = "2592000"
-      Access-Control-Allow-Credentials = "true"
-      # Cache-Control = "public, immutable, max-age=31536000"  # immutable paths
-      # Cache-Control = "public, max-age=0, must-revalidate"
+      X-Content-Type-Options = "nosniff"
 
 [[redirects]]
   from = "/api/*"
