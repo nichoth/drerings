@@ -183,6 +183,61 @@ describe('checkAndIncrement', () => {
             expect(callCount).toBe(2)
         }
     )
+
+    it('AC21.6: sustained over-limit keeps window static',
+        async () => {
+            vi.resetModules()
+
+            const now = new Date()
+            let callSequence = 0
+            const query = vi.fn(async () => {
+                callSequence++
+                // Return increasing counts (31, 32, 33) all over-limit,
+                // with FIXED window_start (ELSE branch preserves it)
+                const count = 30 + callSequence
+                return {
+                    rows: [{ count, window_start: now.toISOString() }]
+                }
+            })
+
+            vi.doMock('@netlify/database', () => ({
+                getDatabase: () => ({
+                    pool: { query }
+                })
+            }))
+
+            const { checkAndIncrement } = await import(
+                '../netlify/lib/rate-limit.js'
+            )
+
+            const first = await checkAndIncrement(
+                'user:U:postcards',
+                30,
+                60
+            )
+            expect(first.allowed).toBe(false)
+            expect(first.remaining).toBe(0)
+            const firstResetAt = first.resetAt
+
+            const second = await checkAndIncrement(
+                'user:U:postcards',
+                30,
+                60
+            )
+            expect(second.allowed).toBe(false)
+            expect(second.remaining).toBe(0)
+            expect(second.resetAt).toEqual(firstResetAt)
+
+            const third = await checkAndIncrement(
+                'user:U:postcards',
+                30,
+                60
+            )
+            expect(third.allowed).toBe(false)
+            expect(third.remaining).toBe(0)
+            expect(third.resetAt).toEqual(firstResetAt)
+        }
+    )
 })
 
 describe('getClientIp', () => {
@@ -265,6 +320,9 @@ describe('rateLimitResponse', () => {
         if (response.headers) {
             expect(response.headers['Content-Type']).toBe(
                 'application/json'
+            )
+            expect(response.headers['Cache-Control']).toBe(
+                'private, no-store'
             )
             expect(response.headers['Retry-After']).toBe('30')
             expect(response.headers['RateLimit-Policy']).toBe(
