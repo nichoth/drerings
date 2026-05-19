@@ -6,11 +6,6 @@ import type {
     HandlerResponse
 } from '@netlify/functions'
 
-// TODO(gift-bug): findGiftRecipient at netlify/lib/billing.ts:160 queries
-// users.email, which was dropped in migration 0010
-// (0010_pre_release_reset_for_atproto). Gift checkout will 500 in production.
-// Tests are skipped until the recipient lookup is migrated to handle/did.
-
 type Query = (
     sql:string,
     params?:unknown[]
@@ -18,7 +13,7 @@ type Query = (
 
 const context = {} as HandlerContext
 
-describe.skip('US-017 gift checkout API', () => {
+describe('US-017 gift checkout API', () => {
     afterEach(() => {
         vi.unstubAllEnvs()
         vi.unstubAllGlobals()
@@ -34,12 +29,13 @@ describe.skip('US-017 gift checkout API', () => {
             const query = vi.fn<Query>(async (sql) => {
                 if (
                     sql.includes('FROM users') &&
-                    sql.includes('lower(email)')
+                    sql.includes('lower(handle)')
                 ) {
                     return {
                         rows: [{
                             id: 'recipient-1',
-                            email: 'friend@example.com'
+                            handle: 'alice.bsky.social',
+                            did: 'did:plc:recipient1234567890123456789'
                         }]
                     }
                 }
@@ -73,7 +69,7 @@ describe.skip('US-017 gift checkout API', () => {
             )
             const response = await callHandler(handler, event({
                 product_id: '25_stamps',
-                recipient: ' Friend@Example.COM '
+                recipient: ' Alice.BSKY.Social '
             }))
 
             expect(response.statusCode).toBe(200)
@@ -81,12 +77,13 @@ describe.skip('US-017 gift checkout API', () => {
                 url: 'https://checkout.stripe.com/pay/gift-1',
                 recipient: {
                     id: 'recipient-1',
-                    email: 'friend@example.com'
+                    handle: 'alice.bsky.social',
+                    did: 'did:plc:recipient1234567890123456789'
                 }
             })
             expect(query).toHaveBeenCalledWith(
-                expect.stringContaining('lower(email) = $1'),
-                ['friend@example.com', 'friend']
+                expect.stringContaining('lower(handle) = $1'),
+                ['alice.bsky.social']
             )
             expect(fetcher).toHaveBeenCalledWith(
                 'https://api.useautumn.test/checkout',
@@ -102,10 +99,10 @@ describe.skip('US-017 gift checkout API', () => {
                         },
                         metadata: {
                             gift_sender_user_id: 'sender-1',
-                            gift_sender_email:
-                                'sender.bsky.social@bsky.social',
+                            gift_sender_handle:
+                                'sender.bsky.social',
                             gift_recipient_user_id: 'recipient-1',
-                            gift_recipient_email: 'friend@example.com'
+                            gift_recipient_handle: 'alice.bsky.social'
                         },
                         checkout_session_params: {
                             cancel_url:
@@ -116,7 +113,75 @@ describe.skip('US-017 gift checkout API', () => {
             )
         })
 
-    it('rejects gift checkout when the recipient username does not exist',
+    it('creates a pending checkout for email recipient not in system',
+        async () => {
+            vi.resetModules()
+            vi.stubEnv('AUTUMN_SECRET_KEY', 'autumn-sk-test')
+            vi.stubEnv('AUTUMN_API_URL', 'https://api.useautumn.test')
+
+            const query = vi.fn<Query>(async () => ({ rows: [] }))
+            const fetcher = vi.fn(async () => {
+                return new Response(JSON.stringify({
+                    url: 'https://checkout.stripe.com/pay/gift-pending',
+                    customer_id: 'autumn-sender-1'
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                })
+            })
+
+            vi.stubGlobal('fetch', fetcher)
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { query }
+                    })
+                }
+            })
+            vi.doMock('../netlify/lib/session', () => {
+                return { getSession: async () => ({ user: sender() }) }
+            })
+
+            const { handler } = await import(
+                '../netlify/functions/stamps/gifts/checkout'
+            )
+            const response = await callHandler(handler, event({
+                product_id: '10_stamps',
+                recipient: ' friend@example.com '
+            }))
+
+            expect(response.statusCode).toBe(200)
+            expect(JSON.parse(response.body || '{}')).toEqual({
+                url: 'https://checkout.stripe.com/pay/gift-pending',
+                recipient: { email: 'friend@example.com', pending: true }
+            })
+            expect(fetcher).toHaveBeenCalledWith(
+                'https://api.useautumn.test/checkout',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({
+                        customer_id: 'sender-1',
+                        product_id: '10_stamps',
+                        success_url:
+                            'https://drerings.app/account?status=ok',
+                        customer_data: {
+                            email: 'sender.bsky.social@bsky.social'
+                        },
+                        metadata: {
+                            gift_sender_user_id: 'sender-1',
+                            gift_sender_handle: 'sender.bsky.social',
+                            gift_pending_recipient_email: 'friend@example.com'
+                        },
+                        checkout_session_params: {
+                            cancel_url:
+                                'https://drerings.app/account?status=cancel'
+                        }
+                    })
+                })
+            )
+        })
+
+    it('rejects gift checkout when handle does not exist',
         async () => {
             vi.resetModules()
 
@@ -139,13 +204,58 @@ describe.skip('US-017 gift checkout API', () => {
                 '../netlify/functions/stamps/gifts/checkout'
             )
             const response = await callHandler(handler, event({
-                product_id: 'stamps_bundle',
-                recipient: 'missing-user'
+                product_id: '25_stamps',
+                recipient: 'unknown.bsky.social'
             }))
 
             expect(response.statusCode).toBe(404)
             expect(JSON.parse(response.body || '{}').error)
-                .toMatch(/recipient/i)
+                .toMatch(/recipient.*not found/i)
+            expect(fetcher).not.toHaveBeenCalled()
+        })
+
+    it('rejects gift checkout for self-gift',
+        async () => {
+            vi.resetModules()
+
+            const query = vi.fn<Query>(async (sql) => {
+                if (sql.includes('FROM users') && sql.includes('lower(handle)')) {
+                    return {
+                        rows: [{
+                            id: 'sender-1',
+                            handle: 'sender.bsky.social',
+                            did: 'did:plc:sender1234567890123456789'
+                        }]
+                    }
+                }
+
+                return { rows: [] }
+            })
+            const fetcher = vi.fn()
+
+            vi.stubGlobal('fetch', fetcher)
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { query }
+                    })
+                }
+            })
+            vi.doMock('../netlify/lib/session', () => {
+                return { getSession: async () => ({ user: sender() }) }
+            })
+
+            const { handler } = await import(
+                '../netlify/functions/stamps/gifts/checkout'
+            )
+            const response = await callHandler(handler, event({
+                product_id: '25_stamps',
+                recipient: 'sender.bsky.social'
+            }))
+
+            expect(response.statusCode).toBe(404)
+            expect(JSON.parse(response.body || '{}').error)
+                .toMatch(/recipient.*not found/i)
             expect(fetcher).not.toHaveBeenCalled()
         })
 })
