@@ -33,15 +33,10 @@ export const ColophonRoute:FunctionComponent<{
             </a> for help with rendering the HTML canvas.
         </p>
 
-        <p>
-            The app is being moved to its own backend for accounts, saving,
-            and publishing.
-        </p>
-
         <h2>Drawing</h2>
         <p>
-            The canvas works locally in your browser. Saving and publishing
-            will be added back after the new backend is in place.
+            You can login with an AT protocol account to share the things
+            you draw.
         </p>
     </div>`
 }
