@@ -1,13 +1,21 @@
+# Security headers. Phase 6 adds CSP, HSTS, Referrer-Policy, etc.
+# CORS is intentionally not configured — the SPA is same-origin
+# and the API does not need cross-origin browser access. If a future
+# product requirement adds cross-origin clients, add an Edge Function
+# that echoes back exact origins from an allowlist (do not return `*`
+# with credentials).
+# CSP is rolled out report-only first (see Phase 6 notes). Once staging
+# shows zero CSP violations for one week, swap "Content-Security-Policy-Report-Only"
+# to "Content-Security-Policy" and remove the report-only line.
 [[headers]]
   for = "/*"
   [headers.values]
-      Access-Control-Allow-Origin = "*"
-      access-control-allow-methods = "POST,GET,PUT,OPTIONS"
-      Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-      Access-Control-Max-Age = "2592000"
-      Access-Control-Allow-Credentials = "true"
-      # Cache-Control = "public, immutable, max-age=31536000"  # immutable paths
-      # Cache-Control = "public, max-age=0, must-revalidate"
+      Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+      X-Content-Type-Options = "nosniff"
+      X-Frame-Options = "DENY"
+      Referrer-Policy = "strict-origin-when-cross-origin"
+      Permissions-Policy = "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), compute-pressure=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), serial=(), usb=(), xr-spatial-tracking=()"
+      Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://github.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 [[redirects]]
   from = "/api/*"

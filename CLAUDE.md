@@ -1,6 +1,6 @@
 # drerings Development Guidelines
 
-Last updated: 2026-05-17
+Last updated: 2026-05-19
 
 ## Active Technologies
 
@@ -33,8 +33,11 @@ netlify/
     auth/atproto-stores.ts  Postgres SessionStore + StateStore
     shares.ts            precheckShare, recordShare, monthKeyFor
     stamps.ts            debitStamp, creditStampLot, refunds, invariants
+    postcards.ts         postcard CAS state-machine + bounce refund
     billing.ts           Autumn checkout + refund attempt logging
     session.ts           drerings_auth cookie (HMAC-signed)
+    rate-limit.ts        checkAndIncrement + 429 response helpers
+    http.ts              json() (defaults Cache-Control private, no-store)
   database/migrations/   Numbered, append-only SQL migrations
 
 test/                    Vitest (us0XX-*.test.ts maps to a user story)
@@ -178,6 +181,26 @@ New migrations since 004-stamps:
   `stamp_transactions.reason` CHECK to allow `'share'`.
 - **0013 `atproto_session_state`**: `atproto_sessions` and
   `atproto_oauth_states` tables backing the OAuth stores.
+- **0014 `relax_share_events_cascade`**: drops the BEFORE DELETE
+  trigger on `share_events` so account-deletion cascades work; the
+  BEFORE UPDATE append-only trigger is preserved.
+- **0015 `stamp_lots_checkout_unique`**: partial UNIQUE index on
+  `stamp_lots(autumn_checkout_id)` WHERE
+  `source IN ('purchase','gift_received') AND autumn_checkout_id IS
+  NOT NULL`. This is the *correctness* gate against double-credit on
+  concurrent Autumn webhook retries — `hasStampCheckout` is now just a
+  fast-path optimization, not load-bearing. Grants
+  (`source='grant'`) have `autumn_checkout_id IS NULL` and are
+  unaffected.
+- **0016 `postcards_debiting_state`**: extends
+  `postcards.status` CHECK to allow `'debiting'`. See the postcards
+  state-machine notes below.
+- **0017 `rate_limit_buckets`**: `(key TEXT PRIMARY KEY, window_start
+  TIMESTAMPTZ, count INTEGER)` backing
+  `netlify/lib/rate-limit.ts`. Buckets are not pruned automatically;
+  a cleanup job MAY delete rows older than 24h but is not required for
+  correctness. To manually clear a stuck bucket, `DELETE FROM
+  rate_limit_buckets WHERE key = ...` — the next request reinserts.
 
 Inherited invariants (still in force, from 0007/0008/0009):
 
@@ -240,36 +263,177 @@ them back, reconsider the design rather than restoring:
 - `State.StartCheckout`, `SessionUser.subscription_status`,
   `AccountDetails.subscription_current_period_end`.
 
-### Known issues: gift checkout, share_events deletion
+### Post-0010 cleanups already shipped (do not regress)
 
-**Stamps gift queries (FIXED in pricing-adjust branch):**
+**Stamps gift queries (shipped pricing-adjust):**
 Four queries in `netlify/lib/stamps.ts` previously selected
-`users.email` which migration 0010 dropped. All four have been replaced
-to use `users.handle`: listSentGiftsForSender, refundSentGiftStampLot,
-refundExpiredPendingGifts, refundExpiredPendingGift. Email is
-synthesized as `${handle}@bsky.social` where needed (matching billing.ts
-pattern). Related types (SentGiftSummary, ExpiredPendingGiftRow) and UI
-consumers updated.
+`users.email` which migration 0010 dropped. All four now use
+`users.handle`: `listSentGiftsForSender`, `refundSentGiftStampLot`,
+`refundExpiredPendingGifts`, `refundExpiredPendingGift`. Email is
+synthesized as `${handle}@bsky.social` where required for downstream
+APIs (matches `billing.ts`). Related types (`SentGiftSummary`,
+`ExpiredPendingGiftRow`) and UI consumers were updated.
 
-**Share_events deletion constraint (FIXED in pricing-adjust branch):**
-Migration 0011 declared ON DELETE CASCADE FKs but also had a BEFORE
-DELETE trigger that rejected all deletes, blocking deleteAccountData.
-Migration 0014 drops the BEFORE DELETE trigger while keeping BEFORE
-UPDATE to preserve append-only semantics on the update path.
+**Gift recipient lookup (shipped payment-hardening Phase 1):**
+The dead `findGiftRecipient(users.email)` was removed and replaced
+with `lookupGiftRecipient(identifier)`. See the dedicated section
+above for the new contract. All three us017 gift test files are
+un-skipped and passing.
 
-**Outstanding: findGiftRecipient**
-`findGiftRecipient` (`netlify/lib/billing.ts:160`) still queries
-`users.email`, which migration 0010 dropped. Three us017 gift tests
-are skipped with a TODO pointing at this. Before re-enabling gift
-checkout, replace the email lookup with a handle/DID resolver and
-update the surrounding `createGiftCheckoutSession` metadata
-(`gift_sender_email` currently synthesizes `${handle}@bsky.social`).
+**Share_events deletion constraint (shipped pricing-adjust):**
+Migration 0011 declared ON DELETE CASCADE FKs but had a BEFORE
+DELETE trigger that rejected all deletes, blocking
+`deleteAccountData`. Migration 0014 drops the BEFORE DELETE trigger
+while keeping BEFORE UPDATE to preserve append-only semantics on the
+update path.
 
-### Postcards (still active — see 004-stamps)
+### Gift recipient resolution (replaces the prior email lookup)
 
-`POST /api/postcards/send` and `POST /api/webhooks/resend` are
-unchanged. Env vars `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
-`RESEND_WEBHOOK_SECRET` still required. The three refund-attempt
-error classes (`InFlightRefundAttemptError`,
-`OrphanedRefundAttemptError`, `AmbiguousRefundAttemptError`) in
-`netlify/lib/billing.ts` still gate the operator runbook.
+`findGiftRecipient` is gone. The replacement is
+`lookupGiftRecipient(identifier)` in `netlify/lib/billing.ts`:
+
+- Returns `GiftRecipient = { id, handle, did } | null`.
+- DID is detected by prefix (`did:`, case-insensitive on the prefix
+  test) and queried *with the original case preserved* — the column
+  is case-sensitive.
+- Handles are lowercased before query and matched via
+  `lower(handle) = $1`. The gifts checkout handler's
+  `normalizeRecipient` mirrors this: lowercase handles but never
+  lowercase a DID.
+- Autumn checkout metadata now carries `gift_sender_handle` and
+  `gift_recipient_handle` (NOT `gift_sender_email` /
+  `gift_recipient_email`). The webhook reads these handle keys.
+- The pending-gift path still uses
+  `gift_pending_recipient_email`.
+- Where a recipient email is required (Resend "to" address on the
+  gift-received notification), synthesize as
+  `${handle}@bsky.social` (matches the `customer_data.email` pattern
+  in `createCheckoutSession`).
+
+### Postcards (state machine + idempotent bounce refund)
+
+`POST /api/postcards/send` and `POST /api/webhooks/resend` env vars
+unchanged: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
+`RESEND_WEBHOOK_SECRET`. The three refund-attempt error classes in
+`billing.ts` (`InFlightRefundAttemptError`,
+`OrphanedRefundAttemptError`, `AmbiguousRefundAttemptError`) still
+gate the operator runbook.
+
+**State machine (`postcards.status`, migration 0016):**
+
+```
+queued ──CAS──► debiting ──► sent
+              │            └─► failed_refunded
+              └─ rollback ─► queued     (on InsufficientStampsError)
+```
+
+- The send handler CASes `queued → debiting` via
+  `transitionPostcardToDebiting` *before* calling `debitStamp`. This
+  closes the prior 10-minute "resurrection" double-debit window.
+- On `InsufficientStampsError` after a successful CAS, the handler
+  calls `rollbackDebitingToQueued` so the idempotency_key remains
+  retryable after the user tops up.
+- `attachLotAndMarkSent` and `markFailedRefunded` are both scoped
+  `WHERE status = 'debiting'` — they no-op (zero rows updated, no
+  error) against any other state. They are *not* general-purpose
+  setters; they are the completion arms of the CAS holder.
+- Reused 'debiting' rows always return 409 `send_in_progress`
+  regardless of age. There is no time-based escape hatch from
+  'debiting'; the only exits are the holder's completion paths or
+  the operator sweep documented in README ("Sweeping stale
+  'debiting' postcards").
+
+**Bounce refund (Resend webhook):**
+
+`refundPostcardBounce(postcardId)` in `netlify/lib/postcards.ts` is
+the single entry point for bounce refunds. It runs CAS + refund in
+one transaction:
+
+1. `UPDATE postcards SET status='failed_refunded' WHERE id=$1 AND
+   status IN ('sent','debiting') AND lot_id IS NOT NULL RETURNING
+   sender_id, lot_id`
+2. If zero rows, classify and return
+   `{ refunded:false, reason:'already_refunded'|'not_sent' }`.
+3. Else call `refundFailedSend({ ..., client })` reusing the open
+   client, then COMMIT. Returns `{ refunded:true, balanceAfter }`.
+
+This is idempotent under Svix retries — concurrent attempts have
+exactly one winner via the CAS. `handleResendEvent` MUST call this
+orchestrator rather than composing `markFailedRefunded` +
+`refundFailedSend` itself (the bare pair is no longer atomic under
+the tightened `WHERE status='debiting'` scope on
+`markFailedRefunded`).
+
+**Idempotent Autumn webhook credit (migration 0015):**
+
+- `creditStampLot` and `creditGiftStampLot` raise
+  `DuplicateStampCheckoutError` on Postgres 23505 from the partial
+  UNIQUE index. They do NOT return a "duplicate" result variant —
+  callers must catch the thrown error.
+- `applyStampCheckout` (in `billing.ts`) catches it and maps to the
+  existing webhook outcome `{ handled:true, stamp_purchase:
+  'already_credited' }`. The advisory `hasStampCheckout()` check
+  remains as a fast-path optimization but is no longer load-bearing
+  for correctness — the unique index is.
+
+**Shared-transaction refund:** `refundFailedSend` accepts an optional
+`client?: DatabaseClient` (mirrors `debitStamp(client?)`). When
+passed, the refund runs INSIDE the caller's transaction and does NOT
+issue BEGIN/COMMIT/ROLLBACK or release the client. This is what
+`refundPostcardBounce` uses to keep the CAS + refund atomic.
+
+### HTTP response defaults
+
+`json()` in `netlify/lib/http.ts` defaults `Cache-Control` to
+`private, no-store`. This applies to *all* JSON API responses by
+default — do not weaken it without thought. The opt-out is
+`json(status, body, { cacheControl: '...' })`. The only current
+opt-out is `/.well-known/oauth-client-metadata.json`, which is
+deliberately cacheable so the user's PDS can reuse the document.
+
+`netlify.toml` emits HSTS (2y, includeSubDomains, preload),
+X-Frame-Options DENY, Referrer-Policy strict-origin-when-cross-origin,
+a broad Permissions-Policy disable list, and a
+Content-Security-Policy *report-only* (default-src 'self'; img-src
+'self' data: blob:; frame-src https://github.com; frame-ancestors
+'none'; ...). CSP graduates to enforce mode after one staging week
+with zero violations — see comment block in `netlify.toml`.
+
+CORS is intentionally NOT configured. The SPA is same-origin. Never
+re-add `Access-Control-Allow-Origin: *` with
+`Access-Control-Allow-Credentials: true` — that combination was
+removed in Phase 5 and is a known auth-exfiltration footgun. If a
+future product requirement needs cross-origin clients, gate on an
+allowlist via an Edge Function.
+
+### Rate limiting (`netlify/lib/rate-limit.ts`)
+
+Public surface: `checkAndIncrement(key, max, windowSeconds)`,
+`getClientIp(event)`, `rateLimitResponse(check, max, windowSeconds)`.
+
+Key convention: `user:{user_id}:{endpoint}` for authed endpoints,
+`ip:{ip_addr}:{endpoint}` for unauthed. `getClientIp` prefers
+`x-nf-client-connection-ip` (Netlify-native) over the first hop of
+`x-forwarded-for`, falling back to `'unknown'`.
+
+`checkAndIncrement` is a single-statement atomic INSERT ... ON
+CONFLICT DO UPDATE against `rate_limit_buckets`; window rollover is
+folded into the CASE expression and relies on Postgres'
+transaction_timestamp() stability within one statement. Do not split
+it into separate SELECT/UPDATE.
+
+429 responses (via `rateLimitResponse`) carry `Retry-After`,
+`RateLimit-Policy`, and `RateLimit` headers (IETF draft format).
+
+Current limits and gate placement (AFTER session check / IP extract,
+BEFORE body validation):
+
+- `/api/auth/login` — 10/min per IP
+- `/api/postcards/send` — 30/min per user
+- `/api/shares/confirm` — 30/min per user
+- `/api/billing/checkout` — 5/min per user
+- `/api/stamps/gifts/checkout` — 5/min per user
+
+To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
+'user:<id>:postcards/send'` (or the matching key) — the next request
+re-inserts a fresh window.

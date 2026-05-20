@@ -7,7 +7,8 @@ import {
 import {
     createPendingGift,
     creditGiftStampLot,
-    creditStampLot
+    creditStampLot,
+    DuplicateStampCheckoutError
 } from './stamps.js'
 import {
     PACK_DEFINITIONS,
@@ -57,14 +58,14 @@ export interface AutumnStampRefundOptions {
 
 interface StampGiftMetadata {
     senderUserId:string;
-    senderEmail:string;
+    senderHandle:string;
     recipientUserId:string;
-    recipientEmail:string;
+    recipientHandle:string;
 }
 
 interface PendingGiftMetadata {
     senderUserId:string;
-    senderEmail:string;
+    senderHandle:string;
     recipientEmail:string;
 }
 
@@ -78,7 +79,8 @@ interface StampCheckoutEvent {
 
 export interface GiftRecipient {
     id:string;
-    email:string;
+    handle:string;
+    did:string;
 }
 
 export interface PendingGiftRecipient {
@@ -157,31 +159,29 @@ export async function createCheckoutSession (
     }
 }
 
-export async function findGiftRecipient (
+export async function lookupGiftRecipient (
     identifier:string
 ):Promise<GiftRecipient|null> {
-    const normalized = identifier.trim().toLowerCase()
+    const trimmed = identifier.trim()
 
-    if (!normalized) return null
+    if (!trimmed) return null
 
-    const username = normalized.includes('@') ?
-        normalized.split('@')[0] :
-        normalized
+    const isDid = trimmed.toLowerCase().startsWith('did:')
     const db = getDatabase()
-    const result = await db.pool.query<GiftRecipient>(`
-        SELECT id, email
-        FROM users
-        WHERE lower(email) = $1
-            OR lower(split_part(email, '@', 1)) = $2
-        ORDER BY
-            CASE WHEN lower(email) = $1 THEN 0 ELSE 1 END,
-            created_at ASC
-        LIMIT 2
-    `, [normalized, username])
+    const result = await db.pool.query<GiftRecipient>(
+        isDid ?
+            `SELECT id, handle, did
+             FROM users
+             WHERE did = $1
+             LIMIT 1` :
+            `SELECT id, handle, did
+             FROM users
+             WHERE lower(handle) = $1
+             LIMIT 1`,
+        [isDid ? trimmed : trimmed.toLowerCase()]
+    )
 
-    if (result.rows.length !== 1) return null
-
-    return result.rows[0]
+    return result.rows[0] ?? null
 }
 
 export async function createGiftCheckoutSession (
@@ -190,13 +190,12 @@ export async function createGiftCheckoutSession (
     productId:StampPackProductId,
     recipient:GiftRecipient
 ):Promise<CheckoutSession> {
-    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: syntheticSenderEmail,
+            gift_sender_handle: sender.handle,
             gift_recipient_user_id: recipient.id,
-            gift_recipient_email: recipient.email
+            gift_recipient_handle: recipient.handle
         }
     })
 }
@@ -207,11 +206,10 @@ export async function createPendingGiftCheckoutSession (
     productId:StampPackProductId,
     recipientEmail:string
 ):Promise<CheckoutSession> {
-    const syntheticSenderEmail = `${sender.handle}@bsky.social`
     return createCheckoutSession(sender, origin, productId, {
         metadata: {
             gift_sender_user_id: sender.id,
-            gift_sender_email: syntheticSenderEmail,
+            gift_sender_handle: sender.handle,
             gift_pending_recipient_email: recipientEmail
         }
     })
@@ -431,16 +429,26 @@ async function applyStampCheckout (
     }
 
     if (checkout.gift) {
-        await creditGiftStampLot({
-            senderUserId: checkout.gift.senderUserId,
-            recipientUserId: checkout.gift.recipientUserId,
-            count: checkout.pack.count,
-            priceCents: checkout.pack.priceCents,
-            autumnCheckoutId: checkout.checkoutId
-        })
+        try {
+            await creditGiftStampLot({
+                senderUserId: checkout.gift.senderUserId,
+                recipientUserId: checkout.gift.recipientUserId,
+                count: checkout.pack.count,
+                priceCents: checkout.pack.priceCents,
+                autumnCheckoutId: checkout.checkoutId
+            })
+        } catch (err) {
+            if (err instanceof DuplicateStampCheckoutError) {
+                return {
+                    handled: true,
+                    stamp_purchase: 'already_credited'
+                }
+            }
+            throw err
+        }
         await sendStampGiftEmail({
-            email: checkout.gift.recipientEmail,
-            senderEmail: checkout.gift.senderEmail,
+            email: `${checkout.gift.recipientHandle}@bsky.social`,
+            senderEmail: `${checkout.gift.senderHandle}@bsky.social`,
             count: checkout.pack.count
         })
 
@@ -451,17 +459,27 @@ async function applyStampCheckout (
     }
 
     if (checkout.pendingGift) {
-        await createPendingGift({
-            senderUserId: checkout.pendingGift.senderUserId,
-            recipientEmail: checkout.pendingGift.recipientEmail,
-            packId: checkout.pack.productId,
-            count: checkout.pack.count,
-            priceCents: checkout.pack.priceCents,
-            autumnCheckoutId: checkout.checkoutId
-        })
+        try {
+            await createPendingGift({
+                senderUserId: checkout.pendingGift.senderUserId,
+                recipientEmail: checkout.pendingGift.recipientEmail,
+                packId: checkout.pack.productId,
+                count: checkout.pack.count,
+                priceCents: checkout.pack.priceCents,
+                autumnCheckoutId: checkout.checkoutId
+            })
+        } catch (err) {
+            if (isUniqueViolation(err)) {
+                return {
+                    handled: true,
+                    stamp_purchase: 'already_credited'
+                }
+            }
+            throw err
+        }
         await sendPendingGiftInviteEmail({
             email: checkout.pendingGift.recipientEmail,
-            senderEmail: checkout.pendingGift.senderEmail,
+            senderEmail: `${checkout.pendingGift.senderHandle}@bsky.social`,
             count: checkout.pack.count,
             signupUrl: getPendingGiftSignupUrl(checkout.checkoutId)
         })
@@ -472,13 +490,23 @@ async function applyStampCheckout (
         }
     }
 
-    await creditStampLot({
-        userId: checkout.userId,
-        source: 'purchase',
-        count: checkout.pack.count,
-        priceCents: checkout.pack.priceCents,
-        autumnCheckoutId: checkout.checkoutId
-    })
+    try {
+        await creditStampLot({
+            userId: checkout.userId,
+            source: 'purchase',
+            count: checkout.pack.count,
+            priceCents: checkout.pack.priceCents,
+            autumnCheckoutId: checkout.checkoutId
+        })
+    } catch (err) {
+        if (err instanceof DuplicateStampCheckoutError) {
+            return {
+                handled: true,
+                stamp_purchase: 'already_credited'
+            }
+        }
+        throw err
+    }
 
     return {
         handled: true,
@@ -501,6 +529,15 @@ async function hasStampCheckout (checkoutId:string):Promise<boolean> {
     `, [checkoutId])
 
     return result.rows.length > 0
+}
+
+function isUniqueViolation (err:unknown):boolean {
+    // Postgres error code 23505: unique_violation. Duplication from
+    // stamps.ts is intentional for now — refactor into netlify/lib/db-errors.ts
+    // in a follow-up after Phase 7 ships. Keeping local minimizes phase coupling.
+    return !!err
+        && typeof err === 'object'
+        && (err as { code?:string }).code === '23505'
 }
 
 async function updateAutumnCustomerId (
@@ -531,16 +568,16 @@ function getStampCheckoutEvent (
     if (type !== 'checkout.completed') return null
 
     const productId = getWebhookProductId(event)
-
-    if (!productId.startsWith('stamps_')) return null
-
     const pack = PACK_DEFINITIONS[
         productId as keyof typeof PACK_DEFINITIONS
     ]
+
+    if (!pack) return null
+
     const checkoutId = getWebhookCheckoutId(event)
     const userId = getWebhookCustomerId(event)
 
-    if (!pack || !checkoutId || !userId) return null
+    if (!checkoutId || !userId) return null
 
     return {
         userId,
@@ -556,24 +593,24 @@ function getWebhookGiftMetadata (
 ):StampGiftMetadata|undefined {
     const metadata = getWebhookMetadata(event)
     const senderUserId = getString(metadata.gift_sender_user_id)
-    const senderEmail = getString(metadata.gift_sender_email)
+    const senderHandle = getString(metadata.gift_sender_handle)
     const recipientUserId = getString(metadata.gift_recipient_user_id)
-    const recipientEmail = getString(metadata.gift_recipient_email)
+    const recipientHandle = getString(metadata.gift_recipient_handle)
 
     if (
         !senderUserId ||
-        !senderEmail ||
+        !senderHandle ||
         !recipientUserId ||
-        !recipientEmail
+        !recipientHandle
     ) {
         return undefined
     }
 
     return {
         senderUserId,
-        senderEmail,
+        senderHandle,
         recipientUserId,
-        recipientEmail
+        recipientHandle
     }
 }
 
@@ -582,16 +619,16 @@ function getWebhookPendingGiftMetadata (
 ):PendingGiftMetadata|undefined {
     const metadata = getWebhookMetadata(event)
     const senderUserId = getString(metadata.gift_sender_user_id)
-    const senderEmail = getString(metadata.gift_sender_email)
+    const senderHandle = getString(metadata.gift_sender_handle)
     const recipientEmail = getString(metadata.gift_pending_recipient_email)
 
-    if (!senderUserId || !senderEmail || !recipientEmail) {
+    if (!senderUserId || !senderHandle || !recipientEmail) {
         return undefined
     }
 
     return {
         senderUserId,
-        senderEmail,
+        senderHandle,
         recipientEmail
     }
 }

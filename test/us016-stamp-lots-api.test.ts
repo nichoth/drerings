@@ -46,6 +46,7 @@ describe('US-016 stamp lots API', () => {
         const response = await callHandler(handler, lotsEvent)
 
         expect(response.statusCode).toBe(200)
+        expect(response.headers?.['Cache-Control']).toBe('private, no-store')
         expect(JSON.parse(response.body || '{}')).toEqual({
             lots: [
                 {

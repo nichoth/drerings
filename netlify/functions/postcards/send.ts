@@ -5,6 +5,10 @@ import {
 } from '../../lib/http.js'
 import { getSession } from '../../lib/session.js'
 import {
+    checkAndIncrement,
+    rateLimitResponse
+} from '../../lib/rate-limit.js'
+import {
     debitStamp,
     refundFailedSend,
     InsufficientStampsError
@@ -24,6 +28,17 @@ export const handler:Handler = async function handler (event) {
 
     if (!session) {
         return json(401, { error: 'Please sign in.' })
+    }
+
+    const RATE_MAX = 30
+    const RATE_WINDOW = 60
+    const limit = await checkAndIncrement(
+        `user:${session.user.id}:postcards/send`,
+        RATE_MAX,
+        RATE_WINDOW
+    )
+    if (!limit.allowed) {
+        return rateLimitResponse(limit, RATE_MAX, RATE_WINDOW)
     }
 
     const body = parseJsonBody(event)
@@ -95,20 +110,60 @@ export const handler:Handler = async function handler (event) {
                 })
             }
 
+            if (postcard.status === 'debiting') {
+                // Already claimed by a prior in-flight request. The
+                // 'debiting' state has no time-based escape hatch — the
+                // only way out is 'sent' or 'failed_refunded' via the
+                // holder's completion path.
+                return json(409, { error: 'send_in_progress' })
+            }
+
             if (postcard.status === 'queued') {
                 const createdAt = new Date(postcard.created_at)
                 const tenMinutesAgo = new Date(
                     Date.now() - 10 * 60 * 1000
                 )
 
-                if (createdAt < tenMinutesAgo) {
-                    // Stale row - proceed with fresh attempt
-                } else {
+                if (createdAt >= tenMinutesAgo) {
                     return json(409, {
                         error: 'send_in_progress'
                     })
                 }
+                // Fall through — proceed to CAS, which will arbitrate.
             }
+        }
+
+        // CAS: claim 'queued' -> 'debiting'. Only the winner debits.
+        const claim = await postcardStore.transitionPostcardToDebiting(
+            postcard.id
+        )
+
+        if (!claim.ok) {
+            if (claim.status === 'sent') {
+                try {
+                    const balance = await getCurrentStampBalance(
+                        session.user.id
+                    )
+                    return json(200, {
+                        id: postcard.id,
+                        balance_after: balance
+                    })
+                } catch (_err) {
+                    return json(404, {
+                        error: 'User not found.'
+                    })
+                }
+            }
+            if (claim.status === 'failed_refunded') {
+                return json(409, { error: 'send_previously_failed' })
+            }
+            // 'debiting' or null — race lost; ask the client to retry.
+            // Note: claim.status can be 'debiting', null, or rarely 'queued'
+            // if another caller rolled back the CAS between our UPDATE and
+            // our observed SELECT in transitionPostcardToDebiting. The
+            // fall-through 409 send_in_progress is benign in all three
+            // cases — the next user retry succeeds.
+            return json(409, { error: 'send_in_progress' })
         }
 
         let debit:{lotId:string; balanceAfter:number}
@@ -119,7 +174,29 @@ export const handler:Handler = async function handler (event) {
             })
         } catch (err) {
             if (err instanceof InsufficientStampsError) {
-                await postcardStore.deleteIfQueued(postcard.id)
+                // We held the 'debiting' claim but ran out of stamps.
+                // Roll the state back to queued so a subsequent attempt
+                // (after the user tops up) can proceed via the same
+                // idempotency_key.
+                // If this rollback fails, the row sticks at 'debiting'
+                // until the operator sweep — see Operator notes. We do
+                // NOT wrap CAS+debit+rollback in a single transaction
+                // because debitStamp already manages its own transaction;
+                // double-wrapping would require restructuring debitStamp.
+                try {
+                    await postcardStore.rollbackDebitingToQueued(
+                        postcard.id
+                    )
+                } catch (rollbackErr) {
+                    console.error('rollbackDebitingToQueued failed', {
+                        postcardId: postcard.id,
+                        originalError: err,
+                        rollbackError: rollbackErr
+                    })
+                    // Still return 402 — the user's underlying problem is
+                    // insufficient stamps. The stuck 'debiting' row is an
+                    // operator concern (see README operator runbook).
+                }
                 return json(402, { error: 'insufficient_stamps' })
             }
 

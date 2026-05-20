@@ -61,6 +61,7 @@ describe('US-037 end-to-end failed send refund', () => {
         vi.doUnmock('../netlify/lib/drawing-images.js')
         vi.doUnmock('../netlify/lib/resend.js')
         vi.doUnmock('../netlify/lib/resend-webhook.js')
+        vi.mock('../netlify/lib/rate-limit.js')
         vi.unstubAllEnvs()
         vi.resetModules()
     })
@@ -129,9 +130,13 @@ describe('US-037 end-to-end failed send refund', () => {
                     },
                     reused: false
                 }),
+                transitionPostcardToDebiting:
+                    vi.fn().mockResolvedValue({ ok: true }),
                 markFailedRefunded: vi.fn().mockResolvedValue(undefined),
                 deleteIfQueued: vi.fn().mockResolvedValue(undefined),
                 attachLotAndMarkSent:
+                    vi.fn().mockResolvedValue(undefined),
+                rollbackDebitingToQueued:
                     vi.fn().mockResolvedValue(undefined)
             }))
 
@@ -164,6 +169,17 @@ describe('US-037 end-to-end failed send refund', () => {
                 }
             })
 
+            vi.doMock('../netlify/lib/rate-limit.js', () => ({
+                checkAndIncrement:
+                    vi.fn().mockResolvedValue({
+                        allowed: true,
+                        remaining: 29,
+                        resetAt: new Date(Date.now() + 60 * 1000)
+                    }),
+                getClientIp: vi.fn(),
+                rateLimitResponse: vi.fn()
+            }))
+
             const { handler } = await import(
                 '../netlify/functions/postcards/send.js'
             )
@@ -192,20 +208,17 @@ describe('US-037 end-to-end failed send refund', () => {
 
     it(
         'AC13.2 async refund path: webhooks/resend hard bounce ' +
-        'verifies Svix signature and triggers refundFailedSend',
+        'verifies Svix signature and triggers refundPostcardBounce',
         async () => {
             const secret = 'whsec_' +
                 Buffer.from('secret-bytes-32-chars-long-aaaaa')
                     .toString('base64')
             vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
 
-            const refundFailedSend = vi.fn().mockResolvedValue({
-                lotId: 'lot-1',
+            const refundPostcardBounce = vi.fn().mockResolvedValue({
+                refunded: true,
                 balanceAfter: 9
             })
-            const markFailedRefunded = vi.fn().mockResolvedValue(
-                undefined
-            )
             const getPostcardByResendEmailId = vi.fn().mockResolvedValue(
                 {
                     id: 'postcard-1',
@@ -215,12 +228,9 @@ describe('US-037 end-to-end failed send refund', () => {
                 }
             )
 
-            vi.doMock('../netlify/lib/stamps.js', () => ({
-                refundFailedSend
-            }))
             vi.doMock('../netlify/lib/postcards.js', () => ({
                 getPostcardByResendEmailId,
-                markFailedRefunded
+                refundPostcardBounce
             }))
 
             const { handler } = await import(
@@ -249,11 +259,7 @@ describe('US-037 end-to-end failed send refund', () => {
             const result = JSON.parse(response.body || '{}')
             expect(result.received).toBe(true)
             expect(result.refunded).toBe(true)
-            expect(refundFailedSend).toHaveBeenCalledWith({
-                userId: 'user-1',
-                lotId: 'lot-1'
-            })
-            expect(markFailedRefunded).toHaveBeenCalledWith('postcard-1')
+            expect(refundPostcardBounce).toHaveBeenCalledWith('postcard-1')
         }
     )
 
@@ -266,16 +272,12 @@ describe('US-037 end-to-end failed send refund', () => {
                     .toString('base64')
             vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
 
-            const refundFailedSend = vi.fn()
-            const markFailedRefunded = vi.fn()
+            const refundPostcardBounce = vi.fn()
             const getPostcardByResendEmailId = vi.fn()
 
-            vi.doMock('../netlify/lib/stamps.js', () => ({
-                refundFailedSend
-            }))
             vi.doMock('../netlify/lib/postcards.js', () => ({
                 getPostcardByResendEmailId,
-                markFailedRefunded
+                refundPostcardBounce
             }))
 
             const { handler } = await import(
@@ -309,8 +311,7 @@ describe('US-037 end-to-end failed send refund', () => {
             const result = JSON.parse(response.body || '{}')
             expect(result.error).toBe('invalid_signature')
             expect(getPostcardByResendEmailId).not.toHaveBeenCalled()
-            expect(refundFailedSend).not.toHaveBeenCalled()
-            expect(markFailedRefunded).not.toHaveBeenCalled()
+            expect(refundPostcardBounce).not.toHaveBeenCalled()
         }
     )
 
@@ -322,8 +323,7 @@ describe('US-037 end-to-end failed send refund', () => {
                     .toString('base64')
             vi.stubEnv('RESEND_WEBHOOK_SECRET', secret)
 
-            const refundFailedSend = vi.fn()
-            const markFailedRefunded = vi.fn()
+            const refundPostcardBounce = vi.fn()
             const getPostcardByResendEmailId = vi.fn().mockResolvedValue(
                 {
                     id: 'postcard-1',
@@ -333,12 +333,9 @@ describe('US-037 end-to-end failed send refund', () => {
                 }
             )
 
-            vi.doMock('../netlify/lib/stamps.js', () => ({
-                refundFailedSend
-            }))
             vi.doMock('../netlify/lib/postcards.js', () => ({
                 getPostcardByResendEmailId,
-                markFailedRefunded
+                refundPostcardBounce
             }))
 
             const { handler } = await import(
@@ -368,8 +365,7 @@ describe('US-037 end-to-end failed send refund', () => {
             expect(result.received).toBe(true)
             expect(result.refunded).toBe(false)
             expect(result.reason).toBe('already_refunded')
-            expect(refundFailedSend).not.toHaveBeenCalled()
-            expect(markFailedRefunded).not.toHaveBeenCalled()
+            expect(refundPostcardBounce).not.toHaveBeenCalled()
         }
     )
 })

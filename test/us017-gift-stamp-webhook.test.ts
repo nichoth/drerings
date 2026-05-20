@@ -1,16 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// TODO(gift-bug): findGiftRecipient at netlify/lib/billing.ts:160 queries
-// users.email, which was dropped in migration 0010
-// (0010_pre_release_reset_for_atproto). Gift checkout will 500 in production.
-// Tests are skipped until the recipient lookup is migrated to handle/did.
-
 type Query = (
     sql:string,
     params?:unknown[]
 ) => Promise<{ rows:Array<Record<string, unknown>> }>
 
-describe.skip('US-017 gift stamp webhook', () => {
+describe('US-017 gift stamp webhook', () => {
     afterEach(() => {
         vi.restoreAllMocks()
     })
@@ -71,9 +66,9 @@ describe.skip('US-017 gift stamp webhook', () => {
                     },
                     metadata: {
                         gift_sender_user_id: 'sender-1',
-                        gift_sender_email: 'sender.bsky.social@bsky.social',
+                        gift_sender_handle: 'sender.bsky.social',
                         gift_recipient_user_id: 'recipient-1',
-                        gift_recipient_email: 'friend@example.com'
+                        gift_recipient_handle: 'alice.bsky.social'
                     }
                 }
             })
@@ -120,11 +115,149 @@ describe.skip('US-017 gift stamp webhook', () => {
                 ]
             )
             expect(sendStampGiftEmail).toHaveBeenCalledWith({
-                email: 'friend@example.com',
+                email: 'alice.bsky.social@bsky.social',
                 senderEmail: 'sender.bsky.social@bsky.social',
                 count: 25
             })
             expect(clientQuery).toHaveBeenCalledWith('COMMIT')
+            expect(release).toHaveBeenCalled()
+        })
+
+    it('treats webhook with missing gift metadata as direct purchase',
+        async () => {
+            vi.resetModules()
+
+            const sendStampGiftEmail = vi.fn()
+            const query = vi.fn<Query>(async (sql, _params) => {
+                if (sql.includes('SELECT stamps_balance')) {
+                    return { rows: [{ stamps_balance: 50 }] }
+                }
+
+                return { rows: [] }
+            })
+            const clientQuery = vi.fn<Query>(async (sql, _params) => {
+                if (sql.includes('INSERT INTO stamp_lots')) {
+                    return { rows: [{ id: 'lot-direct' }] }
+                }
+
+                if (sql.includes('UPDATE users')) {
+                    return { rows: [{ stamps_balance: 75 }] }
+                }
+
+                return { rows: [] }
+            })
+            const release = vi.fn()
+            const connect = vi.fn(async () => {
+                return { query: clientQuery, release }
+            })
+
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { query, connect }
+                    })
+                }
+            })
+            vi.doMock('../netlify/lib/resend.js', () => {
+                return { sendStampGiftEmail }
+            })
+
+            const { applyAutumnWebhookEvent } = await import(
+                '../netlify/lib/billing'
+            )
+            const result = await applyAutumnWebhookEvent({
+                type: 'checkout.completed',
+                data: {
+                    checkout_id: 'checkout-direct-1',
+                    product_id: '10_stamps',
+                    customer: {
+                        id: 'buyer-1'
+                    },
+                    metadata: {}
+                }
+            })
+
+            expect(result).toEqual({
+                handled: true,
+                stamp_purchase: 'credited'
+            })
+            expect(sendStampGiftEmail).not.toHaveBeenCalled()
+        })
+
+    it('creditGiftStampLot raises DuplicateStampCheckoutError on retry',
+        async () => {
+            vi.resetModules()
+
+            let lotInsertCount = 0
+            const clientQuery = vi.fn<Query>(async (sql, params) => {
+                if (sql.includes('INSERT INTO stamp_lots')) {
+                    lotInsertCount++
+                    if (lotInsertCount === 1) {
+                        return { rows: [{ id: 'lot-gift-dup' }] }
+                    }
+                    const err:any = new Error('unique violation')
+                    err.code = '23505'
+                    throw err
+                }
+
+                if (
+                    sql.includes('UPDATE users') &&
+                    params?.includes('recipient-dup')
+                ) {
+                    return { rows: [{ stamps_balance: 30 }] }
+                }
+
+                if (
+                    sql.includes('SELECT stamps_balance') &&
+                    sql.includes('FROM users')
+                ) {
+                    return { rows: [{ stamps_balance: 12 }] }
+                }
+
+                return { rows: [] }
+            })
+            const release = vi.fn()
+            const connect = vi.fn(async () => {
+                return { query: clientQuery, release }
+            })
+
+            vi.doMock('@netlify/database', () => {
+                return {
+                    getDatabase: () => ({
+                        pool: { connect }
+                    })
+                }
+            })
+
+            const { creditGiftStampLot, DuplicateStampCheckoutError } =
+                await import('../netlify/lib/stamps.js')
+
+            // First call succeeds
+            const result1 = await creditGiftStampLot({
+                senderUserId: 'sender-dup',
+                recipientUserId: 'recipient-dup',
+                count: 25,
+                priceCents: 1000,
+                autumnCheckoutId: 'checkout-gift-duplicate'
+            })
+
+            expect(result1).toEqual({
+                lotId: 'lot-gift-dup',
+                recipientBalanceAfter: 30,
+                senderBalanceAfter: 12
+            })
+
+            // Second call (duplicate checkout) raises error
+            await expect(
+                creditGiftStampLot({
+                    senderUserId: 'sender-dup',
+                    recipientUserId: 'recipient-dup',
+                    count: 25,
+                    priceCents: 1000,
+                    autumnCheckoutId: 'checkout-gift-duplicate'
+                })
+            ).rejects.toThrow(DuplicateStampCheckoutError)
+
             expect(release).toHaveBeenCalled()
         })
 })

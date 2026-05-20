@@ -2,9 +2,13 @@ import type { Handler } from '@netlify/functions'
 import { getRequestOrigin, json, parseJsonBody } from '../../../lib/http.js'
 import { getSession } from '../../../lib/session.js'
 import {
+    checkAndIncrement,
+    rateLimitResponse
+} from '../../../lib/rate-limit.js'
+import {
     createGiftCheckoutSession,
     createPendingGiftCheckoutSession,
-    findGiftRecipient,
+    lookupGiftRecipient,
     PACK_DEFINITIONS,
     type StampPackProductId
 } from '../../../lib/billing.js'
@@ -20,6 +24,17 @@ export const handler:Handler = async function handler (event) {
         return json(401, { error: 'Sign in before gifting stamps.' })
     }
 
+    const RATE_MAX = 5
+    const RATE_WINDOW = 60
+    const limit = await checkAndIncrement(
+        `user:${session.user.id}:stamps/gifts/checkout`,
+        RATE_MAX,
+        RATE_WINDOW
+    )
+    if (!limit.allowed) {
+        return rateLimitResponse(limit, RATE_MAX, RATE_WINDOW)
+    }
+
     const body = parseJsonBody(event)
     const productId = normalizeProductId(body?.product_id)
     const recipientHandle = normalizeRecipient(body?.recipient)
@@ -33,7 +48,7 @@ export const handler:Handler = async function handler (event) {
     }
 
     try {
-        const recipient = await findGiftRecipient(recipientHandle)
+        const recipient = await lookupGiftRecipient(recipientHandle)
 
         if (recipient?.id === session.user.id) {
             return json(404, { error: 'Recipient account was not found.' })
@@ -93,9 +108,15 @@ function normalizeProductId (value:unknown):StampPackProductId|null {
 function normalizeRecipient (value:unknown):string|null {
     if (typeof value !== 'string') return null
 
-    const recipient = value.trim().toLowerCase()
+    const trimmed = value.trim()
 
-    return recipient || null
+    if (!trimmed) return null
+
+    // DIDs are case-sensitive identifiers passed through verbatim.
+    // Handles are normalized to lowercase by lookupGiftRecipient.
+    const isDid = trimmed.toLowerCase().startsWith('did:')
+
+    return isDid ? trimmed : trimmed.toLowerCase()
 }
 
 function isEmail (value:string):boolean {

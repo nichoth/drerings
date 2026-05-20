@@ -7,6 +7,18 @@ type Query = (
     params?:unknown[]
 ) => Promise<QueryResult>
 
+function mockRateLimitAllow () {
+    vi.doMock('../netlify/lib/rate-limit.js', () => ({
+        checkAndIncrement: vi.fn().mockResolvedValue({
+            allowed: true,
+            remaining: 29,
+            resetAt: new Date(Date.now() + 60 * 1000)
+        }),
+        getClientIp: vi.fn(),
+        rateLimitResponse: vi.fn()
+    }))
+}
+
 function createDbMock (
     options:{
         insufficientStamps?:boolean
@@ -207,10 +219,37 @@ describe('US-030 POST /api/postcards/send', () => {
 
         const _db = createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
+        }))
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
         }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({
@@ -251,6 +290,8 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
@@ -271,6 +312,25 @@ describe('US-030 POST /api/postcards/send', () => {
                     (mod as any).InsufficientStampsError
             }
         })
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    status: 'sent',
+                    created_at: new Date().toISOString()
+                },
+                reused: true
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
+        }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({
             getDrawingImage: async () => Buffer.from('fake-png')
@@ -293,6 +353,9 @@ describe('US-030 POST /api/postcards/send', () => {
                                     new Date().toISOString()
                             }]
                         }
+                    }
+                    if (sql.includes('SELECT stamps_balance')) {
+                        return { rows: [{ stamps_balance: 4 }] }
                     }
                     if (sql.includes('SELECT blob_key')) {
                         return {
@@ -408,6 +471,8 @@ describe('US-030 POST /api/postcards/send', () => {
             insufficientStamps: true
         })
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
@@ -427,6 +492,31 @@ describe('US-030 POST /api/postcards/send', () => {
                     (mod as any).InsufficientStampsError
             }
         })
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
+        }))
 
         const { handler } = await import(
             '../netlify/functions/postcards/send.js'
@@ -457,6 +547,8 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: {
@@ -465,6 +557,31 @@ describe('US-030 POST /api/postcards/send', () => {
                     handle: 'test.bsky.social'
                 }
             })
+        }))
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
         }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({
@@ -502,10 +619,37 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
+        }))
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
         }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({
@@ -564,10 +708,37 @@ describe('US-030 POST /api/postcards/send', () => {
 
         createDbMock()
 
+        mockRateLimitAllow()
+
         vi.doMock('../netlify/lib/session.js', () => ({
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
+        }))
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
         }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({
@@ -635,6 +806,8 @@ describe('US-030 POST /api/postcards/send', () => {
         const db = createDbMock()
         const originalQuery = db.query.getMockImplementation()
 
+        mockRateLimitAllow()
+
         vi.mocked(db.query).mockImplementation(
             async (sql:string, params?:unknown[]) => {
                 if (sql.includes('INSERT INTO stamp_transactions')) {
@@ -660,6 +833,31 @@ describe('US-030 POST /api/postcards/send', () => {
             getSession: async () => ({
                 user: { id: 'user-1', did: 'did:plc:test-1', handle: 'test.bsky.social' }
             })
+        }))
+
+        vi.doMock('../netlify/lib/postcards.js', () => ({
+            findOrCreateQueuedPostcard: vi.fn().mockResolvedValue({
+                postcard: {
+                    id: 'postcard-1',
+                    sender_id: 'user-1',
+                    drawing_id: 'drawing-1',
+                    recipient_email: 'recipient@example.com',
+                    lot_id: null,
+                    resend_email_id: null,
+                    status: 'queued',
+                    idempotency_key: null,
+                    created_at: new Date().toISOString()
+                },
+                reused: false
+            }),
+            transitionPostcardToDebiting:
+                vi.fn().mockResolvedValue({ ok: true }),
+            attachLotAndMarkSent:
+                vi.fn().mockResolvedValue(undefined),
+            markFailedRefunded: vi.fn().mockResolvedValue(undefined),
+            deleteIfQueued: vi.fn().mockResolvedValue(undefined),
+            rollbackDebitingToQueued:
+                vi.fn().mockResolvedValue(undefined)
         }))
 
         vi.doMock('../netlify/lib/drawing-images.js', () => ({

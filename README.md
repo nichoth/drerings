@@ -243,6 +243,27 @@ as refundable and a customer could refund again. Manual steps:
 The scheduled invariant check (Phase 3) will catch the drift on the
 next run and write to stamp_invariant_alerts — that's your tripwire.
 
+### Sweeping stale 'debiting' postcards
+
+If the send handler crashes between the CAS transition to `'debiting'` and
+one of its completion paths (`attachLotAndMarkSent`, `markFailedRefunded`,
+or `rollbackDebitingToQueued`), a postcard can remain at `status='debiting'`
+indefinitely. This blocks its idempotency_key from being retried.
+
+Symptoms: a postcard `updated_at` timestamp older than 15 minutes with
+`status='debiting'`.
+
+Run this recovery SQL to reset stale rows back to `'queued'`:
+
+```sql
+UPDATE postcards
+SET status = 'queued', updated_at = now()
+WHERE status = 'debiting' AND updated_at < now() - interval '15 minutes';
+```
+
+Phase 4 follow-up: a scheduled function (mirroring `refund-expired-gifts`)
+should sweep stale `'debiting'` rows nightly.
+
 ### Local Provider Behavior
 
 Run the Netlify Functions and Vite dev server together:
@@ -282,11 +303,7 @@ npm test
 ```
 
 
-----------------------------------------------------------------
-
-
-
-
-
-
+```
+docs/test-plans/2026-05-18-payment-hardening.md
+```
 

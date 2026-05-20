@@ -1,22 +1,21 @@
 // pattern: Functional Core
 
-import { refundFailedSend } from './stamps.js'
 import {
     getPostcardByResendEmailId,
-    markFailedRefunded
+    refundPostcardBounce
 } from './postcards.js'
 import { readSvixHeaders, isValidSvixSignature } from './svix.js'
 
 export type ResendBounceClass = 'hard'|'transient'|'unknown'
 
-export interface ResendWebhookResult {
-    received:true
-    refunded:boolean
+export type ResendWebhookResult = {
+    received:true;
+    refunded:boolean;
     reason?:
         | 'transient'
         | 'not_a_postcard'
         | 'already_refunded'
-        | 'unhandled_event'
+        | 'unhandled_event';
 }
 
 // Pure: takes the parsed event, decides what to do.
@@ -89,15 +88,26 @@ export async function handleResendEvent (
         }
     }
 
-    await refundFailedSend({
-        userId: postcard.sender_id,
-        lotId: postcard.lot_id
-    })
-    await markFailedRefunded(postcard.id)
+    const result = await refundPostcardBounce(postcard.id)
 
+    if (result.refunded) {
+        return { received: true, refunded: true }
+    }
+
+    if (result.reason === 'already_refunded') {
+        return {
+            received: true,
+            refunded: false,
+            reason: 'already_refunded'
+        }
+    }
+
+    // 'not_sent' — postcard was 'queued' or missing. Treat as not-a-postcard
+    // for the webhook response since there's nothing to refund.
     return {
         received: true,
-        refunded: true
+        refunded: false,
+        reason: 'not_a_postcard'
     }
 }
 
