@@ -216,7 +216,7 @@ fix lands cleanly.
       shares, billing, stamps, account, drawings, whoami) still
       pass.
 
-- [ ] T011 Commit changes in one logical commit referencing the
+- [X] T011 Commit changes in one logical commit referencing the
       feature branch `006-fix-auth-login-404`. Do NOT amend prior
       commits; do NOT skip hooks. Suggested commit subject:
       `fix(dev): collapse /api/* routing into netlify.toml via
