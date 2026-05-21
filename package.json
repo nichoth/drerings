@@ -15,7 +15,7 @@
     "build": "mkdir -p ./public && rm -rf ./public/* && vite build && cp _public/* public",
     "build:staging": "mkdir -p ./public && rm -rf ./public/* && vite build --mode=\"staging\" && cp _public/* public",
     "toc": "markdown-toc --maxdepth 3 -i README.md",
-    "start": "concurrently --kill-others \"npx ntl functions:serve --port=9999 --debug\" \"npx vite\"",
+    "start": "netlify dev",
     "preversion": "npm run lint",
     "version": "auto-changelog --template keepachangelog --breaking-pattern 'BREAKING CHANGE' && git add CHANGELOG.md",
     "postversion": "git push --follow-tags",

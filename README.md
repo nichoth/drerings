@@ -25,6 +25,12 @@ Drawings for friends.
 npm start
 ```
 
+This runs `netlify dev`, which serves the Preact SPA and Netlify
+Functions on `http://localhost:8888` and applies the `netlify.toml`
+redirect table just like the deployed environment. Do not run
+`vite` or `netlify functions:serve` directly — they bypass the
+redirect table and you will see "Function not found" on `/api/*`.
+
 ## Installability And Share Gate
 
 Drerings is installable as a PWA. The app manifest lives at
