@@ -1,8 +1,8 @@
 import type { Handler } from '@netlify/functions'
-import { getOAuthClient } from '../../lib/auth/atproto.js'
-import { upsertOAuthUser } from '../../lib/auth-store.js'
-import { createSessionCookie } from '../../lib/session.js'
-import { json } from '../../lib/http.js'
+import { getOAuthClient } from '../lib/auth/atproto.js'
+import { upsertOAuthUser } from '../lib/auth-store.js'
+import { createSessionCookie } from '../lib/session.js'
+import { json } from '../lib/http.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'GET') {

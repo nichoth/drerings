@@ -18,8 +18,103 @@
       Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://github.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+
+[[redirects]]
+  from = "/api/shares/precheck"
+  to = "/.netlify/functions/shares-precheck"
+  status = 200
+
+[[redirects]]
+  from = "/api/shares/confirm"
+  to = "/.netlify/functions/shares-confirm"
+  status = 200
+
+[[redirects]]
+  from = "/api/postcards/send"
+  to = "/.netlify/functions/postcards-send"
+  status = 200
+
+[[redirects]]
+  from = "/api/billing/checkout"
+  to = "/.netlify/functions/billing-checkout"
+  status = 200
+
+[[redirects]]
+  from = "/api/billing/webhook"
+  to = "/.netlify/functions/billing-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/api/stamps/lots"
+  to = "/.netlify/functions/stamps-lots"
+  status = 200
+
+[[redirects]]
+  from = "/api/stamps/transactions"
+  to = "/.netlify/functions/stamps-transactions"
+  status = 200
+
+[[redirects]]
+  from = "/api/stamps/refund/*"
+  to = "/.netlify/functions/stamps-refund/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/stamps/gifts/checkout"
+  to = "/.netlify/functions/stamps-gifts-checkout"
+  status = 200
+
+[[redirects]]
+  from = "/api/stamps/gifts/refund/*"
+  to = "/.netlify/functions/stamps-gifts-refund/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/webhooks/resend"
+  to = "/.netlify/functions/webhooks-resend"
+  status = 200
+
+[[redirects]]
+  from = "/api/whoami"
+  to = "/.netlify/functions/whoami"
+  status = 200
+
+[[redirects]]
+  from = "/api/account"
+  to = "/.netlify/functions/account"
+  status = 200
+
+[[redirects]]
+  from = "/api/drawings"
+  to = "/.netlify/functions/drawings"
+  status = 200
+
+[[redirects]]
+  from = "/api/drawings/*"
+  to = "/.netlify/functions/drawings/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/posts"
+  to = "/.netlify/functions/posts"
+  status = 200
+
+[[redirects]]
+  from = "/api/posts/*"
+  to = "/.netlify/functions/posts/:splat"
   status = 200
 
 [[redirects]]

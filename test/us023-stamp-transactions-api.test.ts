@@ -44,7 +44,7 @@ describe('US-023 stamp transactions API', () => {
             })
 
             const { handler } = await import(
-                '../netlify/functions/stamps/transactions'
+                '../netlify/functions/stamps-transactions'
             )
             const response = await callHandler(handler, transactionsEvent)
 

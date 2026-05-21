@@ -15,7 +15,7 @@ describe('US-033 Resend webhook handler function', () => {
             vi.resetModules()
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const event = {
@@ -37,7 +37,7 @@ describe('US-033 Resend webhook handler function', () => {
             vi.resetModules()
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const event = {
@@ -59,7 +59,7 @@ describe('US-033 Resend webhook handler function', () => {
             vi.resetModules()
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const event = {
@@ -85,7 +85,7 @@ describe('US-033 Resend webhook handler function', () => {
                 vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({
@@ -117,7 +117,7 @@ describe('US-033 Resend webhook handler function', () => {
             vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const body = JSON.stringify({
@@ -154,7 +154,7 @@ describe('US-033 Resend webhook handler function', () => {
                 vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({
@@ -205,7 +205,7 @@ describe('US-033 Resend webhook handler function', () => {
                 vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({
@@ -272,7 +272,7 @@ describe('US-033 Resend webhook handler function', () => {
                 )
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({
@@ -345,7 +345,7 @@ describe('US-033 Resend webhook handler function', () => {
                 )
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({
@@ -399,7 +399,7 @@ describe('US-033 Resend webhook handler function', () => {
                 vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test')
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = 'not json'
@@ -456,7 +456,7 @@ describe('US-033 Resend webhook handler function', () => {
                 )
 
                 const { handler } = await import(
-                    '../netlify/functions/webhooks/resend.js'
+                    '../netlify/functions/webhooks-resend.js'
                 )
 
                 const body = JSON.stringify({

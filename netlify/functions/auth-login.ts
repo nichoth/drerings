@@ -3,9 +3,9 @@ import {
     checkAndIncrement,
     getClientIp,
     rateLimitResponse
-} from '../../lib/rate-limit.js'
-import { getOAuthClient } from '../../lib/auth/atproto.js'
-import { json } from '../../lib/http.js'
+} from '../lib/rate-limit.js'
+import { getOAuthClient } from '../lib/auth/atproto.js'
+import { json } from '../lib/http.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'GET') {

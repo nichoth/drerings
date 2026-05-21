@@ -2,21 +2,21 @@ import type { Handler } from '@netlify/functions'
 import {
     json,
     parseJsonBody
-} from '../../lib/http.js'
-import { getSession } from '../../lib/session.js'
+} from '../lib/http.js'
+import { getSession } from '../lib/session.js'
 import {
     checkAndIncrement,
     rateLimitResponse
-} from '../../lib/rate-limit.js'
+} from '../lib/rate-limit.js'
 import {
     debitStamp,
     refundFailedSend,
     InsufficientStampsError
-} from '../../lib/stamps.js'
-import { getDrawingImage } from '../../lib/drawing-images.js'
-import { sendPostcardEmail } from '../../lib/resend.js'
-import * as postStore from '../../lib/posts.js'
-import * as postcardStore from '../../lib/postcards.js'
+} from '../lib/stamps.js'
+import { getDrawingImage } from '../lib/drawing-images.js'
+import { sendPostcardEmail } from '../lib/resend.js'
+import * as postStore from '../lib/posts.js'
+import * as postcardStore from '../lib/postcards.js'
 import { getDatabase } from '@netlify/database'
 
 export const handler:Handler = async function handler (event) {

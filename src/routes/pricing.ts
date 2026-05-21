@@ -47,8 +47,7 @@ export const PricingRoute:FunctionComponent<{
         <section class="pricing-stamp-packs" aria-label="Stamp packs">
             <h3>Stamps</h3>
             <p>
-                Buy prepaid stamps to send postcards and to make
-                additional shares after your monthly free share.
+                Buy prepaid stamps, send postcards to people.
             </p>
 
             <ul class="pack-list">

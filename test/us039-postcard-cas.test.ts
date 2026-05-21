@@ -164,11 +164,11 @@ describe('US-039 postcard CAS state machine', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'
@@ -308,11 +308,11 @@ describe('US-039 postcard CAS state machine', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com',
@@ -451,11 +451,11 @@ describe('US-039 postcard CAS state machine', () => {
             })
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'
@@ -607,11 +607,11 @@ describe('US-039 postcard CAS state machine', () => {
             })
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'
@@ -742,11 +742,11 @@ describe('US-039 postcard CAS state machine', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com',
@@ -845,11 +845,11 @@ describe('US-039 postcard CAS state machine', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com',
@@ -951,11 +951,11 @@ describe('US-039 postcard CAS state machine', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'
@@ -1074,11 +1074,11 @@ describe('US-039 postcard CAS state machine', () => {
             })
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'

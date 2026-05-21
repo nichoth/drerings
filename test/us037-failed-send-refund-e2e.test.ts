@@ -181,11 +181,11 @@ describe('US-037 end-to-end failed send refund', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = buildPostEvent(
-                '/.netlify/functions/postcards/send',
+                '/.netlify/functions/postcards-send',
                 JSON.stringify({
                     drawing_id: 'drawing-1',
                     recipient_email: 'recipient@example.com'
@@ -234,7 +234,7 @@ describe('US-037 end-to-end failed send refund', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const body = JSON.stringify({
@@ -246,7 +246,7 @@ describe('US-037 end-to-end failed send refund', () => {
             })
 
             const event = buildPostEvent(
-                '/.netlify/functions/webhooks/resend',
+                '/.netlify/functions/webhooks-resend',
                 body,
                 svixSignedHeaders(secret, body)
             )
@@ -281,7 +281,7 @@ describe('US-037 end-to-end failed send refund', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const body = JSON.stringify({
@@ -298,7 +298,7 @@ describe('US-037 end-to-end failed send refund', () => {
                     .toString('base64')
 
             const event = buildPostEvent(
-                '/.netlify/functions/webhooks/resend',
+                '/.netlify/functions/webhooks-resend',
                 body,
                 svixSignedHeaders(wrongSecret, body)
             )
@@ -339,7 +339,7 @@ describe('US-037 end-to-end failed send refund', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/webhooks/resend.js'
+                '../netlify/functions/webhooks-resend.js'
             )
 
             const body = JSON.stringify({
@@ -351,7 +351,7 @@ describe('US-037 end-to-end failed send refund', () => {
             })
 
             const event = buildPostEvent(
-                '/.netlify/functions/webhooks/resend',
+                '/.netlify/functions/webhooks-resend',
                 body,
                 svixSignedHeaders(secret, body)
             )

@@ -40,7 +40,7 @@ describe('US-018 logout', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/auth/logout')
+        const { handler } = await import('../netlify/functions/auth-logout')
         const response = await callHandler(handler, logoutEvent('POST'))
         const body = JSON.parse(response.body || '{}')
 
@@ -61,7 +61,7 @@ describe('US-018 logout', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/auth/logout')
+        const { handler } = await import('../netlify/functions/auth-logout')
         const response = await callHandler(handler, logoutEvent('GET'))
 
         expect(response.statusCode).toBe(405)

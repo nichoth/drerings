@@ -3,17 +3,17 @@ import {
     getRequestOrigin,
     json,
     parseJsonBody
-} from '../../lib/http.js'
-import { getSession } from '../../lib/session.js'
+} from '../lib/http.js'
+import { getSession } from '../lib/session.js'
 import {
     checkAndIncrement,
     rateLimitResponse
-} from '../../lib/rate-limit.js'
+} from '../lib/rate-limit.js'
 import {
     createCheckoutSession,
     PACK_DEFINITIONS,
     type StampPackProductId
-} from '../../lib/billing.js'
+} from '../lib/billing.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'POST') {

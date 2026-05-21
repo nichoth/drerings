@@ -42,7 +42,7 @@ describe('POST /api/auth/login rate limiting', () => {
             mockGetClientIp.mockReturnValueOnce('1.2.3.4')
 
             const { handler } = await import(
-                '../netlify/functions/auth/login.js'
+                '../netlify/functions/auth-login.js'
             )
 
             const event = {
@@ -100,7 +100,7 @@ describe('POST /api/auth/login rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/auth/login.js'
+                '../netlify/functions/auth-login.js'
             )
 
             const event = {

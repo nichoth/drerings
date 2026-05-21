@@ -37,7 +37,7 @@ describe('POST /api/postcards/send rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = {
@@ -97,7 +97,7 @@ describe('POST /api/postcards/send rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/postcards/send.js'
+                '../netlify/functions/postcards-send.js'
             )
 
             const event = {
@@ -142,7 +142,7 @@ describe('POST /api/shares/confirm rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/shares/confirm.js'
+                '../netlify/functions/shares-confirm.js'
             )
 
             const event = {
@@ -203,7 +203,7 @@ describe('POST /api/shares/confirm rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/shares/confirm.js'
+                '../netlify/functions/shares-confirm.js'
             )
 
             const event = {
@@ -249,7 +249,7 @@ describe('POST /api/billing/checkout rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/billing/checkout.js'
+                '../netlify/functions/billing-checkout.js'
             )
 
             const event = {
@@ -308,7 +308,7 @@ describe('POST /api/billing/checkout rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/billing/checkout.js'
+                '../netlify/functions/billing-checkout.js'
             )
 
             const event = {
@@ -352,7 +352,7 @@ describe('POST /api/stamps/gifts/checkout rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout.js'
+                '../netlify/functions/stamps-gifts-checkout.js'
             )
 
             const event = {
@@ -412,7 +412,7 @@ describe('POST /api/stamps/gifts/checkout rate limiting', () => {
             } as any)
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout.js'
+                '../netlify/functions/stamps-gifts-checkout.js'
             )
 
             const event = {

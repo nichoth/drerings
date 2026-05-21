@@ -1,9 +1,9 @@
 import type { Handler } from '@netlify/functions'
-import { json } from '../../lib/http.js'
+import { json } from '../lib/http.js'
 import {
     handleResendEvent,
     verifyResendSignature
-} from '../../lib/resend-webhook.js'
+} from '../lib/resend-webhook.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'POST') {
