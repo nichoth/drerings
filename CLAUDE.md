@@ -1,6 +1,6 @@
 # drerings Development Guidelines
 
-Last updated: 2026-05-19
+Last updated: 2026-05-21
 
 ## Active Technologies
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler` (005-fix-auth-login-404)
@@ -51,6 +51,14 @@ test/                    Vitest (us0XX-*.test.ts maps to a user story)
 ```sh
 npm test && npm run lint
 ```
+
+## Local development
+
+Run `npm start` (which invokes `netlify dev` on port 8888) —
+see `README.md#develop` for why. Do NOT run `vite` or `netlify
+functions:serve` directly; both bypass the `netlify.toml`
+redirect table and produce a `Function not found` 404 on
+`/api/*`.
 
 ## Code Style
 

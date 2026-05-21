@@ -30,13 +30,6 @@ export default defineConfig({
         port: 8888,
         host: true,
         open: true,
-        proxy: {
-            '/api': {
-                target: 'http://localhost:9999/.netlify/functions',
-                changeOrigin: true,
-                rewrite: path => path.replace(/^\/api/, ''),
-            },
-        },
     },
     build: {
         cssMinify: 'lightningcss',

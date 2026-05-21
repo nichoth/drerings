@@ -80,7 +80,7 @@ load-bearing").
 > target" trick from quickstart.md (T003 below) and confirm the test
 > fails, then revert.
 
-- [ ] T001 [P] [US1] Create
+- [X] T001 [P] [US1] Create
       `test/netlify-toml-routing.test.ts`. Parse
       `netlify.toml` for every `[[redirects]]` block whose `to`
       matches `/.netlify/functions/<name>` (with optional `/:splat`
@@ -96,11 +96,11 @@ load-bearing").
       files like `test/us020-shares-precheck.test.ts`). Do not assert
       on response bodies or HTML (CLAUDE.md "no brittle tests" rule).
 
-- [ ] T002 [US1] Register the new test in `test/index.ts` so it runs
+- [X] T002 [US1] Register the new test in `test/index.ts` so it runs
       under `npm test` (add an `import './netlify-toml-routing.test'`
       line near the existing imports). Depends on T001.
 
-- [ ] T003 [US1] Run `npm test` once unmodified to confirm the new
+- [X] T003 [US1] Run `npm test` once unmodified to confirm the new
       test PASSES against the current `netlify.toml` and
       `netlify/functions/` layout. Then perform the load-bearing
       proof from quickstart.md: `sed -i.bak 's|auth-login|auth-broken
@@ -110,7 +110,7 @@ load-bearing").
 
 ### Implementation for User Story 1
 
-- [ ] T004 [P] [US1] Edit `package.json` `scripts.start` to read
+- [X] T004 [P] [US1] Edit `package.json` `scripts.start` to read
       `"start": "netlify dev"`. Remove the existing `concurrently`
       invocation entirely. Do NOT add flags — `netlify dev`
       auto-detects the Vite SPA, the functions directory, and
@@ -120,14 +120,14 @@ load-bearing").
       `devDependencies` blocks — `netlify-cli` ^23.4.3 is already
       present.
 
-- [ ] T005 [P] [US1] Edit `vite.config.js` to remove the entire
+- [X] T005 [P] [US1] Edit `vite.config.js` to remove the entire
       `server.proxy` block (the `proxy: { '/api': { ... } }` object).
       KEEP `port: 8888`, `host: true`, `open: true` on the
       `server` config so standalone `npx vite` still serves the SPA
       on the same port `netlify dev` uses. Do NOT touch `plugins`,
       `define`, `esbuild`, `publicDir`, `css`, or `build` blocks.
 
-- [ ] T006 [P] [US1] Update `README.md` "Develop" section
+- [X] T006 [P] [US1] Update `README.md` "Develop" section
       (currently `README.md:22-26`). Replace the bare `npm start`
       block with the snippet from research.md "Decision: documentation
       in README + `CLAUDE.md`":
@@ -152,7 +152,7 @@ load-bearing").
       "Installability And Share Gate", "Deployment", or any other
       section.
 
-- [ ] T007 [P] [US1] Add a one-line note to the project `CLAUDE.md`
+- [X] T007 [P] [US1] Add a one-line note to the project `CLAUDE.md`
       under a new "## Local development" heading (insert after the
       existing "## Commands" block, before "## Code Style"), pointing
       contributors at the README. Suggested text:
@@ -206,12 +206,12 @@ US1 is independently testable via T003 (automated) plus T008
 **Purpose**: Confirm no regression in unrelated test suites and the
 fix lands cleanly.
 
-- [ ] T009 [P] Run `npm test && npm run lint` end-to-end and confirm
+- [X] T009 [P] Run `npm test && npm run lint` end-to-end and confirm
       both pass. The new static-analysis test is in `npm test`; lint
       MUST pass on the new test file (80-col, no-space `:type`,
       ternary style per `~/.claude/CLAUDE.md`).
 
-- [ ] T010 [P] Run `npm run test:e2e` (vitest) to confirm SC-005 —
+- [X] T010 [P] Run `npm run test:e2e` (vitest) to confirm SC-005 —
       existing automated tests for unrelated endpoints (postcards,
       shares, billing, stamps, account, drawings, whoami) still
       pass.
