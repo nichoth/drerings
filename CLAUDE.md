@@ -5,6 +5,7 @@ Last updated: 2026-05-19
 ## Active Technologies
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler` (005-fix-auth-login-404)
 - Postgres (Netlify DB) — schema unchanged by this fix (005-fix-auth-login-404)
+- TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`, (006-fix-auth-login-404)
 
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19
 - Preact 10, `@preact/signals` 2, `htm` (tagged-template JSX)
@@ -441,4 +442,5 @@ To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
 re-inserts a fresh window.
 
 ## Recent Changes
+- 006-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`,
 - 005-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`
