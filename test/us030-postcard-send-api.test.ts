@@ -167,13 +167,13 @@ describe('US-030 POST /api/postcards/send', () => {
         const event = {
             httpMethod: 'GET',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: null
         } as any
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const response = await handler(event, {} as any)
@@ -195,8 +195,8 @@ describe('US-030 POST /api/postcards/send', () => {
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -204,7 +204,7 @@ describe('US-030 POST /api/postcards/send', () => {
         } as any
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const response = await handler(event, {} as any)
@@ -263,8 +263,8 @@ describe('US-030 POST /api/postcards/send', () => {
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -272,7 +272,7 @@ describe('US-030 POST /api/postcards/send', () => {
         } as any
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const response = await handler(event, {} as any)
@@ -439,15 +439,15 @@ describe('US-030 POST /api/postcards/send', () => {
         })
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const idempotencyKey = 'idempotent-key-1'
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com',
@@ -519,14 +519,14 @@ describe('US-030 POST /api/postcards/send', () => {
         }))
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -595,8 +595,8 @@ describe('US-030 POST /api/postcards/send', () => {
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -604,7 +604,7 @@ describe('US-030 POST /api/postcards/send', () => {
         } as any
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const response = await handler(event, {} as any)
@@ -676,14 +676,14 @@ describe('US-030 POST /api/postcards/send', () => {
         })
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -769,14 +769,14 @@ describe('US-030 POST /api/postcards/send', () => {
         })
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'
@@ -871,14 +871,14 @@ describe('US-030 POST /api/postcards/send', () => {
         }))
 
         const { handler } = await import(
-            '../netlify/functions/postcards/send.js'
+            '../netlify/functions/postcards-send.js'
         )
 
         const event = {
             httpMethod: 'POST',
             headers: {},
-            rawUrl: 'http://localhost/.netlify/functions/postcards/send',
-            path: '/.netlify/functions/postcards/send',
+            rawUrl: 'http://localhost/.netlify/functions/postcards-send',
+            path: '/.netlify/functions/postcards-send',
             body: JSON.stringify({
                 drawing_id: 'drawing-1',
                 recipient_email: 'recipient@example.com'

@@ -59,12 +59,12 @@ through AG-D4 in `data-model.md` for diff-based verification later.
 **CRITICAL**: T005 and T006 capture pre-fix state; without them, the
 post-fix sanity checks cannot prove a delta.
 
-- [ ] T005 Capture pre-fix function inventory:
+- [X] T005 Capture pre-fix function inventory:
       `find netlify/functions -type f -name '*.ts' | sort >
       /tmp/drerings-functions-pre.txt`. Confirm it contains the 14
       nested files listed in data-model.md plus the 7 unchanged
       flat/scheduled files.
-- [ ] T006 Capture pre-fix redirect-table state:
+- [X] T006 Capture pre-fix redirect-table state:
       `grep -nE 'from = "/(api|\.well-known)' netlify.toml >
       /tmp/drerings-redirects-pre.txt` and confirm the `/api/* →
       /.netlify/functions/:splat` wildcard is present.
@@ -92,35 +92,35 @@ this test.
 Each move is a single `git mv` against an independent file. All 14
 can be done in parallel.
 
-- [ ] T007 [P] [US1] `git mv netlify/functions/auth/login.ts
+- [X] T007 [P] [US1] `git mv netlify/functions/auth/login.ts
       netlify/functions/auth-login.ts`
-- [ ] T008 [P] [US1] `git mv netlify/functions/auth/callback.ts
+- [X] T008 [P] [US1] `git mv netlify/functions/auth/callback.ts
       netlify/functions/auth-callback.ts`
-- [ ] T009 [P] [US1] `git mv netlify/functions/auth/logout.ts
+- [X] T009 [P] [US1] `git mv netlify/functions/auth/logout.ts
       netlify/functions/auth-logout.ts`
-- [ ] T010 [P] [US1] `git mv netlify/functions/billing/checkout.ts
+- [X] T010 [P] [US1] `git mv netlify/functions/billing/checkout.ts
       netlify/functions/billing-checkout.ts`
-- [ ] T011 [P] [US1] `git mv netlify/functions/billing/webhook.ts
+- [X] T011 [P] [US1] `git mv netlify/functions/billing/webhook.ts
       netlify/functions/billing-webhook.ts`
-- [ ] T012 [P] [US1] `git mv netlify/functions/postcards/send.ts
+- [X] T012 [P] [US1] `git mv netlify/functions/postcards/send.ts
       netlify/functions/postcards-send.ts`
-- [ ] T013 [P] [US1] `git mv netlify/functions/shares/precheck.ts
+- [X] T013 [P] [US1] `git mv netlify/functions/shares/precheck.ts
       netlify/functions/shares-precheck.ts`
-- [ ] T014 [P] [US1] `git mv netlify/functions/shares/confirm.ts
+- [X] T014 [P] [US1] `git mv netlify/functions/shares/confirm.ts
       netlify/functions/shares-confirm.ts`
-- [ ] T015 [P] [US1] `git mv netlify/functions/stamps/lots.ts
+- [X] T015 [P] [US1] `git mv netlify/functions/stamps/lots.ts
       netlify/functions/stamps-lots.ts`
-- [ ] T016 [P] [US1] `git mv netlify/functions/stamps/refund.ts
+- [X] T016 [P] [US1] `git mv netlify/functions/stamps/refund.ts
       netlify/functions/stamps-refund.ts`
-- [ ] T017 [P] [US1] `git mv netlify/functions/stamps/transactions.ts
+- [X] T017 [P] [US1] `git mv netlify/functions/stamps/transactions.ts
       netlify/functions/stamps-transactions.ts`
-- [ ] T018 [P] [US1] `git mv netlify/functions/stamps/gifts/checkout.ts
+- [X] T018 [P] [US1] `git mv netlify/functions/stamps/gifts/checkout.ts
       netlify/functions/stamps-gifts-checkout.ts`
-- [ ] T019 [P] [US1] `git mv netlify/functions/stamps/gifts/refund.ts
+- [X] T019 [P] [US1] `git mv netlify/functions/stamps/gifts/refund.ts
       netlify/functions/stamps-gifts-refund.ts`
-- [ ] T020 [P] [US1] `git mv netlify/functions/webhooks/resend.ts
+- [X] T020 [P] [US1] `git mv netlify/functions/webhooks/resend.ts
       netlify/functions/webhooks-resend.ts`
-- [ ] T021 [US1] Remove now-empty parent directories:
+- [X] T021 [US1] Remove now-empty parent directories:
       `rmdir netlify/functions/auth netlify/functions/billing
       netlify/functions/postcards netlify/functions/shares
       netlify/functions/webhooks netlify/functions/stamps/gifts
@@ -133,47 +133,47 @@ Each moved file's relative imports must shift up one folder
 `stamps/gifts/` cases (`../../../lib/...` → `../lib/...`). Each file
 is independent of the others.
 
-- [ ] T022 [P] [US1] Update relative imports in
+- [X] T022 [P] [US1] Update relative imports in
       `netlify/functions/auth-login.ts` (`../../lib/...` →
       `../lib/...`). Verify no remaining `../../` paths inside the
       file. No logic changes.
-- [ ] T023 [P] [US1] Update relative imports in
+- [X] T023 [P] [US1] Update relative imports in
       `netlify/functions/auth-callback.ts`.
-- [ ] T024 [P] [US1] Update relative imports in
+- [X] T024 [P] [US1] Update relative imports in
       `netlify/functions/auth-logout.ts`.
-- [ ] T025 [P] [US1] Update relative imports in
+- [X] T025 [P] [US1] Update relative imports in
       `netlify/functions/billing-checkout.ts`.
-- [ ] T026 [P] [US1] Update relative imports in
+- [X] T026 [P] [US1] Update relative imports in
       `netlify/functions/billing-webhook.ts`.
-- [ ] T027 [P] [US1] Update relative imports in
+- [X] T027 [P] [US1] Update relative imports in
       `netlify/functions/postcards-send.ts`.
-- [ ] T028 [P] [US1] Update relative imports in
+- [X] T028 [P] [US1] Update relative imports in
       `netlify/functions/shares-precheck.ts`.
-- [ ] T029 [P] [US1] Update relative imports in
+- [X] T029 [P] [US1] Update relative imports in
       `netlify/functions/shares-confirm.ts`.
-- [ ] T030 [P] [US1] Update relative imports in
+- [X] T030 [P] [US1] Update relative imports in
       `netlify/functions/stamps-lots.ts`.
-- [ ] T031 [P] [US1] Update relative imports in
+- [X] T031 [P] [US1] Update relative imports in
       `netlify/functions/stamps-refund.ts`.
-- [ ] T032 [P] [US1] Update relative imports in
+- [X] T032 [P] [US1] Update relative imports in
       `netlify/functions/stamps-transactions.ts`.
-- [ ] T033 [P] [US1] Update relative imports in
+- [X] T033 [P] [US1] Update relative imports in
       `netlify/functions/stamps-gifts-checkout.ts`
       (was `../../../lib/...` → `../lib/...`).
-- [ ] T034 [P] [US1] Update relative imports in
+- [X] T034 [P] [US1] Update relative imports in
       `netlify/functions/stamps-gifts-refund.ts`
       (was `../../../lib/...` → `../lib/...`).
-- [ ] T035 [P] [US1] Update relative imports in
+- [X] T035 [P] [US1] Update relative imports in
       `netlify/functions/webhooks-resend.ts`.
 
 ### Redirect-table rewrite (single file, sequential)
 
-- [ ] T036 [US1] Delete the `/api/* → /.netlify/functions/:splat`
+- [X] T036 [US1] Delete the `/api/* → /.netlify/functions/:splat`
       wildcard `[[redirects]]` block in `netlify.toml`. Preserve the
       `/.well-known/oauth-client-metadata.json` block and the
       `/* → /index.html` SPA fallback unchanged. Preserve the
       `[[headers]]` block byte-for-byte.
-- [ ] T037 [US1] Add explicit `[[redirects]]` blocks in
+- [X] T037 [US1] Add explicit `[[redirects]]` blocks in
       `netlify.toml` per the contract table — one per endpoint —
       using the exact `from`/`to`/`status` shapes documented in
       `quickstart.md` step 3. The set MUST cover: `/api/auth/login`,
@@ -187,7 +187,7 @@ is independent of the others.
       `/api/webhooks/resend`, `/api/whoami`, `/api/account`,
       `/api/drawings`, `/api/drawings/*` (splat), `/api/posts`,
       `/api/posts/*` (splat). Depends on T036.
-- [ ] T038 [US1] Confirm SPA call sites for path-parametric
+- [X] T038 [US1] Confirm SPA call sites for path-parametric
       endpoints by grepping `src/state.ts` for
       `/api/stamps/refund/`, `/api/stamps/gifts/refund/`,
       `/api/drawings/`, `/api/posts/`. Make sure each splat
@@ -202,43 +202,43 @@ is independent of the others.
 Each test file imports a handler by relative path. Update to the new
 flat name only — no assertion or logic changes.
 
-- [ ] T039 [P] [US1] Update handler import paths in
+- [X] T039 [P] [US1] Update handler import paths in
       `test/us020-auth-callback.test.ts`
       (`../netlify/functions/auth/callback.js` →
       `../netlify/functions/auth-callback.js` and any sibling auth
       imports in the file).
-- [ ] T040 [P] [US1] Update handler import paths in
+- [X] T040 [P] [US1] Update handler import paths in
       `test/us018-logout.test.ts`
       (`../netlify/functions/auth/logout.js` →
       `../netlify/functions/auth-logout.js`).
-- [ ] T041 [P] [US1] Update handler import paths in
+- [X] T041 [P] [US1] Update handler import paths in
       `test/us039-rate-limit-login.test.ts`
       (auth/login.js → auth-login.js).
-- [ ] T042 [P] [US1] Update handler import paths in
+- [X] T042 [P] [US1] Update handler import paths in
       `test/us039-rate-limit-endpoints.test.ts` (covers multiple
       moved endpoints; update each).
-- [ ] T043 [P] [US1] Update handler import paths in
+- [X] T043 [P] [US1] Update handler import paths in
       `test/us039-postcard-cas.test.ts`
       (postcards/send.js → postcards-send.js).
-- [ ] T044 [P] [US1] Update handler import paths in
+- [X] T044 [P] [US1] Update handler import paths in
       `test/us030-postcard-send-api.test.ts`
       (postcards/send.js → postcards-send.js).
-- [ ] T045 [P] [US1] Update handler import paths in
+- [X] T045 [P] [US1] Update handler import paths in
       `test/us037-failed-send-refund-e2e.test.ts` (covers postcards
       and webhooks; update each).
-- [ ] T046 [P] [US1] Update handler import paths in
+- [X] T046 [P] [US1] Update handler import paths in
       `test/us033-resend-webhook-handler.test.ts`
       (webhooks/resend.js → webhooks-resend.js).
-- [ ] T047 [P] [US1] Update handler import paths in
+- [X] T047 [P] [US1] Update handler import paths in
       `test/us016-stamp-lots-api.test.ts`
       (stamps/lots.js → stamps-lots.js).
-- [ ] T048 [P] [US1] Update handler import paths in
+- [X] T048 [P] [US1] Update handler import paths in
       `test/us023-stamp-transactions-api.test.ts`
       (stamps/transactions.js → stamps-transactions.js).
-- [ ] T049 [P] [US1] Update handler import paths in
+- [X] T049 [P] [US1] Update handler import paths in
       `test/us017-gift-checkout-api.test.ts`
       (stamps/gifts/checkout.js → stamps-gifts-checkout.js).
-- [ ] T050 [US1] Final test-import sweep:
+- [X] T050 [US1] Final test-import sweep:
       `grep -rln "netlify/functions/\(auth\|shares\|postcards\|billing\|stamps\|webhooks\)/" test/`
       MUST return zero results. If any match remains, update it and
       re-run. Depends on T039–T049.
@@ -295,12 +295,12 @@ works, all sibling endpoints respond from their handlers, and
 **Purpose**: Diff-based routing sanity, full test pass, lint clean.
 These are the gating checks before merge.
 
-- [ ] T057 [P] AG-D1 sanity: `find netlify/functions -mindepth 2
+- [X] T057 [P] AG-D1 sanity: `find netlify/functions -mindepth 2
       -type f -name '*.ts'` MUST output nothing. (No nested handler
       files remain.)
-- [ ] T058 [P] AG-D2 sanity: `grep -n 'from = "/api/\*"'
+- [X] T058 [P] AG-D2 sanity: `grep -n 'from = "/api/\*"'
       netlify.toml` MUST output nothing. (No wildcard remains.)
-- [ ] T059 [P] AG-D3 sanity: every redirect targets an existing
+- [X] T059 [P] AG-D3 sanity: every redirect targets an existing
       function file. Run:
       ```
       grep -oE 'to = "/.netlify/functions/[a-z0-9-]+' netlify.toml \
@@ -312,19 +312,19 @@ These are the gating checks before merge.
           done
       ```
       Expected: no `MISSING:` lines.
-- [ ] T060 [P] AG-D4 sanity: every handler under
+- [X] T060 [P] AG-D4 sanity: every handler under
       `netlify/functions/` (excluding scheduled jobs
       `refund-expired-gifts.ts` and `verify-stamp-invariants.ts`)
       has a matching `[[redirects]]` block in `netlify.toml`.
       For each `ls netlify/functions/*.ts`, confirm one redirect
       `to = "/.netlify/functions/<basename>"` (or
       `<basename>/:splat` for path-parametric routes) exists.
-- [ ] T061 Run `npm test` from repo root. All previously-passing
+- [X] T061 Run `npm test` from repo root. All previously-passing
       tests pass with no skips, no relaxed assertions, no new
       failures. Failure here means a handler import-path update or
       domain wiring is wrong — fix and re-run, do NOT relax a test.
-- [ ] T062 Run `npm run lint`. Clean. No new ESLint disables.
-- [ ] T063 Diff inventories against pre-fix snapshots:
+- [X] T062 Run `npm run lint`. Clean. No new ESLint disables.
+- [X] T063 Diff inventories against pre-fix snapshots:
       `diff /tmp/drerings-functions-pre.txt <(find
       netlify/functions -type f -name '*.ts' | sort)` should show
       the 14 nested files removed and the 14 dashed flat files

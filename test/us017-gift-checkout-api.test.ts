@@ -75,7 +75,7 @@ describe('US-017 gift checkout API', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
+                '../netlify/functions/stamps-gifts-checkout'
             )
             const response = await callHandler(handler, event({
                 product_id: '25_stamps',
@@ -163,7 +163,7 @@ describe('US-017 gift checkout API', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
+                '../netlify/functions/stamps-gifts-checkout'
             )
             const response = await callHandler(handler, event({
                 product_id: '10_stamps',
@@ -231,7 +231,7 @@ describe('US-017 gift checkout API', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
+                '../netlify/functions/stamps-gifts-checkout'
             )
             const response = await callHandler(handler, event({
                 product_id: '25_stamps',
@@ -286,7 +286,7 @@ describe('US-017 gift checkout API', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
+                '../netlify/functions/stamps-gifts-checkout'
             )
             const response = await callHandler(handler, event({
                 product_id: '25_stamps',
@@ -354,7 +354,7 @@ describe('US-017 gift checkout API', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/stamps/gifts/checkout'
+                '../netlify/functions/stamps-gifts-checkout'
             )
             const response = await callHandler(handler, event({
                 product_id: '25_stamps',

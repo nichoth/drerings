@@ -42,7 +42,7 @@ describe('US-016 stamp lots API', () => {
             return { getSession: async () => activeSession() }
         })
 
-        const { handler } = await import('../netlify/functions/stamps/lots')
+        const { handler } = await import('../netlify/functions/stamps-lots')
         const response = await callHandler(handler, lotsEvent)
 
         expect(response.statusCode).toBe(200)

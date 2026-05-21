@@ -24,7 +24,7 @@ describe('GET /api/auth/callback', () => {
         }))
 
         const { handler } = await import(
-            '../netlify/functions/auth/callback'
+            '../netlify/functions/auth-callback'
         )
         const response = await handler({
             httpMethod: 'GET',
@@ -54,7 +54,7 @@ describe('GET /api/auth/callback', () => {
         }))
 
         const { handler } = await import(
-            '../netlify/functions/auth/callback'
+            '../netlify/functions/auth-callback'
         )
         const response = await handler({
             httpMethod: 'GET',
@@ -86,7 +86,7 @@ describe('GET /api/auth/callback', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/auth/callback'
+                '../netlify/functions/auth-callback'
             )
             const response = await handler({
                 httpMethod: 'GET',
@@ -142,7 +142,7 @@ describe('GET /api/auth/callback', () => {
             }))
 
             const { handler } = await import(
-                '../netlify/functions/auth/callback'
+                '../netlify/functions/auth-callback'
             )
             const response = await handler({
                 httpMethod: 'GET',
@@ -202,7 +202,7 @@ describe('GET /api/auth/callback', () => {
         }))
 
         const { handler } = await import(
-            '../netlify/functions/auth/callback'
+            '../netlify/functions/auth-callback'
         )
         const response = await handler({
             httpMethod: 'GET',

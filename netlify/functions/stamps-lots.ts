@@ -1,11 +1,11 @@
 import type { Handler } from '@netlify/functions'
-import { json } from '../../lib/http.js'
-import { getSession } from '../../lib/session.js'
+import { json } from '../lib/http.js'
+import { getSession } from '../lib/session.js'
 import {
     listPendingGiftsForSender,
     listSentGiftsForSender,
     listStampLotsForUser
-} from '../../lib/stamps.js'
+} from '../lib/stamps.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'GET') {

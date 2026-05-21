@@ -1,9 +1,9 @@
 import type { Handler } from '@netlify/functions'
-import { json } from '../../lib/http.js'
+import { json } from '../lib/http.js'
 import {
     applyAutumnWebhookEvent,
     verifyAutumnWebhookPayload
-} from '../../lib/billing.js'
+} from '../lib/billing.js'
 
 export const handler:Handler = async function handler (event) {
     if (event.httpMethod !== 'POST') {

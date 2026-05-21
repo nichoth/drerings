@@ -1,12 +1,12 @@
 import type { Handler } from '@netlify/functions'
-import { json, parseJsonBody } from '../../lib/http.js'
-import { getSession } from '../../lib/session.js'
+import { json, parseJsonBody } from '../lib/http.js'
+import { getSession } from '../lib/session.js'
 import {
     isValidIanaTimezone,
     precheckShare,
     IdempotencyConflictError
-} from '../../lib/shares.js'
-import * as postStore from '../../lib/posts.js'
+} from '../lib/shares.js'
+import * as postStore from '../lib/posts.js'
 
 interface ParsedBody {
     drawing_id:string;
