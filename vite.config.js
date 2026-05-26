@@ -26,11 +26,9 @@ export default defineConfig({
             targets: browserslistToTargets(browserslist('>= 0.25%')),
         },
     },
-    server: {
-        port: 8888,
-        host: true,
-        open: true,
-    },
+    // Vite runs behind `netlify dev` (which serves on 8888) on its
+    // default port 5173; see netlify.toml [dev].
+    server: {},
     build: {
         cssMinify: 'lightningcss',
         target: 'esnext',
