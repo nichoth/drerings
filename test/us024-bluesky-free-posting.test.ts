@@ -84,7 +84,7 @@ describe('US-024 free broadcast posting', () => {
             return { publishDrawing, userOwnsDrawing }
         })
 
-        const { handler } = await import('../netlify/functions/posts')
+        const { handler } = await import('../netlify/functions/posts/posts')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(200)

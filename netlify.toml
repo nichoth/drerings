@@ -93,36 +93,6 @@
   status = 200
 
 [[redirects]]
-  from = "/api/whoami"
-  to = "/.netlify/functions/whoami"
-  status = 200
-
-[[redirects]]
-  from = "/api/account"
-  to = "/.netlify/functions/account"
-  status = 200
-
-[[redirects]]
-  from = "/api/drawings"
-  to = "/.netlify/functions/drawings"
-  status = 200
-
-[[redirects]]
-  from = "/api/drawings/*"
-  to = "/.netlify/functions/drawings/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/api/posts"
-  to = "/.netlify/functions/posts"
-  status = 200
-
-[[redirects]]
-  from = "/api/posts/*"
-  to = "/.netlify/functions/posts/:splat"
-  status = 200
-
-[[redirects]]
   from = "/.well-known/oauth-client-metadata.json"
   to = "/.netlify/functions/oauth-client-metadata"
   status = 200

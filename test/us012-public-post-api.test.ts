@@ -57,7 +57,7 @@ describe('US-012 public post API', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/posts')
+        const { handler } = await import('../netlify/functions/posts/posts')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(200)
@@ -85,7 +85,7 @@ describe('US-012 public post API', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/posts')
+        const { handler } = await import('../netlify/functions/posts/posts')
         const response = await callHandler(handler, {
             ...baseEvent,
             rawUrl: 'https://drerings.app/api/posts/999',
