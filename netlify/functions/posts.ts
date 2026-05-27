@@ -1,7 +1,7 @@
 import type { Handler } from '@netlify/functions'
-import { json, parseJsonBody } from '../../lib/http.js'
-import { getSession } from '../../lib/session.js'
-import * as postStore from '../../lib/posts.js'
+import { json, parseJsonBody } from '../lib/http.js'
+import { getSession } from '../lib/session.js'
+import * as postStore from '../lib/posts.js'
 
 export const handler:Handler = async function handler (event) {
     if (!['GET', 'POST'].includes(event.httpMethod)) {
