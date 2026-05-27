@@ -1,8 +1,10 @@
 // @ts-check
+// vite.config.js
 import { defineConfig } from 'vite'
 import browserslist from 'browserslist'
 import { browserslistToTargets } from 'lightningcss'
 import preact from '@preact/preset-vite'
+import netlify from '@netlify/vite-plugin'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,6 +12,7 @@ export default defineConfig({
         global: 'globalThis'
     },
     plugins: [
+        netlify(),
         preact({
             devtoolsInProd: false,
             prefreshEnabled: true,
@@ -26,25 +29,15 @@ export default defineConfig({
             targets: browserslistToTargets(browserslist('>= 0.25%')),
         },
     },
-    // Vite is the dev front door on 8888 (the SPA origin).
-    // `netlify functions:serve` runs separately on 9999 and is
-    // reached via the proxy below.
+    // Vite is the only dev process. `@netlify/vite-plugin`
+    // (registered above) emulates Netlify Functions, Edge
+    // Functions, blobs, headers, redirects, and provisions a
+    // local Netlify Database in `.netlify/db/` — all reached
+    // through the same `:8888` origin via the plugin's middleware.
     server: {
         port: 8888,
         strictPort: true,
         host: true,
-        proxy: {
-            '/api': {
-                target: 'http://127.0.0.1:9999',
-                changeOrigin: false,
-                rewrite: (path) => '/.netlify/functions' + path.slice(4),
-            },
-            '/.well-known/oauth-client-metadata.json': {
-                target: 'http://127.0.0.1:9999',
-                changeOrigin: false,
-                rewrite: () => '/.netlify/functions/oauth-client-metadata',
-            },
-        },
     },
     build: {
         cssMinify: 'lightningcss',
