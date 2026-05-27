@@ -16,7 +16,7 @@ export const LoginRoute:FunctionComponent<{
         ev.preventDefault()
         const value = handle.value.trim().replace(/^@/, '')
         if (!value) return
-        const url = `/api/auth/login?handle=${encodeURIComponent(value)}`
+        const url = `/api/auth-login?handle=${encodeURIComponent(value)}`
         location.assign(url)
     }, [])
 

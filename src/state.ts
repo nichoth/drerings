@@ -306,7 +306,7 @@ State.Logout = async function (state:AppState):Promise<void> {
     const shouldRedirect = isProtectedRoute(state.route.value)
 
     try {
-        await fetch('/api/auth/logout', { method: 'POST' })
+        await fetch('/api/auth-logout', { method: 'POST' })
     } finally {
         clearAuthState(state)
     }
@@ -408,7 +408,7 @@ State.FetchStampLots = async function (
     state.stampLotsError.value = null
 
     try {
-        const response = await fetch('/api/stamps/lots')
+        const response = await fetch('/api/stamps-lots')
 
         if (!response.ok) {
             const errorBody = await maybeJson(response)
@@ -457,7 +457,7 @@ State.RefundStampLot = async function (
     lotId:string
 ):Promise<StampRefundResult> {
     const response = await fetch(
-        `/api/stamps/refund/${encodeURIComponent(lotId)}`,
+        `/api/stamps-refund/${encodeURIComponent(lotId)}`,
         { method: 'POST' }
     )
 
@@ -504,7 +504,7 @@ State.RefundSentGift = async function (
     lotId:string
 ):Promise<SentGiftRefundResult> {
     const response = await fetch(
-        `/api/stamps/gifts/refund/${encodeURIComponent(lotId)}`,
+        `/api/stamps-gifts-refund/${encodeURIComponent(lotId)}`,
         { method: 'POST' }
     )
 
@@ -547,8 +547,8 @@ State.FetchStampTransactions = async function (
 
     try {
         const url = before ?
-            `/api/stamps/transactions?before=${encodeURIComponent(before)}` :
-            '/api/stamps/transactions'
+            `/api/stamps-transactions?before=${encodeURIComponent(before)}` :
+            '/api/stamps-transactions'
         const response = await fetch(url)
 
         if (!response.ok) {
@@ -707,7 +707,7 @@ State.SendPostcard = async function (
         idempotencyKey:string;
     }
 ):Promise<PostcardSendResult> {
-    const response = await fetch('/api/postcards/send', {
+    const response = await fetch('/api/postcards-send', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -809,7 +809,7 @@ State.ShareDrawing = async function (
 
     try {
         const precheckResponse = await fetch(
-            '/api/shares/precheck',
+            '/api/shares-precheck',
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -930,7 +930,7 @@ async function postConfirm (body:{
     timezone:string;
     idempotency_key:string;
 }):Promise<ConfirmResponse|null> {
-    const response = await fetch('/api/shares/confirm', {
+    const response = await fetch('/api/shares-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -1078,7 +1078,7 @@ State.StartStampCheckout = async function (
             throw new Error('Sign in before buying stamps.')
         }
 
-        const response = await fetch('/api/billing/checkout', {
+        const response = await fetch('/api/billing-checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1126,7 +1126,7 @@ State.StartGiftStampCheckout = async function (
     state.stampCheckoutProductId.value = input.productId
 
     try {
-        const response = await fetch('/api/stamps/gifts/checkout', {
+        const response = await fetch('/api/stamps-gifts-checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

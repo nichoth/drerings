@@ -56,8 +56,9 @@ export const handler:Handler = async function handler (event) {
 
 function lotIdFromPath (path:string):string|null {
     const parts = path.split('/').filter(Boolean)
-    const refundIndex = parts.lastIndexOf('refund')
-    const lotId = parts[refundIndex + 1]
+    const idx = parts.lastIndexOf('stamps-gifts-refund')
+    if (idx === -1) return null
+    const lotId = parts[idx + 1]
 
     return lotId && lotId.trim() ? lotId : null
 }

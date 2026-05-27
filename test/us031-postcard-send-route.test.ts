@@ -52,7 +52,7 @@ describe('US-031 postcard send route', () => {
                     return jsonResponse(savedDrawing())
                 }
                 if (typeof url === 'string' &&
-                    url.includes('/api/postcards/send')) {
+                    url.includes('/api/postcards-send')) {
                     return jsonResponse(
                         { error: 'insufficient_stamps' },
                         false,
@@ -93,7 +93,7 @@ describe('US-031 postcard send route', () => {
                     return jsonResponse(savedDrawing())
                 }
                 if (typeof url === 'string' &&
-                    url.includes('/api/postcards/send')) {
+                    url.includes('/api/postcards-send')) {
                     return jsonResponse(
                         { error: 'send_failed' },
                         false,

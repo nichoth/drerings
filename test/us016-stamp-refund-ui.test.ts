@@ -29,13 +29,13 @@ describe('US-016 stamp refund UI', () => {
                 url:string,
                 options?:RequestInit
             ) => {
-                if (url === '/api/stamps/lots') {
+                if (url === '/api/stamps-lots') {
                     return jsonResponse({
                         lots: stampLots()
                     })
                 }
 
-                if (url === '/api/stamps/refund/lot-purchase') {
+                if (url === '/api/stamps-refund/lot-purchase') {
                     expect(options?.method).toBe('POST')
 
                     return jsonResponse({
@@ -85,7 +85,7 @@ describe('US-016 stamp refund UI', () => {
 
             await waitFor(() => {
                 expect(fetcher).toHaveBeenCalledWith(
-                    '/api/stamps/refund/lot-purchase',
+                    '/api/stamps-refund/lot-purchase',
                     { method: 'POST' }
                 )
             })

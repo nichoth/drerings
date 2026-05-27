@@ -11,7 +11,7 @@ vi.mock('../netlify/lib/rate-limit.js')
 vi.mock('../netlify/lib/auth/atproto.js')
 vi.mock('@netlify/database')
 
-describe('POST /api/auth/login rate limiting', () => {
+describe('POST /api/auth-login rate limiting', () => {
     it('under-limit: allows request when rate limit allows',
         async () => {
             const { checkAndIncrement, getClientIp } =

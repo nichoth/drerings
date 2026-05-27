@@ -23,11 +23,11 @@ describe('US-017 gift stamps UI', () => {
                 url:string,
                 options?:RequestInit
             ) => {
-                if (url === '/api/stamps/lots') {
+                if (url === '/api/stamps-lots') {
                     return jsonResponse({ lots: [] })
                 }
 
-                if (url === '/api/stamps/gifts/checkout') {
+                if (url === '/api/stamps-gifts-checkout') {
                     expect(options?.method).toBe('POST')
 
                     return jsonResponse({
@@ -70,7 +70,7 @@ describe('US-017 gift stamps UI', () => {
 
             await waitFor(() => {
                 expect(fetcher).toHaveBeenCalledWith(
-                    '/api/stamps/gifts/checkout',
+                    '/api/stamps-gifts-checkout',
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

@@ -152,7 +152,7 @@ describe('state auth baseline', () => {
         })
         expect(state.currentUser.value).toBeNull()
         expect(state.profile.value).toBeNull()
-        expect(fetcher).toHaveBeenCalledWith('/api/auth/logout', {
+        expect(fetcher).toHaveBeenCalledWith('/api/auth-logout', {
             method: 'POST'
         })
     })
