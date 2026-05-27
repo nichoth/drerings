@@ -169,6 +169,14 @@ Copy that endpoint's Svix signing secret into `AUTUMN_WEBHOOK_SECRET`. The
 Netlify Function validates `svix-id`, `svix-timestamp`, and `svix-signature`
 before crediting stamp lots.
 
+> If you are upgrading from a deployment that used the nested URL
+> shape (`/api/billing/webhook`), update the existing webhook URL in
+> the Autumn dashboard to the new flat path immediately after deploy.
+> Autumn retries failed deliveries with exponential backoff and
+> `applyStampCheckout` is idempotent under retry, so events queued
+> during the cutover gap will deliver successfully once the
+> dashboard URL is corrected.
+
 ### Resend Webhook (postcard bounces)
 
 The `/api/webhooks-resend` endpoint expects an Svix-signed payload from
@@ -183,6 +191,14 @@ Resend. To enable it:
 4. The "Send a test" button in the Resend dashboard exercises the
    `400 invalid_signature` path with a synthetic payload — it's expected
    to NOT succeed in production until subscribed.
+
+> If you are upgrading from a deployment that used the nested URL
+> shape (`/api/webhooks/resend`), update the existing webhook URL in
+> the Resend dashboard to `/api/webhooks-resend` immediately after
+> deploy. Resend retries bounce deliveries for ~48h (Svix policy) and
+> `refundPostcardBounce` is idempotent under retry, so events queued
+> during the cutover gap will deliver successfully once the dashboard
+> URL is corrected.
 
 Configure these one-time stamp pack products in Autumn for prepaid
 postcard sends. The product ids and metadata values must match
