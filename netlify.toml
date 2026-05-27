@@ -122,14 +122,6 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Explicit dev config: without this, netlify dev's framework
-# auto-detection picks `npm run test:e2e` as the Vite dev command
-# (the `vitest` binary matches its `vite*` heuristic) and runs the
-# whole vitest suite on every `npm start`.
-[dev]
-  command = "vite"
-  targetPort = 5173
-
 [build]
   command = "npm run build"
   environment = { NODE_VERSION = "25" }

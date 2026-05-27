@@ -6,6 +6,8 @@ Last updated: 2026-05-21
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler` (005-fix-auth-login-404)
 - Postgres (Netlify DB) — schema unchanged by this fix (005-fix-auth-login-404)
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`, (006-fix-auth-login-404)
+- TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`, (007-split-dev-ports)
+- N/A (dev infrastructure change; no DB touch) (007-split-dev-ports)
 
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19
 - Preact 10, `@preact/signals` 2, `htm` (tagged-template JSX)
@@ -54,11 +56,37 @@ npm test && npm run lint
 
 ## Local development
 
-Run `npm start` (which invokes `netlify dev` on port 8888) —
-see `README.md#develop` for why. Do NOT run `vite` or `netlify
-functions:serve` directly; both bypass the `netlify.toml`
-redirect table and produce a `Function not found` 404 on
-`/api/*`.
+Run `npm start`. It starts two processes concurrently via
+`concurrently --kill-others`:
+
+1. `vite` on port 8888 — the SPA and the dev front door (the
+   browser talks to this).
+2. `netlify functions:serve --port=9999` — the Functions
+   runtime. Not directly user-visible.
+
+Browse to **`http://127.0.0.1:8888`**, NOT `localhost:8888` —
+atproto OAuth uses 127.0.0.1 for its loopback client and cookies
+set on 127.0.0.1 are not visible to `localhost`.
+
+Vite's `server.proxy` (in `vite.config.js`) forwards `/api/*`
+and `/.well-known/oauth-client-metadata.json` to `:9999`,
+mirroring every `[[redirects]]` entry in `netlify.toml`. If a
+new redirect lands in `netlify.toml`, add the matching entry to
+`apiRewrites` in `vite.config.js` in the same commit or
+`/api/<new-path>` will 404 in dev. See
+`specs/007-split-dev-ports/contracts/dev-routing.md`.
+
+`server.strictPort: true` — if `:8888` is taken, Vite exits
+loudly. To override Vite's port, set `PUBLIC_URL` to the
+matching origin (otherwise OAuth will redirect to the wrong
+port). To override the functions port, change BOTH the
+`--port=9999` flag in the `start` script and the `target` in
+`vite.config.js` — a mismatch surfaces as `ECONNREFUSED` on
+every `/api/*` call.
+
+`netlify dev` is no longer the dev front door; the
+`[dev]` block in `netlify.toml` has been removed. Don't
+re-introduce it.
 
 ## Code Style
 
@@ -450,5 +478,6 @@ To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
 re-inserts a fresh window.
 
 ## Recent Changes
+- 007-split-dev-ports: Added TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`,
 - 006-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`,
 - 005-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`
