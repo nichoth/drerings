@@ -1,6 +1,6 @@
 # drerings Development Guidelines
 
-Last updated: 2026-05-21
+Last updated: 2026-05-27
 
 ## Active Technologies
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler` (005-fix-auth-login-404)
@@ -8,8 +8,8 @@ Last updated: 2026-05-21
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`, (006-fix-auth-login-404)
 - TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`, (007-split-dev-ports)
 - N/A (dev infrastructure change; no DB touch) (007-split-dev-ports)
-- TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + `@netlify/database` ^1.0.0, (008-fix-db-connection)
-- Postgres (Netlify DB in prod; per-developer Postgres in (008-fix-db-connection)
+- TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + `@netlify/database` ^1.0.0, `@netlify/vite-plugin` ^2.12.6 (008-fix-db-connection)
+- Postgres (Netlify DB in prod; PGlite auto-provisioned in `.netlify/db/` via `@netlify/vite-plugin` in dev) (008-fix-db-connection)
 
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19
 - Preact 10, `@preact/signals` 2, `htm` (tagged-template JSX)
@@ -58,40 +58,55 @@ npm test && npm run lint
 
 ## Local development
 
-Run `npm start`. It starts two processes concurrently via
-`concurrently --kill-others`:
-
-1. `vite` on port 8888 — the SPA and the dev front door (the
-   browser talks to this).
-2. `netlify functions:serve --port=9999` — the Functions
-   runtime. Not directly user-visible.
+Run `npm start`. This is a single `vite` process listening on
+port 8888. `@netlify/vite-plugin` (registered in
+`vite.config.js`) emulates the Netlify platform inside Vite: it
+mounts middleware that routes `/api/*` and `/.well-known/*` to
+the local Netlify Functions runtime, applies the `netlify.toml`
+redirect and header rules, and — via its bundled
+`@netlify/database-dev` — provisions a local Postgres (PGlite)
+in `.netlify/db/`, automatically setting `NETLIFY_DB_URL` for
+the functions runtime. No `.env` line, no separate functions
+process.
 
 Browse to **`http://127.0.0.1:8888`**, NOT `localhost:8888` —
 atproto OAuth uses 127.0.0.1 for its loopback client and cookies
 set on 127.0.0.1 are not visible to `localhost`.
 
-Vite's `server.proxy` (in `vite.config.js`) forwards `/api/*`
-and `/.well-known/oauth-client-metadata.json` to `:9999`, mirroring
-the two `[[redirects]]` entries in `netlify.toml`. Both the
-redirect table and the proxy use a single splat (`/api/* →
-/.netlify/functions/:splat`) — to add a new endpoint, create
-`netlify/functions/<kebab-name>.ts` and call `/api/<kebab-name>`
-from the SPA. URLs never have more than one segment after `/api/`;
-nested URL paths like `/api/foo/bar` will 404 by design. Path
-parameters (e.g. `/api/stamps-refund/:lot_id`) are fine — the
-splat passes them through to the function.
+Routing for `/api/*` is handled by the plugin's middleware (not
+by a `vite.config.js` proxy block — that's been removed). The
+`netlify.toml` `[[redirects]]` table still applies in dev (the
+plugin reads it). The convention is unchanged: a single splat
+maps `/api/* → /.netlify/functions/:splat`, so to add a new
+endpoint create `netlify/functions/<kebab-name>.ts` and call
+`/api/<kebab-name>` from the SPA. URLs never have more than one
+segment after `/api/`; nested paths like `/api/foo/bar` will 404
+by design. Path parameters (e.g. `/api/stamps-refund/:lot_id`)
+are fine — the splat passes them through.
 
 `server.strictPort: true` — if `:8888` is taken, Vite exits
-loudly. To override Vite's port, set `PUBLIC_URL` to the
-matching origin (otherwise OAuth will redirect to the wrong
-port). To override the functions port, change BOTH the
-`--port=9999` flag in the `start` script and the `target` in
-`vite.config.js` — a mismatch surfaces as `ECONNREFUSED` on
-every `/api/*` call.
+loudly. To override the port, set `PUBLIC_URL` to the matching
+origin (otherwise OAuth will redirect to the wrong port):
 
-`netlify dev` is no longer the dev front door; the
-`[dev]` block in `netlify.toml` has been removed. Don't
-re-introduce it.
+```sh
+PUBLIC_URL=http://127.0.0.1:8890 npx vite --port 8890
+```
+
+The local PGlite database starts empty. Apply project migrations
+once (and any time new migrations land):
+
+```sh
+npx netlify db migrations apply
+```
+
+`.netlify/db/` is gitignored (under `.netlify`). To wipe it:
+`npx netlify db reset` or `rm -rf .netlify/db/` followed by
+`npm start` and re-apply migrations.
+
+`@netlify/vite-plugin` lives in `devDependencies` only. It is
+not bundled into deployed Functions output; deployed runtimes
+continue to receive `NETLIFY_DB_URL` from Netlify's Database
+integration.
 
 ## Code Style
 
@@ -483,6 +498,6 @@ To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
 re-inserts a fresh window.
 
 ## Recent Changes
-- 008-fix-db-connection: Added TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + `@netlify/database` ^1.0.0,
+- 008-fix-db-connection: Adopted `@netlify/vite-plugin` ^2.12.6 as the single-process dev front door; PGlite auto-provisioned in `.netlify/db/` supplies `NETLIFY_DB_URL` to the functions runtime. Spec-007 two-process layout (vite + `netlify functions:serve`) is retired in dev. Dead `:9999` proxy removed from `vite.config.js`.
 - 007-split-dev-ports: Added TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`,
 - 006-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`,

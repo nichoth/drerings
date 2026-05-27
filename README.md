@@ -25,43 +25,43 @@ Drawings for friends.
 npm start
 ```
 
-This starts two processes concurrently:
-
-1. Vite on port `8888` — serves the Preact SPA (the dev front
-   door, same origin the browser talks to).
-2. `netlify functions:serve` on port `9999` — serves only the
-   Netlify Functions runtime. Not directly user-visible.
+This runs a single `vite` process on port `8888`.
+[`@netlify/vite-plugin`](https://www.npmjs.com/package/@netlify/vite-plugin)
+(registered in `vite.config.js`) emulates the Netlify platform
+inside the Vite dev server: it intercepts `/api/*` and
+`/.well-known/*` to route them to the local Netlify Functions
+runtime, applies the redirect and header rules from
+`netlify.toml`, and provisions a local Netlify Database (PGlite)
+in `.netlify/db/`. The database is per-developer, gitignored, and
+provisioned on first start — no `.env` line, no connection
+string, no separate functions process to launch.
 
 Browse to **`http://127.0.0.1:8888`** (not `localhost`). The
 atproto OAuth flow uses `127.0.0.1` for its loopback client
 convention, and cookies set on `127.0.0.1:8888` are not visible
 to `localhost:8888`.
 
-Vite's `server.proxy` forwards `/api/*` and
-`/.well-known/oauth-client-metadata.json` to the Functions
-runtime on `:9999`, mirroring every entry in the `netlify.toml`
-redirect table. From the browser's POV everything is same-origin
-on `:8888`.
+Before the first run (and any time new migrations land in
+`netlify/database/migrations/`), apply them to the local
+database:
+
+```sh
+npx netlify db migrations apply
+```
+
+If you want to wipe and start over with a clean local DB, run
+`npx netlify db reset` or stop `npm start` and `rm -rf
+.netlify/db/` — the next `npm start` re-provisions a fresh
+PGlite instance, then re-run `npx netlify db migrations apply`.
 
 If `8888` is already in use (`strictPort: true`), Vite exits
 with a clear error rather than drifting to another port. To
-override:
+override, set `PUBLIC_URL` to the matching origin (otherwise
+OAuth will redirect to the wrong origin):
 
 ```sh
-# Vite on a different port — set PUBLIC_URL to match or OAuth
-# will redirect to the wrong origin.
 PUBLIC_URL=http://127.0.0.1:8890 npx vite --port 8890
 ```
-
-To override the functions port, edit BOTH the `--port=9999` flag
-in the `start` script and the `target` in `vite.config.js`'s
-proxy block — they must agree. A mismatch surfaces as
-`ECONNREFUSED` on every `/api/*` call.
-
-A `404 "Function not found"` on `/api/*` in dev means the proxy
-map in `vite.config.js` has drifted from `netlify.toml`. Add the
-missing entry; see
-`specs/007-split-dev-ports/contracts/dev-routing.md`.
 
 ## Installability And Share Gate
 
