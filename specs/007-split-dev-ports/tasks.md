@@ -42,7 +42,7 @@ This is a Preact SPA + Netlify Functions web app. Source paths:
 
 **Purpose**: Confirm preconditions before touching config.
 
-- [ ] T001 Verify `concurrently` and `netlify-cli` are present in `devDependencies` of `/Users/nick/code/drerings/package.json` (both are; no install needed). If either is missing, run `npm install --save-dev concurrently netlify-cli` before continuing.
+- [X] T001 Verify `concurrently` and `netlify-cli` are present in `devDependencies` of `/Users/nick/code/drerings/package.json` (both are; no install needed). If either is missing, run `npm install --save-dev concurrently netlify-cli` before continuing.
 
 ---
 
@@ -52,9 +52,9 @@ This is a Preact SPA + Netlify Functions web app. Source paths:
 
 **CRITICAL**: No user story work can be verified until this phase is complete.
 
-- [ ] T002 Replace the `"start"` script in `/Users/nick/code/drerings/package.json` with `concurrently --kill-others "npx netlify functions:serve --port=9999" "npx vite"`. Keep the rest of the `scripts` block untouched (`build`, `test`, `test:e2e`, `lint`, etc. all remain).
-- [ ] T003 Update `/Users/nick/code/drerings/vite.config.js` `server` block: set `port: 8888`, `strictPort: true`, `host: true`. Replace the existing `// Vite runs behind 'netlify dev'` comment with one noting Vite is now the dev front door on 8888. Do NOT touch the `define`, `plugins`, `esbuild`, `publicDir`, `css`, or `build` blocks.
-- [ ] T004 In the same `server` block of `/Users/nick/code/drerings/vite.config.js`, add a `proxy` map per research.md Decision 2: rewrite `/api/*` and `/.well-known/oauth-client-metadata.json` to `http://127.0.0.1:9999/.netlify/functions/<name>` using an explicit rewrite table that mirrors every `[[redirects]]` entry in `/Users/nick/code/drerings/netlify.toml` (auth-login, auth-callback, auth-logout, shares-precheck, shares-confirm, postcards-send, billing-checkout, billing-webhook, stamps-lots, stamps-transactions, stamps-refund/<id>, stamps-gifts-checkout, stamps-gifts-refund/<id>, webhooks-resend, plus the directory-based catch-alls for `whoami`, `drawings`, `posts`, `account`). Set `changeOrigin: false` so `Host` is preserved (research.md Decision 2). Scope proxy keys to `/api` and `/.well-known/oauth-client-metadata.json` only — DO NOT proxy `/`, `/src/*`, or `/@vite/*` (FR-008).
+- [X] T002 Replace the `"start"` script in `/Users/nick/code/drerings/package.json` with `concurrently --kill-others "npx netlify functions:serve --port=9999" "npx vite"`. Keep the rest of the `scripts` block untouched (`build`, `test`, `test:e2e`, `lint`, etc. all remain).
+- [X] T003 Update `/Users/nick/code/drerings/vite.config.js` `server` block: set `port: 8888`, `strictPort: true`, `host: true`. Replace the existing `// Vite runs behind 'netlify dev'` comment with one noting Vite is now the dev front door on 8888. Do NOT touch the `define`, `plugins`, `esbuild`, `publicDir`, `css`, or `build` blocks.
+- [X] T004 In the same `server` block of `/Users/nick/code/drerings/vite.config.js`, add a `proxy` map per research.md Decision 2: rewrite `/api/*` and `/.well-known/oauth-client-metadata.json` to `http://127.0.0.1:9999/.netlify/functions/<name>` using an explicit rewrite table that mirrors every `[[redirects]]` entry in `/Users/nick/code/drerings/netlify.toml` (auth-login, auth-callback, auth-logout, shares-precheck, shares-confirm, postcards-send, billing-checkout, billing-webhook, stamps-lots, stamps-transactions, stamps-refund/<id>, stamps-gifts-checkout, stamps-gifts-refund/<id>, webhooks-resend, plus the directory-based catch-alls for `whoami`, `drawings`, `posts`, `account`). Set `changeOrigin: false` so `Host` is preserved (research.md Decision 2). Scope proxy keys to `/api` and `/.well-known/oauth-client-metadata.json` only — DO NOT proxy `/`, `/src/*`, or `/@vite/*` (FR-008).
 
 **Checkpoint**: `npm start` brings up Vite on 8888 and `netlify functions:serve` on 9999 concurrently; `curl http://127.0.0.1:8888/api/whoami` reaches the function. OAuth still fails until US1.
 
@@ -68,7 +68,7 @@ This is a Preact SPA + Netlify Functions web app. Source paths:
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Edit `/Users/nick/code/drerings/netlify/lib/auth/atproto.ts`: change `DEFAULT_LOCAL_ORIGIN` from `'http://127.0.0.1:9999'` to `'http://127.0.0.1:8888'` (research.md Decision 3). Do not touch `getClientId` or any other constants in this file. Leave the `PUBLIC_URL` override path untouched — it is still authoritative in deployed environments.
+- [X] T005 [US1] Edit `/Users/nick/code/drerings/netlify/lib/auth/atproto.ts`: change `DEFAULT_LOCAL_ORIGIN` from `'http://127.0.0.1:9999'` to `'http://127.0.0.1:8888'` (research.md Decision 3). Do not touch `getClientId` or any other constants in this file. Leave the `PUBLIC_URL` override path untouched — it is still authoritative in deployed environments.
 
 ### Verification for User Story 1
 
@@ -118,12 +118,12 @@ This is a Preact SPA + Netlify Functions web app. Source paths:
 
 ### Implementation for User Story 4
 
-- [ ] T013 [US4] Remove the `[dev]` block (lines 129–131 today) from `/Users/nick/code/drerings/netlify.toml`. Do NOT touch `[build]`, `[functions]`, any `[[redirects]]`, any `[[headers]]`, any `[[context.*]]`, or any other section (FR-009, research.md Decision 4).
+- [X] T013 [US4] Remove the `[dev]` block (lines 129–131 today) from `/Users/nick/code/drerings/netlify.toml`. Do NOT touch `[build]`, `[functions]`, any `[[redirects]]`, any `[[headers]]`, any `[[context.*]]`, or any other section (FR-009, research.md Decision 4).
 
 ### Verification for User Story 4
 
-- [ ] T014 [US4] Run `git diff main -- /Users/nick/code/drerings/netlify.toml` and confirm the diff contains ONLY the removal of the `[dev]` block (3 lines + the blank line separator) and nothing else (SC-005).
-- [ ] T015 [US4] Run `npm run build` and confirm it completes without error and produces output under `/Users/nick/code/drerings/public/`. Spot-check that the artifact contents are functionally equivalent to a pre-change baseline (same entry points, same asset references).
+- [X] T014 [US4] Run `git diff main -- /Users/nick/code/drerings/netlify.toml` and confirm the diff contains ONLY the removal of the `[dev]` block (3 lines + the blank line separator) and nothing else (SC-005).
+- [X] T015 [US4] Run `npm run build` and confirm it completes without error and produces output under `/Users/nick/code/drerings/public/`. Spot-check that the artifact contents are functionally equivalent to a pre-change baseline (same entry points, same asset references).
 
 **Checkpoint**: Production behavior is provably unchanged.
 
@@ -133,9 +133,9 @@ This is a Preact SPA + Netlify Functions web app. Source paths:
 
 **Purpose**: Documentation alignment and full regression sweep.
 
-- [ ] T016 [P] Update the "Develop" / "Local development" section of `/Users/nick/code/drerings/README.md` to describe the two-port layout, the `npm start` command, why to browse `http://127.0.0.1:8888` (and not `localhost`), and the override recipes from `quickstart.md` (Vite port override + `PUBLIC_URL`, functions port override). Remove any prior text warning against running `vite` directly (FR-011, research.md Decision 5).
-- [ ] T017 [P] Update the "Local development" section of `/Users/nick/code/drerings/CLAUDE.md` to match T016: invert the existing warning ("Do NOT run `vite`…") to instead instruct future contributors that `vite` is now the dev front door via `npm start`, with the same port-collision override notes.
-- [ ] T018 Run `npm test && npm run lint` in `/Users/nick/code/drerings/` and confirm both pass cleanly. No new tests are added by this work; the existing suites must remain green.
+- [X] T016 [P] Update the "Develop" / "Local development" section of `/Users/nick/code/drerings/README.md` to describe the two-port layout, the `npm start` command, why to browse `http://127.0.0.1:8888` (and not `localhost`), and the override recipes from `quickstart.md` (Vite port override + `PUBLIC_URL`, functions port override). Remove any prior text warning against running `vite` directly (FR-011, research.md Decision 5).
+- [X] T017 [P] Update the "Local development" section of `/Users/nick/code/drerings/CLAUDE.md` to match T016: invert the existing warning ("Do NOT run `vite`…") to instead instruct future contributors that `vite` is now the dev front door via `npm start`, with the same port-collision override notes.
+- [X] T018 Run `npm test && npm run lint` in `/Users/nick/code/drerings/` and confirm both pass cleanly. No new tests are added by this work; the existing suites must remain green.
 - [ ] T019 Run `npm run test:e2e` (vitest) in `/Users/nick/code/drerings/` and confirm the suite passes. If the suite assumes `netlify dev` on 8888 implicitly, that assumption no longer holds for any test that starts a dev process — adjust only the test infrastructure, not test expectations.
 - [ ] T020 Execute the full quickstart.md walkthrough one final time end-to-end against `npm start` from a clean shell: US1 (OAuth sign-in to authenticated route), US2 (both ports up + `/api/whoami` 401 within 10s), US3 (refresh on `/account` + `/src/*` served as JS), US4 (`git diff main -- netlify.toml` clean, `npm run build` succeeds). All four MUST pass.
 

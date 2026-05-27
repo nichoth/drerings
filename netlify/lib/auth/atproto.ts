@@ -1,7 +1,7 @@
 import { NodeOAuthClient } from '@atproto/oauth-client-node'
 import { sessionStore, stateStore } from './atproto-stores.js'
 
-const DEFAULT_LOCAL_ORIGIN = 'http://127.0.0.1:9999'
+const DEFAULT_LOCAL_ORIGIN = 'http://127.0.0.1:8888'
 
 function getOrigin ():string {
     const env = process.env.PUBLIC_URL

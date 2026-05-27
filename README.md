@@ -25,11 +25,43 @@ Drawings for friends.
 npm start
 ```
 
-This runs `netlify dev`, which serves the Preact SPA and Netlify
-Functions on `http://localhost:8888` and applies the `netlify.toml`
-redirect table just like the deployed environment. Do not run
-`vite` or `netlify functions:serve` directly — they bypass the
-redirect table and you will see "Function not found" on `/api/*`.
+This starts two processes concurrently:
+
+1. Vite on port `8888` — serves the Preact SPA (the dev front
+   door, same origin the browser talks to).
+2. `netlify functions:serve` on port `9999` — serves only the
+   Netlify Functions runtime. Not directly user-visible.
+
+Browse to **`http://127.0.0.1:8888`** (not `localhost`). The
+atproto OAuth flow uses `127.0.0.1` for its loopback client
+convention, and cookies set on `127.0.0.1:8888` are not visible
+to `localhost:8888`.
+
+Vite's `server.proxy` forwards `/api/*` and
+`/.well-known/oauth-client-metadata.json` to the Functions
+runtime on `:9999`, mirroring every entry in the `netlify.toml`
+redirect table. From the browser's POV everything is same-origin
+on `:8888`.
+
+If `8888` is already in use (`strictPort: true`), Vite exits
+with a clear error rather than drifting to another port. To
+override:
+
+```sh
+# Vite on a different port — set PUBLIC_URL to match or OAuth
+# will redirect to the wrong origin.
+PUBLIC_URL=http://127.0.0.1:8890 npx vite --port 8890
+```
+
+To override the functions port, edit BOTH the `--port=9999` flag
+in the `start` script and the `target` in `vite.config.js`'s
+proxy block — they must agree. A mismatch surfaces as
+`ECONNREFUSED` on every `/api/*` call.
+
+A `404 "Function not found"` on `/api/*` in dev means the proxy
+map in `vite.config.js` has drifted from `netlify.toml`. Add the
+missing entry; see
+`specs/007-split-dev-ports/contracts/dev-routing.md`.
 
 ## Installability And Share Gate
 
