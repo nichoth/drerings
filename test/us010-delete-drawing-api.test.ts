@@ -47,7 +47,7 @@ describe('US-010 delete drawing API', () => {
             return { deleteSavedDrawing }
         })
 
-        const { handler } = await import('../netlify/functions/drawings/drawings')
+        const { handler } = await import('../netlify/functions/drawings')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(200)
@@ -72,7 +72,7 @@ describe('US-010 delete drawing API', () => {
             return { deleteSavedDrawing }
         })
 
-        const { handler } = await import('../netlify/functions/drawings/drawings')
+        const { handler } = await import('../netlify/functions/drawings')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(401)
@@ -91,7 +91,7 @@ describe('US-010 delete drawing API', () => {
             return { deleteSavedDrawing }
         })
 
-        const { handler } = await import('../netlify/functions/drawings/drawings')
+        const { handler } = await import('../netlify/functions/drawings')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(403)

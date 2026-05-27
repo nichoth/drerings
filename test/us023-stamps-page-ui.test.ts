@@ -26,7 +26,7 @@ describe('US-023 stamps page', () => {
         async () => {
             const state = signedInState()
             const fetcher = vi.fn(async (url:string) => {
-                if (url === '/api/stamps/lots') {
+                if (url === '/api/stamps-lots') {
                     return jsonResponse({
                         lots: stampLots(),
                         pending_gifts: [],
@@ -34,7 +34,7 @@ describe('US-023 stamps page', () => {
                     })
                 }
 
-                if (url === '/api/stamps/transactions') {
+                if (url === '/api/stamps-transactions') {
                     return jsonResponse({
                         transactions: stampTransactions(),
                         next_before: '2026-05-01T00:00:00.000Z'
@@ -93,7 +93,7 @@ describe('US-023 stamps page', () => {
         const Route = routeFor('/settings', state)
 
         vi.stubGlobal('fetch', async (url:string) => {
-            if (url === '/api/stamps/lots') {
+            if (url === '/api/stamps-lots') {
                 return jsonResponse({
                     lots: [],
                     pending_gifts: [],
@@ -114,7 +114,7 @@ describe('US-023 stamps page', () => {
         async () => {
             const state = signedInState()
             const fetcher = vi.fn(async (url:string) => {
-                if (url === '/api/stamps/lots') {
+                if (url === '/api/stamps-lots') {
                     return jsonResponse({
                         lots: [],
                         pending_gifts: [],
@@ -122,7 +122,7 @@ describe('US-023 stamps page', () => {
                     })
                 }
 
-                if (url === '/api/stamps/transactions') {
+                if (url === '/api/stamps-transactions') {
                     return jsonResponse({
                         transactions: [stampTransactions()[0]],
                         next_before: '2026-05-03T00:00:00.000Z'
@@ -130,7 +130,7 @@ describe('US-023 stamps page', () => {
                 }
 
                 if (
-                    url === '/api/stamps/transactions' +
+                    url === '/api/stamps-transactions' +
                         '?before=2026-05-03T00%3A00%3A00.000Z'
                 ) {
                     return jsonResponse({
@@ -157,7 +157,7 @@ describe('US-023 stamps page', () => {
                 expect(screen.getByText('Postcard sent')).toBeTruthy()
             })
             expect(fetcher).toHaveBeenCalledWith(
-                '/api/stamps/transactions' +
+                '/api/stamps-transactions' +
                     '?before=2026-05-03T00%3A00%3A00.000Z'
             )
         })

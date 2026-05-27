@@ -102,7 +102,7 @@ describe('US-018 logout', () => {
 
             await State.Logout(state)
 
-            expect(fetcher).toHaveBeenCalledWith('/api/auth/logout', {
+            expect(fetcher).toHaveBeenCalledWith('/api/auth-logout', {
                 method: 'POST'
             })
             expect(state.auth.value).toEqual({
@@ -145,9 +145,9 @@ describe('US-018 logout', () => {
 
 function logoutEvent (method:string):HandlerEvent {
     return {
-        rawUrl: 'https://drerings.app/api/auth/logout',
+        rawUrl: 'https://drerings.app/api/auth-logout',
         rawQuery: '',
-        path: '/api/auth/logout',
+        path: '/api/auth-logout',
         httpMethod: method,
         headers: {
             host: 'drerings.app'

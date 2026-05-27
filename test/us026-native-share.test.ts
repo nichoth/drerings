@@ -23,10 +23,10 @@ describe('US-026 native share wiring', () => {
             if (urlString === '/api/posts/42') {
                 return jsonResponse(publicPost())
             }
-            if (urlString === '/api/shares/precheck') {
+            if (urlString === '/api/shares-precheck') {
                 return jsonResponse({ type: 'free' })
             }
-            if (urlString === '/api/shares/confirm') {
+            if (urlString === '/api/shares-confirm') {
                 return jsonResponse({ type: 'free' })
             }
             throw new Error(`Unexpected fetch: ${urlString}`)

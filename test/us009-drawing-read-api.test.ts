@@ -65,7 +65,7 @@ describe('US-009 drawing read API', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/drawings/drawings')
+        const { handler } = await import('../netlify/functions/drawings')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(200)
@@ -112,7 +112,7 @@ describe('US-009 drawing read API', () => {
             }
         })
 
-        const { handler } = await import('../netlify/functions/drawings/drawings')
+        const { handler } = await import('../netlify/functions/drawings')
         const response = await callHandler(handler, {
             ...baseEvent,
             rawUrl: 'https://drerings.app/api/drawings/drawing-1',

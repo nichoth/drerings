@@ -42,7 +42,7 @@ describe('login route', () => {
             )
 
             expect(assigned.length).toBe(1)
-            expect(assigned[0]).toMatch(/^\/api\/auth\/login\?handle=/)
+            expect(assigned[0]).toMatch(/^\/api\/auth-login\?handle=/)
             expect(assigned[0]).toContain('alice.bsky.social')
         } finally {
             vi.unstubAllGlobals()

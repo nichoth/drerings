@@ -125,11 +125,11 @@ The app authenticates users via atproto OAuth. Users log in with their
 Bluesky handle, which is resolved dynamically to a DID via their PDS
 (Personal Data Server). The flow is:
 
-1. User enters handle → `GET /api/auth/login?handle=user.bsky.social`
+1. User enters handle → `GET /api/auth-login?handle=user.bsky.social`
 2. Login handler uses `@atproto/oauth-client-node` to generate an
    authorization URL
 3. User approves in the atproto authorization UI (on their chosen PDS)
-4. PDS redirects to `GET /api/auth/callback?code=...&state=...`
+4. PDS redirects to `GET /api/auth-callback?code=...&state=...`
 5. Callback exchanges the code for an OAuth token and retrieves the
    current handle from `com.atproto.server.getSession()`
 6. User record is upserted in the database keyed by DID with current handle
@@ -138,9 +138,9 @@ Bluesky handle, which is resolved dynamically to a DID via their PDS
 
 The app provides the following endpoints:
 
-- `GET /api/auth/login` — accepts `?handle=` parameter, initiates the OAuth flow
-- `GET /api/auth/callback` — handles the OAuth callback with code and state
-- `POST /api/auth/logout` — clears the session cookie
+- `GET /api/auth-login` — accepts `?handle=` parameter, initiates the OAuth flow
+- `GET /api/auth-callback` — handles the OAuth callback with code and state
+- `POST /api/auth-logout` — clears the session cookie
 - `GET /.well-known/oauth-client-metadata.json` — returns the client metadata
   (in production) or localhost client ID (in local/test)
 
@@ -162,20 +162,28 @@ https://<your-netlify-site>/account?status=cancel
 Create an Autumn webhook endpoint in the Autumn dashboard that points at:
 
 ```txt
-https://<your-netlify-site>/api/billing/webhook
+https://<your-netlify-site>/api/billing-webhook
 ```
 
 Copy that endpoint's Svix signing secret into `AUTUMN_WEBHOOK_SECRET`. The
 Netlify Function validates `svix-id`, `svix-timestamp`, and `svix-signature`
 before crediting stamp lots.
 
+> If you are upgrading from a deployment that used the nested URL
+> shape (`/api/billing/webhook`), update the existing webhook URL in
+> the Autumn dashboard to the new flat path immediately after deploy.
+> Autumn retries failed deliveries with exponential backoff and
+> `applyStampCheckout` is idempotent under retry, so events queued
+> during the cutover gap will deliver successfully once the
+> dashboard URL is corrected.
+
 ### Resend Webhook (postcard bounces)
 
-The `/api/webhooks/resend` endpoint expects an Svix-signed payload from
+The `/api/webhooks-resend` endpoint expects an Svix-signed payload from
 Resend. To enable it:
 
 1. In the Resend dashboard, add a webhook endpoint with URL
-   `https://<your-host>/api/webhooks/resend`.
+   `https://<your-host>/api/webhooks-resend`.
 2. Subscribe to the `email.bounced` event only. (Other events are
    silently no-op'd, but subscribing to fewer events reduces noise.)
 3. Copy the signing secret (`whsec_…`) and set it as
@@ -183,6 +191,14 @@ Resend. To enable it:
 4. The "Send a test" button in the Resend dashboard exercises the
    `400 invalid_signature` path with a synthetic payload — it's expected
    to NOT succeed in production until subscribed.
+
+> If you are upgrading from a deployment that used the nested URL
+> shape (`/api/webhooks/resend`), update the existing webhook URL in
+> the Resend dashboard to `/api/webhooks-resend` immediately after
+> deploy. Resend retries bounce deliveries for ~48h (Svix policy) and
+> `refundPostcardBounce` is idempotent under retry, so events queued
+> during the cutover gap will deliver successfully once the dashboard
+> URL is corrected.
 
 Configure these one-time stamp pack products in Autumn for prepaid
 postcard sends. The product ids and metadata values must match
@@ -197,7 +213,7 @@ After configuring the products, verify staging checkout by starting a
 checkout for each pack and confirming Autumn sends a signed webhook to:
 
 ```txt
-https://<your-staging-site>/api/billing/webhook
+https://<your-staging-site>/api/billing-webhook
 ```
 
 ### Stamp invariant alerts

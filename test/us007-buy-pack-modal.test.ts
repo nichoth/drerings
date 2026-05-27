@@ -79,7 +79,7 @@ describe('US-007 buy-pack modal UI', () => {
         }))
 
         await waitFor(() => {
-            expect(fetcher).toHaveBeenCalledWith('/api/billing/checkout', {
+            expect(fetcher).toHaveBeenCalledWith('/api/billing-checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -67,7 +67,7 @@ describe('US-012 failed-send refund path', () => {
             return { publishDrawing, userOwnsDrawing }
         })
 
-        const { handler } = await import('../netlify/functions/posts/posts')
+        const { handler } = await import('../netlify/functions/posts')
         const response = await callHandler(handler, baseEvent)
 
         expect(response.statusCode).toBe(500)

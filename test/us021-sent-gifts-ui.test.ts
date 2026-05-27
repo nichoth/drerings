@@ -29,7 +29,7 @@ describe('US-021 sent gifts UI', () => {
                 url:string,
                 options?:RequestInit
             ) => {
-                if (url === '/api/stamps/lots') {
+                if (url === '/api/stamps-lots') {
                     return jsonResponse({
                         lots: [],
                         pending_gifts: [],
@@ -37,7 +37,7 @@ describe('US-021 sent gifts UI', () => {
                     })
                 }
 
-                if (url === '/api/stamps/gifts/refund/lot-unused') {
+                if (url === '/api/stamps-gifts-refund/lot-unused') {
                     expect(options?.method).toBe('POST')
 
                     return jsonResponse({
@@ -100,7 +100,7 @@ describe('US-021 sent gifts UI', () => {
 
             await waitFor(() => {
                 expect(fetcher).toHaveBeenCalledWith(
-                    '/api/stamps/gifts/refund/lot-unused',
+                    '/api/stamps-gifts-refund/lot-unused',
                     { method: 'POST' }
                 )
             })

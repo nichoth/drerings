@@ -10,13 +10,13 @@ describe('State.ShareDrawing', () => {
         async () => {
             const state = State()
             const fetchMock = vi.fn(async (url:string) => {
-                if (url.endsWith('/api/shares/precheck')) {
+                if (url.endsWith('/api/shares-precheck')) {
                     return new Response(JSON.stringify({
                         type: 'free',
                         month_key: '2026-05'
                     }), { status: 200 })
                 }
-                if (url.endsWith('/api/shares/confirm')) {
+                if (url.endsWith('/api/shares-confirm')) {
                     return new Response(JSON.stringify({
                         type: 'recorded',
                         was_free: true,
@@ -38,11 +38,11 @@ describe('State.ShareDrawing', () => {
             expect(result.ok).toBe(true)
             expect(sheetOpened).toBe(true)
             expect(fetchMock).toHaveBeenCalledWith(
-                expect.stringContaining('/api/shares/precheck'),
+                expect.stringContaining('/api/shares-precheck'),
                 expect.objectContaining({ method: 'POST' })
             )
             expect(fetchMock).toHaveBeenCalledWith(
-                expect.stringContaining('/api/shares/confirm'),
+                expect.stringContaining('/api/shares-confirm'),
                 expect.objectContaining({ method: 'POST' })
             )
         })
@@ -100,13 +100,13 @@ describe('State.ShareDrawing', () => {
         async () => {
             const state = State()
             const fetchMock = vi.fn(async (url:string) => {
-                if (url.endsWith('/api/shares/precheck')) {
+                if (url.endsWith('/api/shares-precheck')) {
                     return new Response(JSON.stringify({
                         type: 'free',
                         month_key: '2026-05'
                     }), { status: 200 })
                 }
-                if (url.endsWith('/api/shares/confirm')) {
+                if (url.endsWith('/api/shares-confirm')) {
                     // Simulate confirm network failure
                     return new Response('Server error', { status: 500 })
                 }

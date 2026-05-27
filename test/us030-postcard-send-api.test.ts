@@ -148,7 +148,7 @@ function createDbMock (
     }
 }
 
-describe('US-030 POST /api/postcards/send', () => {
+describe('US-030 POST /api/postcards-send', () => {
     beforeEach(() => {
         vi.doUnmock('@netlify/database')
         vi.doUnmock('@netlify/blobs')

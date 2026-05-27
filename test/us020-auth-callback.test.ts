@@ -7,7 +7,7 @@ function assertResponse (
     if (!r) throw new Error('handler returned void')
 }
 
-describe('GET /api/auth/callback', () => {
+describe('GET /api/auth-callback', () => {
     it('returns 400 when state is missing from query', async () => {
         vi.resetModules()
 

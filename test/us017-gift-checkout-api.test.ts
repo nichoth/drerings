@@ -390,9 +390,9 @@ async function callHandler (
 
 function event (body:Record<string, unknown>):HandlerEvent {
     return {
-        rawUrl: 'https://drerings.app/api/stamps/gifts/checkout',
+        rawUrl: 'https://drerings.app/api/stamps-gifts-checkout',
         rawQuery: '',
-        path: '/api/stamps/gifts/checkout',
+        path: '/api/stamps-gifts-checkout',
         httpMethod: 'POST',
         headers: { host: 'drerings.app' },
         multiValueHeaders: {},

@@ -14,9 +14,9 @@ type Query = (
 const context = {} as HandlerContext
 
 const transactionsEvent:HandlerEvent = {
-    rawUrl: 'https://drerings.app/api/stamps/transactions',
+    rawUrl: 'https://drerings.app/api/stamps-transactions',
     rawQuery: '',
-    path: '/api/stamps/transactions',
+    path: '/api/stamps-transactions',
     httpMethod: 'GET',
     headers: {
         host: 'drerings.app'

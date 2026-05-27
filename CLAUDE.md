@@ -69,12 +69,15 @@ atproto OAuth uses 127.0.0.1 for its loopback client and cookies
 set on 127.0.0.1 are not visible to `localhost`.
 
 Vite's `server.proxy` (in `vite.config.js`) forwards `/api/*`
-and `/.well-known/oauth-client-metadata.json` to `:9999`,
-mirroring every `[[redirects]]` entry in `netlify.toml`. If a
-new redirect lands in `netlify.toml`, add the matching entry to
-`apiRewrites` in `vite.config.js` in the same commit or
-`/api/<new-path>` will 404 in dev. See
-`specs/007-split-dev-ports/contracts/dev-routing.md`.
+and `/.well-known/oauth-client-metadata.json` to `:9999`, mirroring
+the two `[[redirects]]` entries in `netlify.toml`. Both the
+redirect table and the proxy use a single splat (`/api/* →
+/.netlify/functions/:splat`) — to add a new endpoint, create
+`netlify/functions/<kebab-name>.ts` and call `/api/<kebab-name>`
+from the SPA. URLs never have more than one segment after `/api/`;
+nested URL paths like `/api/foo/bar` will 404 by design. Path
+parameters (e.g. `/api/stamps-refund/:lot_id`) are fine — the
+splat passes them through to the function.
 
 `server.strictPort: true` — if `:8888` is taken, Vite exits
 loudly. To override Vite's port, set `PUBLIC_URL` to the
@@ -111,13 +114,13 @@ Endpoints:
 - `GET /.well-known/oauth-client-metadata.json`
   (`netlify/functions/oauth-client-metadata.ts`): client metadata
   document required by PDS.
-- `GET /api/auth/login?handle=<handle>`
-  (`netlify/functions/auth/login.ts`): 302 to the user's PDS.
-- `GET /api/auth/callback`
-  (`netlify/functions/auth/callback.ts`): exchanges code, upserts
+- `GET /api/auth-login?handle=<handle>`
+  (`netlify/functions/auth-login.ts`): 302 to the user's PDS.
+- `GET /api/auth-callback`
+  (`netlify/functions/auth-callback.ts`): exchanges code, upserts
   the user (`did`, `handle`), sets the `drerings_auth` cookie.
-- `POST /api/auth/logout`
-  (`netlify/functions/auth/logout.ts`): revokes the atproto session
+- `POST /api/auth-logout`
+  (`netlify/functions/auth-logout.ts`): revokes the atproto session
   and clears the cookie.
 - `GET /api/whoami` returns `{ id, did, handle, stamps_balance }`.
 
@@ -144,7 +147,7 @@ fronted by `netlify/lib/auth/atproto-stores.ts`.
 Domain entry point: `netlify/lib/shares.ts`. The flow is two endpoints
 backing a precheck → confirm UX:
 
-- `POST /api/shares/precheck` (`netlify/functions/shares/precheck.ts`):
+- `POST /api/shares-precheck` (`netlify/functions/shares-precheck.ts`):
   authed, read-only. Body: `{ drawing_id, timezone, idempotency_key }`.
   Returns one of `PrecheckResult`:
   - `{ type: 'free', month_key }` — user has their free share this month.
@@ -153,7 +156,7 @@ backing a precheck → confirm UX:
   - `{ type: 'blocked', reason: 'no_free_no_stamps',
       stamps_balance: 0, month_key }`.
   - `{ type: 'reused', was_free }` — idempotency hit, same drawing.
-- `POST /api/shares/confirm` (`netlify/functions/shares/confirm.ts`):
+- `POST /api/shares-confirm` (`netlify/functions/shares-confirm.ts`):
   authed, mutating. Same body. Returns `ConfirmResult`:
   - `{ type: 'recorded', was_free, stamps_balance }`.
   - `{ type: 'blocked', reason: 'no_free_no_stamps' }`.
@@ -351,7 +354,7 @@ update path.
 
 ### Postcards (state machine + idempotent bounce refund)
 
-`POST /api/postcards/send` and `POST /api/webhooks/resend` env vars
+`POST /api/postcards-send` and `POST /api/webhooks-resend` env vars
 unchanged: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
 `RESEND_WEBHOOK_SECRET`. The three refund-attempt error classes in
 `billing.ts` (`InFlightRefundAttemptError`,
@@ -467,11 +470,11 @@ it into separate SELECT/UPDATE.
 Current limits and gate placement (AFTER session check / IP extract,
 BEFORE body validation):
 
-- `/api/auth/login` — 10/min per IP
-- `/api/postcards/send` — 30/min per user
-- `/api/shares/confirm` — 30/min per user
-- `/api/billing/checkout` — 5/min per user
-- `/api/stamps/gifts/checkout` — 5/min per user
+- `/api/auth-login` — 10/min per IP
+- `/api/postcards-send` — 30/min per user
+- `/api/shares-confirm` — 30/min per user
+- `/api/billing-checkout` — 5/min per user
+- `/api/stamps-gifts-checkout` — 5/min per user
 
 To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
 'user:<id>:postcards/send'` (or the matching key) — the next request

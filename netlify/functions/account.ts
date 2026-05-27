@@ -1,10 +1,10 @@
 import type { Handler } from '@netlify/functions'
-import { json } from '../../lib/http.js'
-import { clearSessionCookie, getSession } from '../../lib/session.js'
+import { json } from '../lib/http.js'
+import { clearSessionCookie, getSession } from '../lib/session.js'
 import {
     deleteAccountData,
     getAccountDetails
-} from '../../lib/account.js'
+} from '../lib/account.js'
 
 export const handler:Handler = async function handler (event) {
     if (!['DELETE', 'GET'].includes(event.httpMethod)) {

@@ -16,7 +16,7 @@ function getClientId (origin:string):string {
 
     if (isLocal) {
         const redirect = encodeURIComponent(
-            `${origin}/api/auth/callback`
+            `${origin}/api/auth-callback`
         )
         const scope = encodeURIComponent('atproto transition:generic')
 
@@ -35,7 +35,7 @@ export function getClientMetadata ():Record<string, unknown> {
         client_id: clientId,
         client_name: 'drerings',
         client_uri: origin,
-        redirect_uris: [`${origin}/api/auth/callback`],
+        redirect_uris: [`${origin}/api/auth-callback`],
         scope: 'atproto transition:generic',
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],

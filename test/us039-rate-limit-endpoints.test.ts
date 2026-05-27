@@ -15,7 +15,7 @@ vi.mock('../netlify/lib/billing.js')
 vi.mock('../netlify/lib/posts.js')
 vi.mock('@netlify/database')
 
-describe('POST /api/postcards/send rate limiting', () => {
+describe('POST /api/postcards-send rate limiting', () => {
     it('under-limit: allows request when checkAndIncrement allows',
         async () => {
             const { checkAndIncrement } =
@@ -120,7 +120,7 @@ describe('POST /api/postcards/send rate limiting', () => {
     )
 })
 
-describe('POST /api/shares/confirm rate limiting', () => {
+describe('POST /api/shares-confirm rate limiting', () => {
     it('under-limit: allows request when checkAndIncrement allows',
         async () => {
             const { checkAndIncrement } =
@@ -227,7 +227,7 @@ describe('POST /api/shares/confirm rate limiting', () => {
     )
 })
 
-describe('POST /api/billing/checkout rate limiting', () => {
+describe('POST /api/billing-checkout rate limiting', () => {
     it('under-limit: allows request when checkAndIncrement allows',
         async () => {
             const { checkAndIncrement } =
@@ -330,7 +330,7 @@ describe('POST /api/billing/checkout rate limiting', () => {
     )
 })
 
-describe('POST /api/stamps/gifts/checkout rate limiting', () => {
+describe('POST /api/stamps-gifts-checkout rate limiting', () => {
     it('under-limit: allows request when checkAndIncrement allows',
         async () => {
             const { checkAndIncrement } =
