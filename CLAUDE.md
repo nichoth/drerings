@@ -8,6 +8,8 @@ Last updated: 2026-05-21
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`, (006-fix-auth-login-404)
 - TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`, (007-split-dev-ports)
 - N/A (dev infrastructure change; no DB touch) (007-split-dev-ports)
+- TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + `@netlify/database` ^1.0.0, (008-fix-db-connection)
+- Postgres (Netlify DB in prod; per-developer Postgres in (008-fix-db-connection)
 
 - TypeScript 5.8 (ES2022, ESM), Node >=20.19
 - Preact 10, `@preact/signals` 2, `htm` (tagged-template JSX)
@@ -481,6 +483,6 @@ To unstick a user/IP, `DELETE FROM rate_limit_buckets WHERE key =
 re-inserts a fresh window.
 
 ## Recent Changes
+- 008-fix-db-connection: Added TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + `@netlify/database` ^1.0.0,
 - 007-split-dev-ports: Added TypeScript 5.8 (ES2022, ESM), Node ≥20.19 + Vite 7, `@preact/preset-vite`,
 - 006-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`,
-- 005-fix-auth-login-404: Added TypeScript 5.8 (ES2022, ESM), Node >=20.19 + `@netlify/functions` ^4.1.8 (v1 `Handler`
