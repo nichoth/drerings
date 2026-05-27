@@ -131,13 +131,6 @@ export const Drerings:FunctionComponent = function Drerings () {
             ${' '}
             <a href="/terms">Terms</a>
         </div>
-
-        <iframe src="https://github.com/sponsors/nichoth/button" 
-            title="Sponsor nichoth" 
-            height="32" 
-            width="114" 
-            style="border: 0;">
-        </iframe>
     </footer>
     `
 }

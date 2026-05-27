@@ -97,7 +97,23 @@
   to = "/.netlify/functions/oauth-client-metadata"
   status = 200
 
-[[redirects]]
+# SPA fallback: only attached in deployed contexts. Putting it under
+# top-level [[redirects]] (or in _redirects) causes Netlify Dev to
+# rewrite Vite's own module URLs (e.g. /src/index.ts) to /index.html
+# during `npm start`, which breaks the Vite dev server. Vite's dev
+# server provides its own SPA history fallback locally, so we only
+# need this rule on the deployed CDN.
+[[context.production.redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[context.deploy-preview.redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[context.branch-deploy.redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
@@ -116,7 +132,7 @@
 
 [build]
   command = "npm run build"
-  environment = { NODE_VERSION = "22" }
+  environment = { NODE_VERSION = "25" }
   functions = "netlify/functions"
   publish = "public"
 
