@@ -67,7 +67,7 @@
     "jsdom": "^28.1.0",
     "lightningcss": "^1.30.2",
     "markdown-toc": "^1.2.0",
-    "netlify-cli": "^23.4.3",
+    "netlify-cli": "^26.0.2",
     "stylelint": "^16.13.0",
     "stylelint-config-standard": "^39.0.0",
     "tap-spec": "^5.0.0",

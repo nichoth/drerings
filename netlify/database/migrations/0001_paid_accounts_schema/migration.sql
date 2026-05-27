@@ -1,4 +1,7 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- gen_random_uuid() is in Postgres core since 13, no extension needed.
+-- Removed `CREATE EXTENSION pgcrypto` so CLI 26's local PGlite (no
+-- contrib extensions) can apply this migration; real Neon ships
+-- pgcrypto pre-installed, so production is unaffected.
 
 CREATE TABLE users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
