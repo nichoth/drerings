@@ -1,8 +1,8 @@
 import type { Handler } from '@netlify/functions'
-import { json, parseJsonBody } from '../../lib/http.js'
-import * as drawingStore from '../../lib/drawings.js'
-import { getSession } from '../../lib/session.js'
-import type { SavedDrawingInput } from '../../lib/drawings.js'
+import { json, parseJsonBody } from '../lib/http.js'
+import * as drawingStore from '../lib/drawings.js'
+import { getSession } from '../lib/session.js'
+import type { SavedDrawingInput } from '../lib/drawings.js'
 
 export const handler:Handler = async function handler (event) {
     if (!['DELETE', 'GET', 'POST', 'PUT'].includes(event.httpMethod)) {
